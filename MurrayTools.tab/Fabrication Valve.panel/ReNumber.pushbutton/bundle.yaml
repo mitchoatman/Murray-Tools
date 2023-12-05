@@ -1,0 +1,10 @@
+title:
+  ru: Перенумеровать
+  fr_fr: Renuméroter
+  en_us: Renumber
+tooltip:
+  ru: Перенумеровать пронумерованные элементы в порядке выделения.
+  fr_fr: Renuméroter les éléments dans l'ordre de sélection
+  en_us: ReNumber numbered elements in order of selection
+author: Ehsan Iran-Nejad
+

@@ -1,0 +1,31 @@
+from pyrevit import revit
+from pyrevit import EXEC_PARAMS
+from Autodesk.Revit.DB import FilteredWorksetCollector
+
+doc = __revit__.ActiveUIDocument.Document
+active_view = doc.ActiveView
+
+cview = EXEC_PARAMS.event_args.CurrentActiveView
+for view in revit.uidoc.GetOpenUIViews():
+    if view.ViewId == cview.Id:
+        if str(active_view.ViewType) == 'FloorPlan':
+            
+            WorksetNames = []
+            WorksetId = []
+
+            AllWorksets = FilteredWorksetCollector(doc)
+            for c in AllWorksets:
+                WorksetNames.append(c.Name)
+            for c in AllWorksets:
+                WorksetId.append(c.Id)
+
+            # Get the associated level of the active view
+            level = active_view.GenLevel
+
+            # Searched worksetnames for level name and returns index
+            try:
+                index = [i for i, name in enumerate(WorksetNames) if name == level.Name][0]
+                # Sets the active workset to match active view associated level
+                doc.GetWorksetTable().SetActiveWorksetId(WorksetId[index])
+            except:
+                pass

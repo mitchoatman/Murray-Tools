@@ -1,0 +1,25 @@
+highlight: updated
+
+# bundle title
+title:
+  "Bundle\nNumber"
+
+# bundle tooltip
+tooltip: |-
+  Writes User Defined Bundle Number Value to the FP_Bundle Number Parameter and to Fabrication Custom Data Field so data is accessible from AutoCAD and Fabrication reports.
+
+    1. Run Script.
+    2. Select elements you want to assign a Bundle Number.
+    3. Enter Bundle Number value in the dialog.
+    4. Click Finish
+
+
+# context directives are listed under `context` key, the order does not matter
+context:
+  - Selection
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

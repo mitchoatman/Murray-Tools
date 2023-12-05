@@ -1,0 +1,30 @@
+highlight: updated
+#highlight: new
+
+# bundle title
+title:
+  "Export MAJ"
+
+# bundle tooltip
+tooltip: |-
+  Exports an MAJ file of selected elements.
+  Do NOT save to a network location.
+      1. Run command.
+      2. Select Elements.
+      3. Choose save location and file name.
+
+  -------------------------
+  Planned Improvements:
+    1. Allow user to set status of exported elements.
+    2. Allow filtered selection of elements that meet status requirement.
+  -------------------------
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Walls
+#  - Text Notes
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

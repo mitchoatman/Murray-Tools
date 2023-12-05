@@ -1,0 +1,21 @@
+#highlight: new
+
+# bundle title
+title:
+  "B/W/G\nBackground"
+
+# bundle tooltip
+tooltip: |-
+  Switch Background Color of Revit.
+  Color will be toggled between Black, White, and Gray.
+    1. Click button to toggle the background color.
+
+# context directives are listed under `context` key, the order does not matter
+context:
+  zero-doc
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

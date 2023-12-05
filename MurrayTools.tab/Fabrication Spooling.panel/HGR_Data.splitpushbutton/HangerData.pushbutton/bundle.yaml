@@ -1,0 +1,22 @@
+highlight: updated
+
+# bundle title
+title:
+  "Hanger\nData"
+
+# bundle tooltip
+tooltip: |-
+  Writes User Defined JOB NUMBER, SPOOL MAP NAME, and HANGER ELEVATION to the Custom Data of selected Fabrication Hangers so data is accessible from AutoCAD and Fabrication reports.
+  Also does the following:
+  Writes Fabrication CID Value, ServiceType, Hanger Size, 
+  Hanger Rod Size, Hanger Rod Length, Bearer Length to "FP_" Parameters for SELECTED ELEMENTS.
+
+# context directives are listed under `context` key, the order does not matter
+context:
+  - Selection
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

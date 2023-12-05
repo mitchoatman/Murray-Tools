@@ -1,0 +1,22 @@
+#highlight: new
+
+# bundle title
+title:
+  "Set Bearer\nExtension"
+
+# bundle tooltip
+tooltip: |-
+  Sets the Trapeze extension length..
+    1. Run Script.
+    2. Select Fabrication Hangers (Using Window Selection).
+    3. Enter length in the dialog.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

@@ -1,0 +1,25 @@
+#highlight: new
+
+# bundle title
+title:
+  "Extend\nBraces"
+
+# bundle tooltip
+tooltip: >-
+  Extends seismic braces to user defined elevation.
+    REVIT 2020 AND NEWER VERSIONS
+      1. Run Script.
+      2. Select braces you want to extend.
+      3. Enter elevation into dialog using format FT-IN (no spaces)
+         eg:  15-3 or 15-6.5
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Walls
+#  - Text Notes
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

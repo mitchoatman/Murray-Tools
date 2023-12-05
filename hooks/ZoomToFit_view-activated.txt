@@ -1,0 +1,7 @@
+from pyrevit import revit
+from pyrevit import EXEC_PARAMS
+
+cview = EXEC_PARAMS.event_args.CurrentActiveView
+for view in revit.uidoc.GetOpenUIViews():
+    if view.ViewId == cview.Id:
+        view.ZoomToFit()

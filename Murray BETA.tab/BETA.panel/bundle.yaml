@@ -1,0 +1,22 @@
+layout:
+  - Test
+  - Connect
+  - DimesionGrids
+  - ACC
+  - Test
+  - C#
+  - ZoomViews
+  - EnableWorsetHook
+  - WorksetMonitor
+  - SaveViews
+  - ForGreg
+  - RemoveParameters
+  - CombineNumbers
+  - FabRenumber
+  - Trapeze
+
+
+background:
+  title: '#ffe716'
+  panel: '#ffe716'
+  slideout: '#ffe716'

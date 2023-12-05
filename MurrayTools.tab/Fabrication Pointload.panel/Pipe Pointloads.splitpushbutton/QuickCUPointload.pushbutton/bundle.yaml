@@ -1,0 +1,24 @@
+#highlight: new
+#highlight: updated
+
+# bundle title
+title:
+  "Quick\nCU Pointload"
+
+# bundle tooltip
+tooltip: |-
+  Calculates pointload values for all hangers on service drawn in COPPER.
+  It rounds the values to a power of 10x. The calculations are based on plumbing code hanger spacing.
+  Example: 1 = 0-10.lbs  2 = 11-20.lbs  3 = 21-30.lbs  4 = 31-40.lbs
+    1. Isolate services drawn with cast iron material.
+    2. Data is written to all hangers isolated in the view.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

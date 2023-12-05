@@ -1,0 +1,20 @@
+#highlight: updated
+
+title:
+  "Isolate\nService(s)"
+
+tooltip: >-
+  Isolate Fabrication Service
+    1. Run Script.
+    2. Select a fabrication part.
+    3. Fabrication elements matching the service name of selected part are isolated.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+help_url: "https://youtu.be/4EWlksHoRbI"
+
+# bundle author
+author: Mitchell Oatman

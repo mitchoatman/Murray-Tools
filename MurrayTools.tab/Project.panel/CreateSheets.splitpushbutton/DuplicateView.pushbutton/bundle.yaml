@@ -1,0 +1,25 @@
+highlight: new
+#highlight: updated
+
+# bundle title
+title:
+  "Duplicate \nView(s)"
+
+# bundle tooltip
+tooltip: >-
+  Duplicates selected view or views.
+      1. Select a view in project browser.
+      2. Run command.
+      3. Choose duplicate method and quantity.
+      4. Click Ok.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Walls
+#  - Text Notes
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

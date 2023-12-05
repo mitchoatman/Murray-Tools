@@ -1,0 +1,13 @@
+layout:
+  - SyncData
+  - HideService
+  - IsolateService
+  - FPparam
+  - ResetView
+  - SelectFabFilter
+
+
+background:
+  title: 'D5D5CD'
+#  panel: '#ffe716'
+#  slideout: '#ffe716'

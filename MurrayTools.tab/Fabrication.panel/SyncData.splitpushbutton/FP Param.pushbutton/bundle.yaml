@@ -1,0 +1,20 @@
+highlight: updated
+title:
+  "Sync Fab Part\nParameters"
+
+tooltip: |-
+  Writes Fabrication CID Value, ServiceType, Hanger Size, 
+  Hanger Rod Size, Hanger Rod Length to "FP_" Parameters for SELECTED ELEMENTS.
+  If no elements are selected then elements in the ACTIVE VIEW ONLY will have data appended.
+
+  Hold [SHIFT] to write data for entire model.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+help_url: "https://murraycompany.egnyte.com/navigate/file/72751570-620d-4af7-8c0f-c7a5cebd2e46"
+
+# bundle author
+author: Mitchell Oatman

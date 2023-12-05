@@ -1,0 +1,23 @@
+#highlight: updated
+
+title:
+  "Line\nNumber"
+
+tooltip: >-
+  Writes User Defined Line Number Value to the FP_Line Number Parameter and to Fabrication Custom Data Field so data will follow MAJ export
+
+    1. Select elements you want to assign a Valve Number.
+    2. Run Script.
+    3. Enter Valve Number value in the dialog.
+    4. Click Ok
+
+
+# context directives are listed under `context` key, the order does not matter
+context:
+  - Selection
+
+# bundle help url
+help_url: "https://murraycompany.egnyte.com/navigate/file/72751570-620d-4af7-8c0f-c7a5cebd2e46"
+
+# bundle author
+author: Mitchell Oatman

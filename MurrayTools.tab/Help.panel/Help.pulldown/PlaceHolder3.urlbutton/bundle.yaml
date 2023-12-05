@@ -1,0 +1,13 @@
+highlight: new
+
+# bundle title
+title:
+  "Place\nHolder3"
+
+# bundle tooltip
+tooltip: >-
+  Will open browser to helpful video
+
+hyperlink: "https://www.youtube.com/watch?v=4EWlksHoRbI"
+context: zero-doc
+

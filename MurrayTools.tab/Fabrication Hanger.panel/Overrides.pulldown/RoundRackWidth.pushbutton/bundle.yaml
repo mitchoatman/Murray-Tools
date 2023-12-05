@@ -1,0 +1,21 @@
+#highlight: new
+
+# bundle title
+title:
+  "Round Trapeze Width"
+
+# bundle tooltip
+tooltip: |-
+  Adjusts selected trapeze rack widths up to the nearest 2" increment.
+    1. Run Script.
+    2. Select Fabrication Hangers (Using Window Selection).
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

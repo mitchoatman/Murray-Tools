@@ -1,0 +1,14 @@
+{
+    "builtin": "False",
+    "default_enabled": "True",
+    "type": "extension",
+    "rocket_mode_compatible": "True",
+    "name": "Murray-Tools",
+    "description": "Murray Custom Revit Tools",
+    "author": "Mitchell Oatman",
+    "author_profile": "",
+    "url": "https://github.com/mitchoatman/Murray-Tools.git",
+    "website": "https://www.murraycompany.com",
+    "image": "",
+    "dependencies": []
+}

@@ -1,0 +1,30 @@
+#highlight: new
+#highlight: updated
+
+# bundle title
+title:
+  "Pointload\nby Material"
+
+# bundle tooltip
+tooltip: |-
+  Calculates pointload values for all hangers based on material.
+  It rounds the values to a power of 10x.
+  Example: 1 = 0-10.lbs  2 = 11-20.lbs  3 = 21-30.lbs  4 = 31-40.lbs
+    1. Run command.
+    2. Data is written to all hangers visible in view based on the material of their host.
+        Cast Iron
+        Copper
+        Carbon Steel
+        Stainless Steel
+
+  Hangers NOT attached to pipe will not have loads written to them.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

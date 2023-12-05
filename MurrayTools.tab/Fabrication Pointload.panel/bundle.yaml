@@ -1,0 +1,10 @@
+layout:
+  - Duct Pointload
+  - Pipe Pointloads
+  - Tag Pointloads
+
+
+background:
+  title: 'D5D5CD'
+#  panel: '#ffe716'
+#  slideout: '#ffe716'

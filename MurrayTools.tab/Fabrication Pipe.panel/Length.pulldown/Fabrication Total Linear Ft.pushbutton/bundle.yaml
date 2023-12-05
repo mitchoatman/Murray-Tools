@@ -1,0 +1,26 @@
+#highlight: new
+#highlight: updated
+
+# bundle title
+title:
+  "Total\nLength"
+
+# bundle tooltip
+tooltip: |-
+  Collects combined length of Fabrication Pipes in the (ACTIVE VIEW).
+
+    1. Run Script.
+    2. Linear Ft of pipe will be shown in the dialog
+    Hold SHIFT to calculate combined length of ALL Fabrication Pipes in the model [By Level] [By Material].
+
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Walls
+#  - Text Notes
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

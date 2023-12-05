@@ -1,0 +1,64 @@
+
+
+from pyrevit import revit
+from pyrevit import EXEC_PARAMS
+import Autodesk
+from Autodesk.Revit.DB import Transaction, IUpdater, UpdaterId, UpdaterData, ElementId
+
+
+selection = EXEC_PARAMS.event_args.GetAddedElementIds()
+
+doc = __revit__.ActiveUIDocument.Document
+
+#FUNCTION TO SET PARAMETER VALUE
+def set_parameter_by_name(element, parameterName, value):
+    element.LookupParameter(parameterName).Set(value)
+#FUNCTION TO GET PARAMETER VALUE  change "AsDouble()" to "AsString()" to change data type.
+def get_parameter_value_by_name(element, parameterName):
+    return element.LookupParameter(parameterName).AsString()
+
+def get_parameter_value_int(element, parameterName):
+    return element.LookupParameter(parameterName).AsInteger()
+
+# --------------SELECTED ELEMENTS-------------------
+
+
+t = Transaction(doc, "Update FP Parameters")
+t.Start()
+for x in selection:
+    print x
+    isfabpart = x.LookupParameter("Fabrication Service")
+    if isfabpart:
+        set_parameter_by_name(x, 'FP_CID', get_parameter_value_int(x, 'Part Pattern Number'))
+        set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType))
+        set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name(x, 'Fabrication Service Name'))
+        set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name(x, 'Fabrication Service Abbreviation'))
+        if x.ItemCustomId == 838:
+            set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name(x, 'Size of Primary End'))
+            set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No')
+            [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
+        try:
+            if (x.GetRodInfo().RodCount) > 0:
+                ItmDims = x.GetDimensions()
+                for dta in ItmDims:
+                    if 'Rod Extn Below' in dta.Name:
+                        RB = x.GetDimensionValue(dta)
+                    if 'Rod Length' in dta.Name:
+                        RL = x.GetDimensionValue(dta)
+                TRL = RL + RB
+                set_parameter_by_name(x, 'FP_Rod Length', TRL)
+                for dta in ItmDims:
+                    if 'Length B' in dta.Name:
+                        LB = x.GetDimensionValue(dta)
+                        if LB > 0:
+                            set_parameter_by_name(x, 'FP_Rod Length', LB)
+        except:
+            pass
+t.Commit()
+
+# --------------SELECTED ELEMENTS-------------------
+
+
+# Subscribe the event handler to the DocumentChanged event
+doc.Application.DocumentChanged += document_changed_handler
+
