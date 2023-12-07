@@ -14,7 +14,8 @@ tooltip: |-
     3. Select Fabrication Hangers to distribute weight across.
     Muti-point supports weights are halved automatically.
 
-  Hold [SHIFT] to execute point load command that will divide values by 10x.
+  [Shift]-Click:
+  Execute point load command that divides values by 10x.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

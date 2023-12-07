@@ -9,8 +9,9 @@ tooltip: |-
   Adds tags to all hanger rods in active view.
   1. Execute command.
   2. Hangers will be tagged.
-  
-  Hold [SHIFT] to remove existing tags.
+
+  [Shift]-Click:    
+  Removes tags.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

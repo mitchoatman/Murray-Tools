@@ -1,13 +1,3 @@
-__title__ = 'Extend\nHanger Rods'
-__doc__ = """Overrides selected hanger rods.
-1. Run Script.
-2. Choose the new rod size you want to use.
-3. Select hangers with rod you wish to change.
-4. You must use a window to select.
-(even when selecting one hanger)
-"""
-
-__highlight__ = 'new'
 
 import Autodesk
 from Autodesk.Revit.DB import FabricationPart

@@ -11,8 +11,9 @@ tooltip: |-
   1. Execute command.
   2. All single hangers in the view will be selected.
   3. Do what you will with the selected elements. Isolate etc...
-  
-  Hold [SHIFT] to select Trapeze Fabrication hangers in the active view.
+
+  [Shift]-Click:  
+  Select Trapeze Fabrication hangers in the active view.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

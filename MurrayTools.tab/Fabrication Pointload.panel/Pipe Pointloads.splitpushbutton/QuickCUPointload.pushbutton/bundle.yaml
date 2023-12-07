@@ -13,7 +13,8 @@ tooltip: |-
     1. Isolate services drawn with cast iron material.
     2. Data is written to all hangers isolated in the view.
     
-    Hold [SHIFT] to add actual loads NOT to the power of 10x.
+  [Shift]-Click:    
+  Add actual loads NOT to the power of 10x.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

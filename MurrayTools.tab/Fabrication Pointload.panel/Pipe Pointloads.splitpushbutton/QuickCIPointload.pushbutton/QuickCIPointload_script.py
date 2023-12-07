@@ -4,7 +4,6 @@ from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, BuiltIn
 ParameterValueProvider, ElementId, FilterStringBeginsWith, Transaction, FilterStringEquals, \
 ElementParameterFilter, ParameterValueProvider, LogicalOrFilter, TransactionGroup, FabricationPart, FabricationConfiguration
 from pyrevit import revit, DB, script, forms
-import sys
 from SharedParam.Add_Parameters import Shared_Params
 from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString
 
@@ -19,6 +18,9 @@ app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float (RevitVersion)
 Config = FabricationConfiguration.GetFabricationConfiguration(doc)
+
+def set_customdata_by_custid(fabpart, custid, value):
+    fabpart.SetPartCustomDataText(custid, value)
 
 def create_filter_2023_newer(key_parameter, element_value):
     """Function to create a filter from builtinParameter and Value."""

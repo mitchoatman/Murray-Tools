@@ -49,7 +49,7 @@ for Item in pipe_collector:
     servicename = get_parameter_value_by_name_AsString(Item, 'Fabrication Service Name')
     SrvcList.append(servicename)
 
-servicelist = forms.SelectFromList.show(set(SrvcList), multiselect=True, button_name='Select Service(s) Drawn in SS')
+servicelist = forms.SelectFromList.show(set(SrvcList), multiselect=True, button_name='Select Service(s) Drawn in CI')
 
 list_of_filters = list()
 
@@ -67,7 +67,7 @@ if list_of_filters:
 
     analyticalCollector = FilteredElementCollector(doc).WherePasses(multiple_filters).ToElementIds()
 
-tg = TransactionGroup(doc, "Quick CS Pointload")
+tg = TransactionGroup(doc, "Quick CI Pointload")
 tg.Start()
 
 t = Transaction(doc, "Isolate Services")
@@ -81,7 +81,7 @@ hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInC
                    .WhereElementIsNotElementType() \
                    .ToElements()
 
-t = Transaction(doc, 'Set CU Pointload Values')
+t = Transaction(doc, 'Set CI Pointload Values')
 #Start Transaction
 t.Start()
 
@@ -89,39 +89,33 @@ for hanger in hanger_collector:
     hosted_info = hanger.GetHostedInfo().HostId
     try:
         HangerSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
-        if HangerSize == '1/2"':
-            set_parameter_by_name(hanger, 'FP_Pointload', 5)
-            set_customdata_by_custid(hanger, 7, '5')
-        if HangerSize == '3/4"':
-            set_parameter_by_name(hanger, 'FP_Pointload', 9)
-            set_customdata_by_custid(hanger, 7, '9')
-        if HangerSize == '1"':
-            set_parameter_by_name(hanger, 'FP_Pointload', 15)
-            set_customdata_by_custid(hanger, 7, '15')
-        if HangerSize == '1 1/4"':
-            set_parameter_by_name(hanger, 'FP_Pointload', 26)
-            set_customdata_by_custid(hanger, 7, '26')
-        if HangerSize == '1 1/2"':
-            set_parameter_by_name(hanger, 'FP_Pointload', 31)
-            set_customdata_by_custid(hanger, 7, '31')
         if HangerSize == '2"':
-            set_parameter_by_name(hanger, 'FP_Pointload', 43)
-            set_customdata_by_custid(hanger, 7, '43')
-        if HangerSize == '2 1/2"':
-            set_parameter_by_name(hanger, 'FP_Pointload', 59)
-            set_customdata_by_custid(hanger, 7, '59')
+            set_parameter_by_name(hanger, 'FP_Pointload', 25)
+            set_customdata_by_custid(hanger, 7, '25')
         if HangerSize == '3"':
-            set_parameter_by_name(hanger, 'FP_Pointload', 80)
-            set_customdata_by_custid(hanger, 7, '80')
+            set_parameter_by_name(hanger, 'FP_Pointload', 42)
+            set_customdata_by_custid(hanger, 7, '42')
         if HangerSize == '4"':
-            set_parameter_by_name(hanger, 'FP_Pointload', 118)
-            set_customdata_by_custid(hanger, 7, '118')
+            set_parameter_by_name(hanger, 'FP_Pointload', 65)
+            set_customdata_by_custid(hanger, 7, '65')
+        if HangerSize == '5"':
+            set_parameter_by_name(hanger, 'FP_Pointload', 88)
+            set_customdata_by_custid(hanger, 7, '88')
         if HangerSize == '6"':
-            set_parameter_by_name(hanger, 'FP_Pointload', 231)
-            set_customdata_by_custid(hanger, 7, '231')
+            set_parameter_by_name(hanger, 'FP_Pointload', 116)
+            set_customdata_by_custid(hanger, 7, '116')
         if HangerSize == '8"':
-            set_parameter_by_name(hanger, 'FP_Pointload', 367)
-            set_customdata_by_custid(hanger, 7, '367')
+            set_parameter_by_name(hanger, 'FP_Pointload', 199)
+            set_customdata_by_custid(hanger, 7, '199')
+        if HangerSize == '10"':
+            set_parameter_by_name(hanger, 'FP_Pointload', 298)
+            set_customdata_by_custid(hanger, 7, '298')
+        if HangerSize == '12"':
+            set_parameter_by_name(hanger, 'FP_Pointload', 402)
+            set_customdata_by_custid(hanger, 7, '402')
+        if HangerSize == '15"':
+            set_parameter_by_name(hanger, 'FP_Pointload', 635)
+            set_customdata_by_custid(hanger, 7, '635')
     except:
         output = script.get_output()
         print('{}: {}'.format('Disconnected Hanger', output.linkify(hanger.Id)))

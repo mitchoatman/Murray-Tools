@@ -171,7 +171,8 @@ for hanger in hanger_collector:
                 set_parameter_by_name(hanger, 'FP_Pointload', 37)
                 set_customdata_by_custid(hanger, 7, '37')
     except:
-        pass
+        output = script.get_output()
+        print('{}: {}'.format('Disconnected Hanger', output.linkify(hanger.Id)))
 
 #End Transaction
 t.Commit()

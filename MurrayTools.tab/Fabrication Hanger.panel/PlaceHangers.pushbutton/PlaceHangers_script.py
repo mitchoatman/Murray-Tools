@@ -202,7 +202,7 @@ try:
     t.Start()
 
     for e in Pipe:
-        if e.LookupParameter('Part Pattern Number').AsInteger() == 2041 or 866 or 40:
+        if e.LookupParameter('Part Pattern Number').AsInteger() in (2041, 866, 40):
             # get length of pipe
             pipelen = e.LookupParameter('Length').AsDouble()
             # test if pipe is long enough for hanger

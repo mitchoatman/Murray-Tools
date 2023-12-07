@@ -6,12 +6,13 @@ title:
   "Overkill\nFab Parts"
 
 # bundle tooltip
-tooltip: >-
+tooltip: |-
   Searches for duplicate fabrication parts in ACTIVE VIEW that occupy the same physical space.
       1. Run Script.
       2. If duplicates are found confirm you wish to delete with Yes or No.
 
-  Hold [SHIFT] search for duplicate fabrication parts in the ENTIRE model.
+  [Shift]-Click:
+  Search for duplicate fabrication parts in the ENTIRE model.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

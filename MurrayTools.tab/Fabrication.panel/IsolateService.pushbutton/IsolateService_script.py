@@ -73,4 +73,4 @@ try:
 
         t.Commit()
 except:
-    sys.exit()
+    pass

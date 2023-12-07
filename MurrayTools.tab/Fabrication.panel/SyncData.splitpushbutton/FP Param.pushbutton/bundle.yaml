@@ -7,7 +7,8 @@ tooltip: |-
   Hanger Rod Size, Hanger Rod Length to "FP_" Parameters for SELECTED ELEMENTS.
   If no elements are selected then elements in the ACTIVE VIEW ONLY will have data appended.
 
-  Hold [SHIFT] to write data for entire model.
+  [Shift]-Click:    
+  Write data for entire model.
 
 # context directives are listed under `context` key, the order does not matter
 #context:
