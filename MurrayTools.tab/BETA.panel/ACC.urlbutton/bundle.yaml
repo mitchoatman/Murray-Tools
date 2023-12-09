@@ -1,0 +1,13 @@
+highlight: new
+
+# bundle title
+title:
+  "Autodesk\nConstruction Cloud"
+
+# bundle tooltip
+tooltip: >-
+  Opens Browser to Autodesk Construction Cloud Website
+
+hyperlink: "https://acc.autodesk.com/home"
+context: zero-doc
+
