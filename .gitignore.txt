@@ -1,2 +1,2 @@
-BETA.panel/
-Dynamo.panel/
+BETA
+Dynamo
