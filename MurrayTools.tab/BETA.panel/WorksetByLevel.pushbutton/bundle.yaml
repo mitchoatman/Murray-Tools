@@ -1,0 +1,19 @@
+#highlight: new
+
+# bundle title
+title:
+  "Create Workset(s)\nFor Level(s)"
+
+# bundle tooltip
+tooltip: >-
+  Creates a workset for every level in the project.
+
+# context directives are listed under `context` key, the order does not matter
+context:
+  - doc-workshared
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman
