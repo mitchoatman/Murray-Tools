@@ -1,10 +1,13 @@
-#highlight: new
+#highlight: updated
 
 title:
-  "Reset\nIsolate-Hide"
+  "Hide\nService"
 
 tooltip: >-
-  Resets any temporary hide or isolate mode in active view.
+  Hides Fabrication Service
+    1. Run Script.
+    2. Select a fabrication part.
+    3. Fabrication elements matching the service name of selected part are hidden.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

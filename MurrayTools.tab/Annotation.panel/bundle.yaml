@@ -1,11 +1,10 @@
 layout:
   - Symbols
-  - -----
   - Fab Pipe
-  - -----
-  - Fab Duct1
-  - Fab Duct2
+  - Fab Duct
+  - CreateSheets
 
+collapsed: false
 
 background:
   title: 'D5D5CD'

@@ -1,15 +1,15 @@
 import System
 from Autodesk.Revit.DB import BuiltInCategory, Transaction, BuiltInParameterGroup, TransactionGroup
-
+import os
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 app = doc.Application
-SP = app.SharedParametersFilename
-
-
 
 def Shared_Params():
+    path, filename = os.path.split(__file__)
+    NewFilename = '\MC Shared Parameters.txt'
+
     sel = uidoc.Selection
     cat1 = doc.Settings.Categories.get_Item(BuiltInCategory.OST_FabricationPipework)
     cat2 = doc.Settings.Categories.get_Item(BuiltInCategory.OST_FabricationHangers)
@@ -40,7 +40,7 @@ def Shared_Params():
 
     t = Transaction(doc, 'Change SParam File')
     t.Start()	
-    app.SharedParametersFilename = 'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\SHARED PARAMETERS\MC Shared Parameters.txt'
+    app.SharedParametersFilename = path + NewFilename
     t.Commit()
 
     spFile = app.OpenSharedParameterFile()

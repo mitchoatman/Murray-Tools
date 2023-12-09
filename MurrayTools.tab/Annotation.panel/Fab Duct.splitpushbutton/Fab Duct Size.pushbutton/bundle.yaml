@@ -2,15 +2,16 @@
 
 # bundle title
 title:
-  "Create Workset(s)\nFor Level(s)"
+  "Fab Duct\nSize"
 
 # bundle tooltip
 tooltip: >-
-  Creates a workset for every level in the project.
+  This will Insert the Fabrication Duct Size Tag Family into the Active View.(If the Family is already loaded into the project)
 
 # context directives are listed under `context` key, the order does not matter
-context:
-  - doc-workshared
+#context:
+#  - Walls
+#  - Text Notes
 
 # bundle help url
 #help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"

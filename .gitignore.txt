@@ -1,1 +1,2 @@
-Murray BETA.tab
+BETA.panel
+Dynamo.panel

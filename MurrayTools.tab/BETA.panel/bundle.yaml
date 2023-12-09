@@ -15,6 +15,7 @@ layout:
   - FabRenumber
   - Trapeze
 
+collapsed: true
 
 background:
   title: '#ffe716'

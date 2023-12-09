@@ -1,6 +1,7 @@
 layout:
-  - BETA
-  - Dynamo
+  - Fabrication Renumber
+
+collapsed: true
 
 background:
   title: '#ffe716'

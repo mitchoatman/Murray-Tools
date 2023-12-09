@@ -2,15 +2,15 @@ layout:
   - Utilities
   - Fabrication
   - Fabrication Pipe
-  - Fabrication Valve
   - Fabrication Hanger
-  - Fabrication Spooling
   - Fabrication Pointload
+  - Fabrication Valve
+  - Fabrication Spooling
   - Annotation
   - Seismic
-  - Isolation
-  - Project
   - Help
+  - BETA
+  - Dynamo
 
 
 highlight: new      # highlight as new

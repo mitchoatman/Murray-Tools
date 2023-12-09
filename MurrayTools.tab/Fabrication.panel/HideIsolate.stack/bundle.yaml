@@ -1,7 +1,7 @@
 layout:
-  - SyncData
-  - HideIsolate
-  - SelectFabFilter
+  - HideService
+  - IsolateService
+  - ResetView
 
 
 background:

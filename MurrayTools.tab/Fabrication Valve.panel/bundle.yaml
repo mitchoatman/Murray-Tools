@@ -1,7 +1,5 @@
 layout:
-  - ReNumber
-  - ValveRenumber
-  - ValveTools
+  - RenumValves
 
 
 background:
