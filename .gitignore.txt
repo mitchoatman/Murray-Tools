@@ -1,2 +1,2 @@
-BETA.panel
-Dynamo.panel
+\MurrayTools.tab\BETA.panel
+\Murray-Tools\MurrayTools.tab\Dynamo.panel
