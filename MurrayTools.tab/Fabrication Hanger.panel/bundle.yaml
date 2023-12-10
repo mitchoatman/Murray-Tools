@@ -1,7 +1,6 @@
 layout:
-  - TagHangerRod
   - PlaceHangers
-  - Overrides
+  - Hanger Tools
   - CropCircle
   - RackAlign
 

@@ -2,15 +2,18 @@
 
 # bundle title
 title:
-  "Level\nWorksets"
+  "Toggle\n Beam Hanger"
 
 # bundle tooltip
-tooltip: >-
-  Creates a workset for every level in the project.
+tooltip: |-
+  Toggles Fabrication Hanger Beam Hanger Parameter.
+    1. Run Script.
+    2. Select Fabrication Hangers.
+    3. Click Finish button in action bar.
 
 # context directives are listed under `context` key, the order does not matter
-context:
-  - doc-workshared
+#context:
+#  - Selection
 
 # bundle help url
 #help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"

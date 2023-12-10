@@ -1,6 +1,10 @@
 
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family
+import os
+
+path, filename = os.path.split(__file__)
+NewFilename = '\POC Symbol.rfa'
 
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
@@ -26,7 +30,7 @@ FamilyType = 'POC Symbol'
 Fam_is_in_project = any(f.Name == FamilyName for f in families)
 #print("Family '{}' is in project: {}".format(FamilyName, is_in_project))
 
-family_pathCC = 'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Annotation\POC Symbol.rfa'
+family_pathCC = path + NewFilename
 
 t = Transaction(doc, 'Load Rigid Brace Family')
 #Start Transaction

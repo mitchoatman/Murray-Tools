@@ -1,0 +1,26 @@
+#highlight: new
+
+# bundle title
+title:
+  "Change\nRod Size"
+
+# bundle tooltip
+tooltip: |-
+  Overrides selected hanger rod(s) sizes.
+    1. Run Script.
+    2. Choose the new rod size you want to use.
+    3. Select hangers with rod you wish to change.
+    4. You must use a window to select.
+       (even when selecting one hanger)
+       
+    Hold [SHIFT] to apply a rod size scheme to selected hangers.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

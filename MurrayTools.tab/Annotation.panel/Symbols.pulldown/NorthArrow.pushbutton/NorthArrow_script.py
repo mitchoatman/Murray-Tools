@@ -4,6 +4,10 @@ clr.AddReference('RevitAPI')
 clr.AddReference('RevitAPIUI')
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family
+import os
+
+path, filename = os.path.split(__file__)
+NewFilename = '\North Arrow.rfa'
 
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
@@ -29,7 +33,7 @@ FamilyType = 'North Arrow'
 Fam_is_in_project = any(f.Name == FamilyName for f in families)
 #print("Family '{}' is in project: {}".format(FamilyName, is_in_project))
 
-family_pathCC = 'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Annotation\\North Arrow.rfa'
+family_pathCC = path + NewFilename
 
 t = Transaction(doc, 'Load Rigid Brace Family')
 #Start Transaction
