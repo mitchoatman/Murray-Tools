@@ -3,7 +3,10 @@ import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, FamilySymbol, Structure, Transaction, BuiltInParameter, \
                                 FabricationConfiguration, Family, TransactionGroup
+import os
 
+path, filename = os.path.split(__file__)
+NewFilename = '\Crop-Circle.rfa'
 
 DB = Autodesk.Revit.DB
 doc = __revit__.ActiveUIDocument.Document
@@ -42,7 +45,7 @@ Hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInC
 ItmList1 = list()
 ItmList2 = list()
 
-family_pathCC = 'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\Families\Generic Models\Crop-Circle.rfa'
+family_pathCC = path + NewFilename
 
 tg = TransactionGroup(doc, "Add Crop Circles")
 tg.Start()

@@ -3,6 +3,10 @@ import Autodesk
 from Autodesk.Revit.DB import IFamilyLoadOptions, FamilySource, Transaction, FilteredElementCollector, Family, TransactionGroup,\
                                 BuiltInCategory, FamilySymbol, BuiltInParameter, Reference, IndependentTag, TagMode, TagOrientation
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+import os
+
+path, filename = os.path.split(__file__)
+NewFilename = '\Fabrication Hanger - Pointload Tag.rfa'
 
 DB = Autodesk.Revit.DB
 doc = __revit__.ActiveUIDocument.Document
@@ -51,7 +55,7 @@ familyTypes = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Fabri
                                                              .OfClass(FamilySymbol)\
                                                              .ToElements()
 
-family_pathCC = 'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Annotation\Fabrication Hanger - Pointload Tag.rfa'
+family_pathCC = path + NewFilename
 
 tg = TransactionGroup(doc, "Selected Pointload Tags")
 tg.Start()
