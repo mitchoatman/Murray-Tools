@@ -6,7 +6,8 @@ tooltip: |-
   Writes Line Number and Valve Number parameter values to Fabrication Custom Data.
   MAJ Exports will carry custom data to AutoCAD.
 
-  Hold [SHIFT] to write data for entire model.
+  [Shift]-Click:    
+  Write data for entire model.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

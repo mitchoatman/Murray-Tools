@@ -1,0 +1,60 @@
+
+from pyrevit import revit, EXEC_PARAMS
+
+selection = EXEC_PARAMS.event_args.GetAddedElementIds()
+
+import Autodesk
+from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, Transaction, FabricationPart, FabricationConfiguration
+from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsInteger
+
+Config = FabricationConfiguration.GetFabricationConfiguration(revit.doc)
+
+# --------------SELECTED ELEMENTS-------------------
+
+if selection:
+    with revit.Transaction(revit.doc, "Update FP Parameters"):
+        for x in selection:
+            isfabpart = x.LookupParameter("Fabrication Service")
+            if isfabpart:
+                set_parameter_by_name(x, 'FP_CID', get_parameter_value_by_name_AsInteger(x, 'Part Pattern Number'))
+                set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType))
+                set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'))
+                set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation'))
+                if x.ItemCustomId == 838:
+                    set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Size of Primary End'))
+                    set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No')
+                    [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
+                try:
+                    if (x.GetRodInfo().RodCount) > 0:
+                        ItmDims = x.GetDimensions()
+                        for dta in ItmDims:
+                            if dta.Name == 'Rod Extn Below':
+                                RB = x.GetDimensionValue(dta)
+                            if dta.Name == 'Rod Length':
+                                RL = x.GetDimensionValue(dta)
+                        TRL = RL + RB
+                        set_parameter_by_name(x, 'FP_Rod Length', TRL)
+                except:
+                    pass
+
+                try:
+                    if (x.GetRodInfo().RodCount) > 1:
+                        ItmDims = x.GetDimensions()
+                        for dta in ItmDims:
+                            if dta.Name == 'Width':
+                                TrapWidth = x.GetDimensionValue(dta)
+                            if dta.Name == 'Bearer Extn':
+                                TrapExtn = x.GetDimensionValue(dta)
+                            if dta.Name == 'Right Rod Offset':
+                                TrapRRod = x.GetDimensionValue(dta)
+                            if dta.Name == 'Left Rod Offset':
+                                TrapLRod = x.GetDimensionValue(dta)
+                        BearerLength = TrapWidth + TrapExtn + TrapExtn
+                        set_parameter_by_name(x, 'FP_Bearer Length', BearerLength)
+                except:
+                    pass
+
+# --------------SELECTED ELEMENTS-------------------
+
+
+

@@ -35,7 +35,7 @@ if selection:
                 set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No')
                 [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
             try:
-                if (x.GetRodInfo().RodCount) > 0:
+                if (x.GetRodInfo().RodCount) < 2:
                     ItmDims = x.GetDimensions()
                     for dta in ItmDims:
                         if dta.Name == 'Rod Extn Below':
@@ -51,6 +51,8 @@ if selection:
                 if (x.GetRodInfo().RodCount) > 1:
                     ItmDims = x.GetDimensions()
                     for dta in ItmDims:
+                        if dta.Name == 'Length A':
+                            RL = x.GetDimensionValue(dta)
                         if dta.Name == 'Width':
                             TrapWidth = x.GetDimensionValue(dta)
                         if dta.Name == 'Bearer Extn':
@@ -61,6 +63,7 @@ if selection:
                             TrapLRod = x.GetDimensionValue(dta)
                     BearerLength = TrapWidth + TrapExtn + TrapExtn
                     set_parameter_by_name(x, 'FP_Bearer Length', BearerLength)
+                    set_parameter_by_name(x, 'FP_Rod Length', RL)
             except:
                 pass
     t.Commit()
@@ -99,7 +102,7 @@ else:
             pass
 
         try:
-            if (hanger.GetRodInfo().RodCount) > 0:
+            if (hanger.GetRodInfo().RodCount) < 2:
                 ItmDims = hanger.GetDimensions()
                 for dta in ItmDims:
                     if dta.Name == 'Rod Extn Below':
@@ -115,6 +118,8 @@ else:
             if (hanger.GetRodInfo().RodCount) > 1:
                 ItmDims = hanger.GetDimensions()
                 for dta in ItmDims:
+                    if dta.Name == 'Length A':
+                        RL = hanger.GetDimensionValue(dta)
                     if dta.Name == 'Width':
                         TrapWidth = hanger.GetDimensionValue(dta)
                     if dta.Name == 'Bearer Extn':
@@ -125,6 +130,7 @@ else:
                         TrapLRod = hanger.GetDimensionValue(dta)
                 BearerLength = TrapWidth + TrapExtn + TrapExtn
                 set_parameter_by_name(hanger, 'FP_Bearer Length', BearerLength)
+                set_parameter_by_name(hanger, 'FP_Rod Length', RL)
         except:
             pass
 

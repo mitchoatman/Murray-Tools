@@ -31,6 +31,7 @@ t.Start()
 for hanger in hanger_collector:
     try:
         if (hanger.GetRodInfo().RodCount) < 2:
+        
             # Get the host element's size
             hosted_info = hanger.GetHostedInfo().HostId
             HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
@@ -41,11 +42,7 @@ for hanger in hanger_collector:
                 set_parameter_by_name(hanger, 'FP_Hanger Shield', 'No')
             else:
                 set_parameter_by_name(hanger, 'FP_Hanger Shield', 'Yes')
-    except:
-        pass
-
-    try:
-        if (hanger.GetRodInfo().RodCount) > 0:
+        
             ItmDims = hanger.GetDimensions()
             for dta in ItmDims:
                 if dta.Name == 'Rod Extn Below':
@@ -61,6 +58,8 @@ for hanger in hanger_collector:
         if (hanger.GetRodInfo().RodCount) > 1:
             ItmDims = hanger.GetDimensions()
             for dta in ItmDims:
+                if dta.Name == 'Length A':
+                    RL = hanger.GetDimensionValue(dta)
                 if dta.Name == 'Width':
                     TrapWidth = hanger.GetDimensionValue(dta)
                 if dta.Name == 'Bearer Extn':
@@ -71,6 +70,7 @@ for hanger in hanger_collector:
                     TrapLRod = hanger.GetDimensionValue(dta)
             BearerLength = TrapWidth + TrapExtn + TrapExtn
             set_parameter_by_name(hanger, 'FP_Bearer Length', BearerLength)
+            set_parameter_by_name(hanger, 'FP_Rod Length', RL)
     except:
         pass
 
