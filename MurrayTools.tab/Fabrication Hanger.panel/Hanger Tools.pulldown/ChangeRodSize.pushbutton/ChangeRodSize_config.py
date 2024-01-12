@@ -1,11 +1,14 @@
 
 import Autodesk
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FabricationPart, FabricationAncillaryUsage, Transaction
+from Autodesk.Revit.DB import FabricationPart, FabricationAncillaryUsage, Transaction, TransactionGroup
 from Autodesk.Revit.UI.Selection import *
 from rpw.ui.forms import FlexForm, Label, TextBox, Separator, Button
-from pyrevit import script, forms
+from pyrevit import script
+from SharedParam.Add_Parameters import Shared_Params
 import os
+
+Shared_Params()
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -41,6 +44,9 @@ def convert_fractions(string):
 
 def get_parameter_value_by_name(element, parameterName):
     return element.LookupParameter(parameterName).AsString()
+
+def set_parameter_by_name(element, parameterName, value):
+    element.LookupParameter(parameterName).Set(value)
 
 class CustomISelectionFilter(ISelectionFilter):
     def __init__(self, nom_categorie):
@@ -156,7 +162,10 @@ try:
     CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers")            
     hangers = [doc.GetElement( elId ) for elId in pipesel]
 
-    t = Transaction(doc, "Change Hanger Rod")
+    tg = TransactionGroup(doc, "Change Hanger Rod")
+    tg.Start()
+
+    t = Transaction(doc, "Set Hanger Rod")
     t.Start()
     for hanger in hangers:
         hosted_info = hanger.GetHostedInfo().HostId
@@ -179,6 +188,16 @@ try:
             output = script.get_output()
             print('{}: {}'.format('Disconnected Hanger', output.linkify(hanger.Id)))
     t.Commit()
+    
+    t = Transaction(doc, "Update FP Parameter")
+    t.Start()
+    for x in hangers:
+        [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
+    t.Commit()
+    
+    #End Transaction Group
+    tg.Assimilate()
+    
 except:
     pass
 

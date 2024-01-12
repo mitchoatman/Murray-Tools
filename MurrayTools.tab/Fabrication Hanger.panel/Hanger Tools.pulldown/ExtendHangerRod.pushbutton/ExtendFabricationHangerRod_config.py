@@ -113,6 +113,9 @@ else:
 
 if RodControl == True:
 
+    path, filename = os.path.split(__file__)
+    NewFilename = '\FP_Rod Control.rfa'
+
     # Search project for all Families
     families = FilteredElementCollector(doc).OfClass(Family)
     # Set desired family name and type name:
@@ -137,7 +140,7 @@ if RodControl == True:
     ItmList1 = list()
     ItmList2 = list()
 
-    family_pathCC = 'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\Families\Structural Foundation\FP_Rod Control.rfa'
+    family_pathCC = path + NewFilename
 
     tg = TransactionGroup(doc, "Add Rod Control")
     tg.Start()

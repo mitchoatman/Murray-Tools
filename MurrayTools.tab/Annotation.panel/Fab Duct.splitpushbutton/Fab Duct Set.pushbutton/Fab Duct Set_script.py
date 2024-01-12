@@ -5,6 +5,7 @@ __doc__ = """This will Insert the Fabrication Duct Set Tag Family into the Activ
 import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family
+import os
 
 path, filename = os.path.split(__file__)
 NewFilename1 = '\Fabrication Duct - Flat or Set Tag - Aligned.rfa'

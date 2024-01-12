@@ -6,6 +6,7 @@ __doc__ = """This will Insert the Fabrication Duct Elevation Tag
 import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family
+import os
 
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document

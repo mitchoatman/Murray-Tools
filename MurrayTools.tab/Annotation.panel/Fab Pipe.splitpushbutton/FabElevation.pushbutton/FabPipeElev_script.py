@@ -1,6 +1,7 @@
 
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family
+import os
 
 path, filename = os.path.split(__file__)
 NewFilename = '\Fabrication Pipe - Elevation Tag.rfa'

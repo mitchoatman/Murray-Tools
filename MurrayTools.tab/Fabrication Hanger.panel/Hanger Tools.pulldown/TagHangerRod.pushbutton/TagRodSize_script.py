@@ -2,6 +2,13 @@
 import Autodesk
 from Autodesk.Revit.DB import IFamilyLoadOptions, FamilySource, Transaction, FilteredElementCollector, Family, TransactionGroup,\
                                 BuiltInCategory, FamilySymbol, BuiltInParameter, Reference, IndependentTag, TagMode, TagOrientation
+from SharedParam.Add_Parameters import Shared_Params
+import os
+
+Shared_Params()
+
+path, filename = os.path.split(__file__)
+NewFilename = '\Fabrication Hanger - FP_Rod Size.rfa'
 
 DB = Autodesk.Revit.DB
 doc = __revit__.ActiveUIDocument.Document
@@ -32,7 +39,7 @@ def set_parameter_by_name(element, parameterName, value):
     element.LookupParameter(parameterName).Set(value)
 
 
-family_pathCC1 = 'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Annotation\Fabrication Hanger - FP_Rod Size.rfa'
+family_pathCC1 = path + NewFilename
 
 tg = TransactionGroup(doc, "Add Rod Size Tags")
 tg.Start()

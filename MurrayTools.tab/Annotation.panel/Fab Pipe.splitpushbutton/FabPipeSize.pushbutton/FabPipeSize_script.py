@@ -7,6 +7,7 @@ clr.AddReference('RevitAPI')
 clr.AddReference('RevitAPIUI')
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family
+import os
 
 path, filename = os.path.split(__file__)
 NewFilename1 = '\Fabrication Pipe - Size Tag - Aligned.rfa'

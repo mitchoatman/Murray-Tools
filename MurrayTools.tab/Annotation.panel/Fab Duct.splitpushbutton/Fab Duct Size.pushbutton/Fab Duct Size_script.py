@@ -5,6 +5,7 @@ __doc__ = """This will Insert the Fabrication Duct Size Tag Family into the Acti
 import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family
+import os
 
 path, filename = os.path.split(__file__)
 NewFilename1 = '\Fabrication Duct - Size Tag - Aligned.rfa'
