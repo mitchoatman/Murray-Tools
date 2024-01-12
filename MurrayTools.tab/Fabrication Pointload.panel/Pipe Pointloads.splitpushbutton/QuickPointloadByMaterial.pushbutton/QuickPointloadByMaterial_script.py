@@ -64,7 +64,10 @@ for hanger in hanger_collector:
             if HostSize == '15"':
                 set_parameter_by_name(hanger, 'FP_Pointload', 65)
                 set_customdata_by_custid(hanger, 7, '65')
-
+    except:
+        output = script.get_output()
+        print('{}: {}'.format('Disconnected Hanger', output.linkify(hanger.Id)))
+    try:
         if Hostmat == 'Copper: Hard Copper':
             HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
             if HostSize == '1/2"':
@@ -100,8 +103,12 @@ for hanger in hanger_collector:
             if HostSize == '8"':
                 set_parameter_by_name(hanger, 'FP_Pointload', 50)
                 set_customdata_by_custid(hanger, 7, '50')
-
+    except:
+        output = script.get_output()
+        print('{}: {}'.format('Disconnected Hanger', output.linkify(hanger.Id)))
+    try:
         if Hostmat == 'Carbon Steel: Carbon Steel':
+            HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
             if HostSize == '1/2"':
                 set_parameter_by_name(hanger, 'FP_Pointload', 1)
                 set_customdata_by_custid(hanger, 7, '1')
@@ -135,8 +142,12 @@ for hanger in hanger_collector:
             if HostSize == '8"':
                 set_parameter_by_name(hanger, 'FP_Pointload', 50)
                 set_customdata_by_custid(hanger, 7, '50')
-
+    except:
+        output = script.get_output()
+        print('{}: {}'.format('Disconnected Hanger', output.linkify(hanger.Id)))
+    try:
         if Hostmat == 'Stainless Steel: 304L' or 'Stainless Steel: 316L':
+            HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
             if HostSize == '1/2"':
                 set_parameter_by_name(hanger, 'FP_Pointload', 1)
                 set_customdata_by_custid(hanger, 7, '1')

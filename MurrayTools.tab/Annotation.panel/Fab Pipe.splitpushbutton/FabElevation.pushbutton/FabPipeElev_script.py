@@ -2,6 +2,9 @@
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family
 
+path, filename = os.path.split(__file__)
+NewFilename = '\Fabrication Pipe - Elevation Tag.rfa'
+
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -26,7 +29,7 @@ FamilyType = 'BOP'
 Fam_is_in_project = any(f.Name == FamilyName for f in families)
 #print("Family '{}' is in project: {}".format(FamilyName, is_in_project))
 
-family_pathCC1 = 'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Annotation\Fabrication Pipe - Elevation Tag.rfa'
+family_pathCC1 = path + NewFilename
 
 
 t = Transaction(doc, 'Load Pipe Elev Family')

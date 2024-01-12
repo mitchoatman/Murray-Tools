@@ -6,6 +6,10 @@ import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family
 
+path, filename = os.path.split(__file__)
+NewFilename1 = '\Fabrication Duct - Duct Length Tag - Aligned.rfa'
+NewFilename2 = '\Fabrication Duct - Duct Length Tag.rfa'
+
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -30,8 +34,8 @@ FamilyType = 'Fabrication Duct - Duct Length Tag'
 Fam_is_in_project = any(f.Name == FamilyName for f in families)
 #print("Family '{}' is in project: {}".format(FamilyName, is_in_project))
 
-family_pathCC1 = 'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Annotation\Fabrication Duct - Duct Length Tag - Aligned.rfa'
-family_pathCC2 = 'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Annotation\Fabrication Duct - Duct Length Tag.rfa'
+family_pathCC1 = path + NewFilename1
+family_pathCC2 = path + NewFilename2
 
 t = Transaction(doc, 'Load Duct Length Family')
 #Start Transaction
