@@ -1,0 +1,2 @@
+import os
+os.startfile('C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\MURRAY RIBBON\Murray.extension\MurrayTools.tab\Utilities.panel\ProjectUtilities.Stack\Exports.pulldown\OpenBOMTemplate.pushbutton\MR-BOM.xlsm')

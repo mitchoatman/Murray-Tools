@@ -3,6 +3,7 @@ layout:
   - OpenMRBOM
   - ExportPCF
   - ExportMAJ
+  - OpenBOMTemplate
 
 
 background:
