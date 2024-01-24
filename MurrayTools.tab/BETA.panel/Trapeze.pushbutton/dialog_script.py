@@ -1,6 +1,7 @@
 #Imports
 import Autodesk
-from Autodesk.Revit.DB import Transaction, FabricationConfiguration, BuiltInParameter, FabricationPart, FabricationServiceButton, FabricationService, XYZ, ElementTransformUtils, BoundingBoxXYZ, Transform, Line
+from Autodesk.Revit.DB import Transaction, FabricationConfiguration, BuiltInParameter, FabricationPart, FabricationServiceButton, \
+                                FabricationService, XYZ, ElementTransformUtils, BoundingBoxXYZ, Transform, Line
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 from rpw.ui.forms import FlexForm, Label, ComboBox, TextBox, Separator, Button, CheckBox
 import math
@@ -19,18 +20,27 @@ def GetCenterPoint(ele):
     return center
 def myround(x, multiple):
     return multiple * math.ceil(x/multiple)
+
+#FUNCTION TO GET PARAMETER VALUE  change "AsDouble()" to "AsString()" to change data type.
 def get_parameter_value(element, parameterName):
     return element.LookupParameter(parameterName).AsDouble()
 
 # selection
-selected_element = uidoc.Selection.PickObject(ObjectType.Element, 'Select a Fabrication Part')
-element = doc.GetElement(selected_element.ElementId)
-level_id = element.LevelId
-#RCKelevation = get_parameter_value(element, 'Lower End Bottom Elevation')
+pipesel = uidoc.Selection.PickObjects(ObjectType.Element, "Select pipes to place hangers on")            
+Pipe = [doc.GetElement( elId ) for elId in pipesel]
 
+level_id = Pipe[0].LevelId
 
 # Gets servicename of selection
-parameters = element.LookupParameter('Fabrication Service').AsValueString()
+parameters = Pipe[0].LookupParameter('Fabrication Service').AsValueString()
+
+# Gets bottom elevation of selected pipe
+if pipesel[0] and RevitINT > 2023:
+    PRTElevation = get_parameter_value(Pipe[0], 'Lower End Bottom Elevation')
+if pipesel[0] and RevitINT < 2024:
+    PRTElevation = get_parameter_value(Pipe[0], 'Bottom Elevation')
+if pipesel[0] and RevitINT < 2022:
+    PRTElevation = get_parameter_value(Pipe[0], 'Bottom')
 
 servicenamelist = []
 Config = FabricationConfiguration.GetFabricationConfiguration(doc)
@@ -90,28 +100,8 @@ else:
             except:
                 groupnamelist.append(FabricationService[Servicenum].GetGroupName(Item3))
 
-if 'SUPPORTS' in groupnamelist:
-    # Display dialog
-    components = [
-        Label('Choose Service Palette:'),
-        ComboBox('Servicegroupnum', groupnamelist, sort=False, default='SUPPORTS'),
-        Button('Ok')
-        ]
-    form = FlexForm('Group', components)
-    form.show()
-else:
-    # Display dialog
-    components = [
-        Label('Choose Service Palette:'),
-        ComboBox('Servicegroupnum', groupnamelist, sort=False),
-        Button('Ok')
-        ]
-    form = FlexForm('Group', components)
-    form.show()
-
 # Convert dialog input into variable
-SelectedServicegroupname = (form.values['Servicegroupnum'])
-Servicegroupnum = groupnamelist.index(SelectedServicegroupname)
+Servicegroupnum = groupnamelist.index('SUPPORTS')
 
 buttoncount = LoadedServices[Servicenum].GetButtonCount(Servicegroupnum)
 
@@ -125,16 +115,14 @@ while count < buttoncount :
         buttonnames.append(bt.Name)	
 
 folder_name = "c:\\Temp"
-filepath = os.path.join(folder_name, 'Ribbon_PlaceHangers.txt')
+filepath = os.path.join(folder_name, 'Ribbon_PlaceTrapeze.txt')
 
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
 if not os.path.exists(filepath):
     with open((filepath), 'w') as the_file:
         line1 = (str(buttonnames[0]) + '\n')
-        line2 = ('1' + '\n')
-        line3 = '4'
-        the_file.writelines([line1, line2, line3])  
+        the_file.writelines([line1])  
 
     # read text file for stored values and show them in dialog
 with open((filepath), 'r') as file:
@@ -146,10 +134,6 @@ if lines[0] in buttonnames:
     components = [
         Label('Choose Hanger:'),
         ComboBox('Buttonnum', buttonnames, sort=False, default=lines[0]),
-        Label('Distance from End (Ft):'),
-        TextBox('EndDist', lines[1]),
-        Label('Hanger Spacing (Ft):'),
-        TextBox('Spacing', lines[2]),
         CheckBox('checkboxvalue', 'Attach to Structure', default=True),
         Button('Ok')
         ]
@@ -159,10 +143,6 @@ else:
     components = [
         Label('Choose Hanger:'),
         ComboBox('Buttonnum', buttonnames, sort=False),
-        Label('Distance from End (Ft):'),
-        TextBox('EndDist', lines[1]),
-        Label('Hanger Spacing (Ft):'),
-        TextBox('Spacing', lines[2]),
         CheckBox('checkboxvalue', 'Attach to Structure', default=True),
         Button('Ok')
         ]
@@ -172,17 +152,13 @@ else:
 # Convert dialog input into variable
 Selectedbutton = (form.values['Buttonnum'])
 Buttonnum = buttonnames.index(Selectedbutton)
-distancefromend = float(form.values['EndDist'])
-Spacing = float(form.values['Spacing'])
 AtoS = (form.values['checkboxvalue'])
 
 
 # write values to text file for future retrieval
 with open((filepath), 'w') as the_file:
     line1 = (Selectedbutton + '\n')
-    line2 = (str(distancefromend) + '\n')
-    line3 = str(Spacing)
-    the_file.writelines([line1, line2, line3])
+    the_file.writelines([line1])
     
 # Check if the button selected is valid   
 validbutton = FabricationService[Servicenum].IsValidButtonIndex(Servicegroupnum,Buttonnum)
@@ -199,9 +175,6 @@ class CustomISelectionFilter(ISelectionFilter):
             return False
     def AllowReference(self, ref, point):
         return true
-
-pipesel = uidoc.Selection.PickObjects(ObjectType.Element, "Select pipes to place hangers on")            
-Pipe = [doc.GetElement( elId ) for elId in pipesel]
 
 # Initialize variables for the combined bounding box with the coordinates of the first bounding box
 first_pipe_bounding_box = Pipe[0].get_BoundingBox(curview)
@@ -233,15 +206,9 @@ delta_x = combined_bounding_box.Max.X - combined_bounding_box.Min.X
 delta_y = combined_bounding_box.Max.Y - combined_bounding_box.Min.Y
 delta_z = combined_bounding_box.Max.Z - combined_bounding_box.Min.Z
 
-bottom_point = combined_min.Z
-
-# # Calculate the angle along the X-axis
-# angle_x_rad = math.atan2(0, delta_x)  # 0 is used for the Y component to measure along the X-axis
-# angle_x_deg = math.degrees(angle_x_rad)
-
-# # Calculate the angle along the Y-axis
-# angle_y_rad = math.atan2(delta_y, 0)  # 0 is used for the X component to measure along the Y-axis
-# angle_y_deg = math.degrees(angle_y_rad)
+# Calculate the differences (deltas) in X and Y coordinates
+delta_x = combined_bounding_box.Max.X - combined_bounding_box.Min.X
+delta_y = combined_bounding_box.Max.Y - combined_bounding_box.Min.Y
 
 Dimensions = []
 
@@ -251,60 +218,81 @@ t.Start()
 #FabricationPart.CreateHanger(doc, FabricationServiceButton, ElementId.Id, Connector, double, bool)
 hanger = FabricationPart.CreateHanger(doc, FabricationServiceButton, 0, level_id)
 
-t.Commit()
 
-bvalue_abvstd = 0.0
+t.Commit()
 
 t = Transaction(doc, 'Place Hangers')
 t.Start()
-for dim in hanger.GetDimensions():
-    if abs(delta_x) > abs(delta_y):
-        Dimensions.append(dim.Name)
-        if dim.Name == "Width":
-            hanger.SetDimensionValue(dim, delta_y)
-        if dim.Name == "Depth":
-            hanger.SetDimensionValue(dim, 0)
-        if dim.Name == "Bearer Extn":
-            hanger.SetDimensionValue(dim, 0.33333333)
-        hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(combined_bounding_box.Min.Z)
-        translation = combined_bounding_box_Center - GetCenterPoint(hanger.Id)
-        ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
-        hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(bottom_point)
-    else:
-        for dim in hanger.GetDimensions():
-            if abs(delta_y) > abs(delta_x):
-                Dimensions.append(dim.Name)
-                if dim.Name == "Width":
-                    hanger.SetDimensionValue(dim, delta_x)
-                if dim.Name == "Depth":
-                    hanger.SetDimensionValue(dim, 0)
-                if dim.Name == "Bearer Extn":
-                    hanger.SetDimensionValue(dim, 0.33333333)
-                hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(combined_bounding_box.Min.Z)
-                translation = combined_bounding_box_Center - GetCenterPoint(hanger.Id)
-                ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
-                hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(bottom_point)
-t.Commit()
 
-t = Transaction(doc, "Round Trapeze Width")
-t.Start()
-
-if hanger:
-    hanger.GetHostedInfo().DisconnectFromHost()
+if abs(delta_x) > abs(delta_y):
     for dim in hanger.GetDimensions():
         Dimensions.append(dim.Name)
+        if dim.Name == "Width":
+            width_value = hanger.GetDimensionValue(dim)
+            hanger.SetDimensionValue(dim, delta_y)
+        if dim.Name == "Bearer Extn":
+            bearer_value = hanger.GetDimensionValue(dim)
+            hanger.SetDimensionValue(dim, 0.33333)
+
+        translation = combined_bounding_box_Center - GetCenterPoint(hanger.Id)
+        ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
+        hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(PRTElevation)
+
         if dim.Name == "Width":
             width_value = hanger.GetDimensionValue(dim)
         if dim.Name == "Bearer Extn":
             bearer_value = hanger.GetDimensionValue(dim)
             in_bvalue = (bearer_value * 12)
-            if in_bvalue > 4.0:
-                bvalue_abvstd = in_bvalue - 4.0
+            bvalue_abvstd = in_bvalue - 4.0
             in_wvalue = (width_value * 12)
             rnd_value = myround((in_bvalue + in_wvalue + bvalue_abvstd), 2)
             abv_value = rnd_value - in_wvalue
             hlf_diff = (abv_value - 4.0) / 2
             new_value = (abv_value - hlf_diff) / 12
             hanger.SetDimensionValue(dim, new_value)
+
+if abs(delta_y) > abs(delta_x):
+    
+    for dim in hanger.GetDimensions():
+        Dimensions.append(dim.Name)
+        if dim.Name == "Width":
+            width_value = hanger.GetDimensionValue(dim)
+            hanger.SetDimensionValue(dim, delta_x)
+        if dim.Name == "Bearer Extn":
+            bearer_value = hanger.GetDimensionValue(dim)
+            hanger.SetDimensionValue(dim, 0.33333)
+
+        translation = combined_bounding_box_Center - GetCenterPoint(hanger.Id)
+        ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
+        
+        hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(PRTElevation)
+
+        if dim.Name == "Width":
+            width_value = hanger.GetDimensionValue(dim)
+        if dim.Name == "Bearer Extn":
+            bearer_value = hanger.GetDimensionValue(dim)
+            in_bvalue = (bearer_value * 12)
+            bvalue_abvstd = in_bvalue - 4.0
+            in_wvalue = (width_value * 12)
+            rnd_value = myround((in_bvalue + in_wvalue + bvalue_abvstd), 2)
+            abv_value = rnd_value - in_wvalue
+            hlf_diff = (abv_value - 4.0) / 2
+            new_value = (abv_value - hlf_diff) / 12
+            hanger.SetDimensionValue(dim, new_value)
+
+    # Get the center point of the hanger
+    hanger_center = combined_bounding_box_Center
+
+    # Specify the Z-axis direction (adjust as needed)
+    z_axis_direction = XYZ(0, 0, 1)  # Assuming positive Z direction
+
+    # Create a list of points for the curve
+    curve_points = [hanger_center, hanger_center + z_axis_direction * 10]  # Adjust the length as needed
+
+    # Create a curve using the points
+    curve = Autodesk.Revit.DB.Line.CreateBound(curve_points[0], curve_points[1])
+    ElementTransformUtils.RotateElement(doc, hanger.Id, curve, (90.0 * (math.pi / 180.0)))
+
 t.Commit()
+
 
