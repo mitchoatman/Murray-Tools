@@ -2,7 +2,7 @@ from pyrevit import forms
 import Autodesk
 from Autodesk.Revit.DB import *
 import System
-import os
+import os, sys
 
 doc = __revit__.ActiveUIDocument.Document
 file_path = doc.PathName

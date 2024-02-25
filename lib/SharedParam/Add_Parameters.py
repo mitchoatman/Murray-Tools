@@ -25,6 +25,7 @@ def Shared_Params():
     cat6 = doc.Settings.Categories.get_Item(BuiltInCategory.OST_GenericModel)
     cat7 = doc.Settings.Categories.get_Item(BuiltInCategory.OST_StructuralFraming)
     cat8 = doc.Settings.Categories.get_Item(BuiltInCategory.OST_PipeFitting)
+    cat9 = doc.Settings.Categories.get_Item(BuiltInCategory.OST_DuctAccessory)
     STRATUScatSet = app.Create.NewCategorySet()
     STRATUScatSet.Insert(cat1)
     STRATUScatSet.Insert(cat2)
@@ -34,6 +35,7 @@ def Shared_Params():
     STRATUScatSet.Insert(cat6)
     STRATUScatSet.Insert(cat7)
     STRATUScatSet.Insert(cat8)
+    STRATUScatSet.Insert(cat9)
     
     tg = TransactionGroup(doc, "Add Parameters")
     tg.Start()

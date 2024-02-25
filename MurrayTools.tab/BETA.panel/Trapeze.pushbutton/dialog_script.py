@@ -1,3 +1,4 @@
+
 #Imports
 import Autodesk
 from Autodesk.Revit.DB import Transaction, FabricationConfiguration, BuiltInParameter, FabricationPart, FabricationServiceButton, \
@@ -14,33 +15,30 @@ app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float (RevitVersion)
 
-def GetCenterPoint(ele):
-    bBox = doc.GetElement(ele).get_BoundingBox(None)
-    center = (bBox.Max + bBox.Min) / 2
-    return center
-def myround(x, multiple):
-    return multiple * math.ceil(x/multiple)
+
+# selection
+selected_element = uidoc.Selection.PickObject(ObjectType.Element, 'Select a Fabrication Part')
+
+element = doc.GetElement(selected_element.ElementId)
+
+level_id = element.LevelId
+
+# Gets servicename of selection
+parameters = element.LookupParameter('Fabrication Service').AsValueString()
 
 #FUNCTION TO GET PARAMETER VALUE  change "AsDouble()" to "AsString()" to change data type.
 def get_parameter_value(element, parameterName):
     return element.LookupParameter(parameterName).AsDouble()
 
-# selection
-pipesel = uidoc.Selection.PickObjects(ObjectType.Element, "Select pipes to place hangers on")            
-Pipe = [doc.GetElement( elId ) for elId in pipesel]
+# Gets bottom elevation of selected pipe
+if element and RevitINT > 2022:
+    PRTElevation = get_parameter_value(element, 'Lower End Bottom Elevation')
 
-level_id = Pipe[0].LevelId
+if element and RevitINT < 2023:
+    PRTElevation = get_parameter_value(element, 'Bottom')
 
 # Gets servicename of selection
-parameters = Pipe[0].LookupParameter('Fabrication Service').AsValueString()
-
-# Gets bottom elevation of selected pipe
-if pipesel[0] and RevitINT > 2023:
-    PRTElevation = get_parameter_value(Pipe[0], 'Lower End Bottom Elevation')
-if pipesel[0] and RevitINT < 2024:
-    PRTElevation = get_parameter_value(Pipe[0], 'Bottom Elevation')
-if pipesel[0] and RevitINT < 2022:
-    PRTElevation = get_parameter_value(Pipe[0], 'Bottom')
+parameters = element.LookupParameter('Fabrication Service').AsValueString()
 
 servicenamelist = []
 Config = FabricationConfiguration.GetFabricationConfiguration(doc)
@@ -100,8 +98,28 @@ else:
             except:
                 groupnamelist.append(FabricationService[Servicenum].GetGroupName(Item3))
 
+if 'SUPPORTS' in groupnamelist:
+    # Display dialog
+    components = [
+        Label('Choose Service Palette:'),
+        ComboBox('Servicegroupnum', groupnamelist, sort=False, default='SUPPORTS'),
+        Button('Ok')
+        ]
+    form = FlexForm('Group', components)
+    form.show()
+else:
+    # Display dialog
+    components = [
+        Label('Choose Service Palette:'),
+        ComboBox('Servicegroupnum', groupnamelist, sort=False),
+        Button('Ok')
+        ]
+    form = FlexForm('Group', components)
+    form.show()
+
 # Convert dialog input into variable
-Servicegroupnum = groupnamelist.index('SUPPORTS')
+SelectedServicegroupname = (form.values['Servicegroupnum'])
+Servicegroupnum = groupnamelist.index(SelectedServicegroupname)
 
 buttoncount = LoadedServices[Servicenum].GetButtonCount(Servicegroupnum)
 
@@ -115,14 +133,16 @@ while count < buttoncount :
         buttonnames.append(bt.Name)	
 
 folder_name = "c:\\Temp"
-filepath = os.path.join(folder_name, 'Ribbon_PlaceTrapeze.txt')
+filepath = os.path.join(folder_name, 'Ribbon_PlaceHangers.txt')
 
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
 if not os.path.exists(filepath):
     with open((filepath), 'w') as the_file:
         line1 = (str(buttonnames[0]) + '\n')
-        the_file.writelines([line1])  
+        line2 = ('1' + '\n')
+        line3 = '4'
+        the_file.writelines([line1, line2, line3])  
 
     # read text file for stored values and show them in dialog
 with open((filepath), 'r') as file:
@@ -134,6 +154,10 @@ if lines[0] in buttonnames:
     components = [
         Label('Choose Hanger:'),
         ComboBox('Buttonnum', buttonnames, sort=False, default=lines[0]),
+        Label('Distance from End (Ft):'),
+        TextBox('EndDist', lines[1]),
+        Label('Hanger Spacing (Ft):'),
+        TextBox('Spacing', lines[2]),
         CheckBox('checkboxvalue', 'Attach to Structure', default=True),
         Button('Ok')
         ]
@@ -143,6 +167,10 @@ else:
     components = [
         Label('Choose Hanger:'),
         ComboBox('Buttonnum', buttonnames, sort=False),
+        Label('Distance from End (Ft):'),
+        TextBox('EndDist', lines[1]),
+        Label('Hanger Spacing (Ft):'),
+        TextBox('Spacing', lines[2]),
         CheckBox('checkboxvalue', 'Attach to Structure', default=True),
         Button('Ok')
         ]
@@ -152,29 +180,44 @@ else:
 # Convert dialog input into variable
 Selectedbutton = (form.values['Buttonnum'])
 Buttonnum = buttonnames.index(Selectedbutton)
+distancefromend = float(form.values['EndDist'])
+Spacing = float(form.values['Spacing'])
 AtoS = (form.values['checkboxvalue'])
-
 
 # write values to text file for future retrieval
 with open((filepath), 'w') as the_file:
     line1 = (Selectedbutton + '\n')
-    the_file.writelines([line1])
+    line2 = (str(distancefromend) + '\n')
+    line3 = str(Spacing)
+    the_file.writelines([line1, line2, line3])
     
 # Check if the button selected is valid   
 validbutton = FabricationService[Servicenum].IsValidButtonIndex(Servicegroupnum,Buttonnum)
 FabricationServiceButton = FabricationService[Servicenum].GetButton(Servicegroupnum,Buttonnum)
 
-# Prompt user to select pipes (with filter)
 class CustomISelectionFilter(ISelectionFilter):
     def __init__(self, nom_categorie):
         self.nom_categorie = nom_categorie
     def AllowElement(self, e):
-        if e.LookupParameter('Fabrication Service').AsValueString() == self.nom_categorie:
+        if e.Category.Name == self.nom_categorie:
             return True
         else:
             return False
     def AllowReference(self, ref, point):
         return true
+    
+pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
+CustomISelectionFilter("MEP Fabrication Pipework"), "Select Fabrication Pipework to place trapeze on")              
+Pipe = [doc.GetElement( elId ) for elId in pipesel]
+
+
+def GetCenterPoint(ele):
+    bBox = doc.GetElement(ele).get_BoundingBox(None)
+    center = (bBox.Max + bBox.Min) / 2
+    return center
+def myround(x, multiple):
+    return multiple * math.ceil(x/multiple)
+
 
 # Initialize variables for the combined bounding box with the coordinates of the first bounding box
 first_pipe_bounding_box = Pipe[0].get_BoundingBox(curview)
@@ -212,6 +255,7 @@ delta_y = combined_bounding_box.Max.Y - combined_bounding_box.Min.Y
 
 Dimensions = []
 
+
 t = Transaction(doc, 'Place Hangers')
 t.Start()
 
@@ -220,6 +264,7 @@ hanger = FabricationPart.CreateHanger(doc, FabricationServiceButton, 0, level_id
 
 
 t.Commit()
+
 
 t = Transaction(doc, 'Place Hangers')
 t.Start()
@@ -294,5 +339,4 @@ if abs(delta_y) > abs(delta_x):
     ElementTransformUtils.RotateElement(doc, hanger.Id, curve, (90.0 * (math.pi / 180.0)))
 
 t.Commit()
-
 

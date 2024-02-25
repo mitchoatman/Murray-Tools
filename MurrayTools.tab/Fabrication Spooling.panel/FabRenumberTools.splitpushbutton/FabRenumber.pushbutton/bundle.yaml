@@ -1,0 +1,25 @@
+highlight: updated
+
+# bundle title
+title:
+  "Fabrication\nNumber"
+
+# bundle tooltip
+tooltip: |-
+  Re-Numbers selected fabrication parts per user defined sequence.
+
+    1. Run Script.
+    2. Select elements you want to number.
+    3. Select any fabrication fields you wish to exclude when determining identical elements.
+    4. Enter starting number sequence.
+
+
+# context directives are listed under `context` key, the order does not matter
+# context:
+  # - Selection
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

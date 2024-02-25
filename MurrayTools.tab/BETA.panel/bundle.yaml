@@ -12,7 +12,6 @@ layout:
   - ForGreg
   - RemoveParameters
   - CombineNumbers
-  - FabRenumber
   - Trapeze
   - APL
 

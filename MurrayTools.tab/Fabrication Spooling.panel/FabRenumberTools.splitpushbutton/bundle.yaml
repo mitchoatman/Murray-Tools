@@ -1,7 +1,7 @@
 layout:
-  - Fabrication Renumber
+  - FabRenumber
+  - FindLastNumber
 
-collapsed: true
 
 background:
   title: '#ffe716'

@@ -1,6 +1,7 @@
 layout:
   - Spooling
   - HGR_Data
+  - FabRenumberTools
   
 background:
   title: 'D5D5CD'

@@ -38,19 +38,28 @@ if value:
     f.write(value)
     f.close()
 
-    #This displays dialog
-    value1 = forms.ask_for_string(default=PrevInput, prompt='Enter Point Number Prefix:', title='Prefix')
-    
+#This displays dialog
+value1 = forms.ask_for_string(default=PrevInput, prompt='Enter Point Number Prefix:', title='Prefix')
 
-    t = Transaction(doc, 'Modify Point Data')
-    #Start Transaction
-    t.Start()
 
-    for i in selection:
+t = Transaction(doc, 'Modify Point Data')
+#Start Transaction
+t.Start()
+
+for i in selection:
+     if value:
         param_exist_ts = i.LookupParameter("TS_Point_Description")
         if param_exist_ts:
             #writes data to line number parameterzr
             set_parameter_by_name(i,"TS_Point_Description", value)
+
+for i in selection:
+    if value1:
+        param_exist_0 = i.LookupParameter("PointNumber")
+        if param_exist_0:
+            #writes data to line number parameterzr
+            set_parameter_by_name(i,"PointNumber", value1)
+
 
         param_exist_0 = i.LookupParameter("GTP_PointNumber_0")
         if param_exist_0:
@@ -72,5 +81,5 @@ if value:
             #writes data to line number parameterzr
             set_parameter_by_name(i,"GTP_PointNumber_3", value1)
 
-    #End Transaction
-    t.Commit()
+#End Transaction
+t.Commit()
