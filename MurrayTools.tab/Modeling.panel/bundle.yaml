@@ -1,9 +1,6 @@
 layout:
-  - DB_Update
-  - ProjectUtilities
-  - SaveViews
+  - Connect
 
-collapsed: false
 
 background:
   title: 'D5D5CD'

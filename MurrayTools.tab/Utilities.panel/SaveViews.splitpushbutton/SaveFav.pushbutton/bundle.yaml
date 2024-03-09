@@ -1,0 +1,16 @@
+#highlight: new
+
+# bundle title
+title:
+  "Save\nViews"
+
+# bundle tooltip
+tooltip: >-
+  Saves a list of currently open views that can be opened at a later time with the "Restore Views"  button.
+  Can be used as a way to continue where you left off in a previous session.
+
+# bundle help url
+help_url: "https://youtu.be/AvDcEcJ7OFk"
+
+# bundle author
+author: Mitchell Oatman

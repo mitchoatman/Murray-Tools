@@ -1,6 +1,5 @@
 layout:
   - Test
-  - Connect
   - DimesionGrids
   - ACC
   - Test
@@ -8,7 +7,6 @@ layout:
   - ZoomViews
   - EnableWorsetHook
   - WorksetMonitor
-  - SaveViews
   - ForGreg
   - RemoveParameters
   - CombineNumbers

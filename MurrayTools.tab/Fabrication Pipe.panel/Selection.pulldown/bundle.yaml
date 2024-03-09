@@ -2,5 +2,6 @@ layout:
   - SelectLongNoHubPipe
   - SelectLongCopperPipe
   - SelectLongCarbonSteelPipe
+  - SelectLongPVCPipe
   - SelectALLHangers
   - SelectSingleHangers

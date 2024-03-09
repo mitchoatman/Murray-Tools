@@ -5,7 +5,7 @@ from Autodesk.Revit.UI import *
 from Autodesk.Revit.UI.Selection import *
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, FamilySymbol, Structure, Transaction, BuiltInParameter, \
-                                Family, TransactionGroup, FamilyInstance
+                                Family, TransactionGroup, FamilyInstance, FabricationRodInfo
 import os
 
 
@@ -109,7 +109,24 @@ if len(Hanger) > 0:
                     ItmList2.append(rodloc)
             for hangerlocation in ItmList2:
                 familyInst = doc.Create.NewFamilyInstance(hangerlocation, famtype, Structure.StructuralType.NonStructural)
-
+            for e in Hanger:
+                STName = e.GetRodInfo().RodCount
+                ItmList1.append(STName)
+                STName1 = e.GetRodInfo()
+                for n in range(STName):
+                    rodloc = STName1.GetRodEndPosition(n)
+                    STName1.AttachToStructure()
     t.Commit()
+    
+    t = Transaction(doc, 'Attach Rod to Structure')
+    t.Start()
+    for e in Hanger:
+        STName = e.GetRodInfo().RodCount
+        STName1 = e.GetRodInfo()
+        for n in range(STName):
+            rodloc = STName1.GetRodEndPosition(n)
+            STName1.AttachToStructure()
+    t.Commit()
+
     #End Transaction Group
     tg.Assimilate()

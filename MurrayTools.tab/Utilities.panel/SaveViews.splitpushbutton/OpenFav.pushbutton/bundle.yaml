@@ -1,0 +1,18 @@
+#highlight: new
+
+# bundle title
+title:
+  "Restore\nViews"
+
+# bundle tooltip
+tooltip: >-
+  Opens the view list stored with the "Save Views" button.
+  Can be used as a way to continue where you left off in a previous session.
+  
+  Known Limitation:  Will not open Schedule views.
+
+# bundle help url
+help_url: "https://youtu.be/AvDcEcJ7OFk"
+
+# bundle author
+author: Mitchell Oatman

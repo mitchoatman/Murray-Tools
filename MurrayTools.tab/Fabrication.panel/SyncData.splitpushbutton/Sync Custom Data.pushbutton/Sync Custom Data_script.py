@@ -1,6 +1,9 @@
 
 #Imports
 from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, BuiltInParameter, Element, Transaction, TransactionGroup, FabricationPart
+from SharedParam.Add_Parameters import Shared_Params
+
+Shared_Params()
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument

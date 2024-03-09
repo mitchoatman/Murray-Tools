@@ -36,14 +36,8 @@ for cp in center_points:
 # Delete the elements that belong to duplicate center points
 try:
     if duplicates:
-        forms.toast(
-            (len(duplicates)),
-            title="Duplicates",
-            appid="Murray Tools",
-            icon="C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\MURRAY RIBBON\Murray.extension\Murray.ico",
-            click="https://murraycompany.com",)
         forms.alert_ifnot(duplicates < 0,
-                          'Delete Duplicates?',
+                          ("Delete Duplicate(s): {}".format(len(duplicates))),
                           yes=True, no=True, exitscript=True)
         
         for duplicate in duplicates:

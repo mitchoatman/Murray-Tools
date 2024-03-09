@@ -3,11 +3,11 @@ File: "www.msn.com"
 
 # bundle title
 title:
-  "Select\nLong CI Pipes"
+  "Select\nLong PVC Pipes"
 
 # bundle tooltip
 tooltip: |-
-  Selects all Fabrication pipes in active view with Cast Iron material and Longer than 10ft.
+  Selects all Fabrication pipes in active view with PVC material and Longer than 20ft.
   1. Execute command.
   2. All pipes in the view will be selected.
   3. Do what you will with the selected elements. Isolate etc...

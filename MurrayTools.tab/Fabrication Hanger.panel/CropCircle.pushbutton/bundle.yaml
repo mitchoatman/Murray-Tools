@@ -1,0 +1,24 @@
+# highlight: new
+
+# bundle title
+title:
+  "Crop\nCircle"
+
+# bundle tooltip
+tooltip: |-
+  Adds Crop Circles to all Fabrication Hanger Rods in the active view.
+  1. Execute command.
+  2. Crop Circles will be populated on Fabrication Hangers.
+
+  # [Shift]-Click:    
+  # Removes tags.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+# help_url: "https://youtu.be/ahVfaciq1wg"
+
+# bundle author
+author: Mitchell Oatman

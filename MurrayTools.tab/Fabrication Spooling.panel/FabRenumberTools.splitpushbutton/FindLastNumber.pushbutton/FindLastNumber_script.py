@@ -16,7 +16,7 @@ def get_format_and_number(item_number):
     format_part = ''.join(char for char in item_number if not char.isdigit())
     number_part = ''.join(char for char in item_number if char.isdigit())
     # If number_part is an empty string, set it to a default value (e.g., -1)
-    number_part = int(number_part) if number_part else -1
+    number_part = int(number_part) if number_part else 'No Numbers Found'
     return format_part, number_part
 
 
@@ -37,5 +37,5 @@ for element in part_collector:
 
 # Print out the maximum value for each format
 for format_part, max_value in max_values.items():
-    print("The maximum value for format {}{}".format(format_part, max_value))
+    print("The maximum value for format:  {}{}".format(format_part, max_value))
 
