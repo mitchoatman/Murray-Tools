@@ -17,14 +17,13 @@ RevitINT = float (RevitVersion)
 
 
 # selection
-selected_element = uidoc.Selection.PickObject(ObjectType.Element, 'Select a Fabrication Part')
-
+selected_element = uidoc.Selection.PickObject(ObjectType.Element, 'Select OUTSIDE Pipe')
+selected_element1 = uidoc.Selection.PickObject(ObjectType.Element, 'Select OPPOSITE OUTSIDE Pipe')
 element = doc.GetElement(selected_element.ElementId)
+element1 = doc.GetElement(selected_element1.ElementId)
+selected_elements = [element, element1]
 
 level_id = element.LevelId
-
-# Gets servicename of selection
-parameters = element.LookupParameter('Fabrication Service').AsValueString()
 
 #FUNCTION TO GET PARAMETER VALUE  change "AsDouble()" to "AsString()" to change data type.
 def get_parameter_value(element, parameterName):
@@ -51,8 +50,28 @@ for Item1 in LoadedServices:
     except:
         servicenamelist.append([])
 
+# Display dialog
+if 'PLUMBING: DOMESTIC COLD WATER' in servicenamelist:
+    components = [
+        Label('Choose Service to Place Trapeze on:'),
+        ComboBox('ServiceName', servicenamelist, sort=False, default='PLUMBING: DOMESTIC COLD WATER'),
+        Button('Ok')
+        ]
+    form = FlexForm('Fabrication Service', components)
+    form.show()
+else:
+    components = [
+        Label('Choose Service to Place Trapeze on:'),
+        ComboBox('ServiceName', servicenamelist, sort=False),
+        Button('Ok')
+        ]
+    form = FlexForm('Fabrication Service', components)
+    form.show()
+# Convert dialog input into variable
+SelectedServiceName = (form.values['ServiceName'])
+
 # Gets matching index of selected element service from the servicenamelist
-Servicenum = servicenamelist.index(parameters)
+Servicenum = servicenamelist.index(SelectedServiceName)
 
 
 servicelist = []    
@@ -99,14 +118,8 @@ else:
                 groupnamelist.append(FabricationService[Servicenum].GetGroupName(Item3))
 
 if 'SUPPORTS' in groupnamelist:
-    # Display dialog
-    components = [
-        Label('Choose Service Palette:'),
-        ComboBox('Servicegroupnum', groupnamelist, sort=False, default='SUPPORTS'),
-        Button('Ok')
-        ]
-    form = FlexForm('Group', components)
-    form.show()
+    SelectedServicegroupname = 'SUPPORTS'
+    Servicegroupnum = groupnamelist.index(SelectedServicegroupname)
 else:
     # Display dialog
     components = [
@@ -117,9 +130,9 @@ else:
     form = FlexForm('Group', components)
     form.show()
 
-# Convert dialog input into variable
-SelectedServicegroupname = (form.values['Servicegroupnum'])
-Servicegroupnum = groupnamelist.index(SelectedServicegroupname)
+    # Convert else dialog input into variable
+    SelectedServicegroupname = (form.values['Servicegroupnum'])
+    Servicegroupnum = groupnamelist.index(SelectedServicegroupname)
 
 buttoncount = LoadedServices[Servicenum].GetButtonCount(Servicegroupnum)
 
@@ -195,22 +208,6 @@ with open((filepath), 'w') as the_file:
 validbutton = FabricationService[Servicenum].IsValidButtonIndex(Servicegroupnum,Buttonnum)
 FabricationServiceButton = FabricationService[Servicenum].GetButton(Servicegroupnum,Buttonnum)
 
-class CustomISelectionFilter(ISelectionFilter):
-    def __init__(self, nom_categorie):
-        self.nom_categorie = nom_categorie
-    def AllowElement(self, e):
-        if e.Category.Name == self.nom_categorie:
-            return True
-        else:
-            return False
-    def AllowReference(self, ref, point):
-        return true
-    
-pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
-CustomISelectionFilter("MEP Fabrication Pipework"), "Select Fabrication Pipework to place trapeze on")              
-Pipe = [doc.GetElement( elId ) for elId in pipesel]
-
-
 def GetCenterPoint(ele):
     bBox = doc.GetElement(ele).get_BoundingBox(None)
     center = (bBox.Max + bBox.Min) / 2
@@ -218,14 +215,37 @@ def GetCenterPoint(ele):
 def myround(x, multiple):
     return multiple * math.ceil(x/multiple)
 
+def GetSideMiddlePoint(ele, side='X'):
+    bBox = ele.get_BoundingBox(None)
+    if side == 'X':
+        middle_point = XYZ((bBox.Max.X + bBox.Min.X) / 2, 
+                           (bBox.Max.Y + bBox.Min.Y) / 2, 
+                           (bBox.Max.Z + bBox.Min.Z) / 2)
+        return middle_point
+    elif side == 'Y':
+        middle_point = XYZ((bBox.Max.X + bBox.Min.X) / 2, 
+                           bBox.Min.Y, 
+                           (bBox.Max.Z + bBox.Min.Z) / 2)
+        return middle_point
+    elif side == 'Z':
+        middle_point = XYZ((bBox.Max.X + bBox.Min.X) / 2, 
+                           (bBox.Max.Y + bBox.Min.Y) / 2, 
+                           bBox.Min.Z)
+        return middle_point
+    else:
+        raise ValueError("Invalid side specified. Please use 'X', 'Y', or 'Z'.")
+
+# Example usage:
+# middle_point_along_x = GetSideMiddlePoint(element, 'X')
+# print("Middle point along X-axis:", middle_point_along_x)
 
 # Initialize variables for the combined bounding box with the coordinates of the first bounding box
-first_pipe_bounding_box = Pipe[0].get_BoundingBox(curview)
+first_pipe_bounding_box = element.get_BoundingBox(curview)
 combined_min = first_pipe_bounding_box.Min
 combined_max = first_pipe_bounding_box.Max
 
 # Iterate through the selected pipes to calculate individual bounding boxes
-for pipe in Pipe[1:]:
+for pipe in selected_elements[1:]:
     # Get the bounding box of the current pipe
     pipe_bounding_box = pipe.get_BoundingBox(curview)
 
@@ -253,10 +273,11 @@ delta_z = combined_bounding_box.Max.Z - combined_bounding_box.Min.Z
 delta_x = combined_bounding_box.Max.X - combined_bounding_box.Min.X
 delta_y = combined_bounding_box.Max.Y - combined_bounding_box.Min.Y
 
+
 Dimensions = []
 
 
-t = Transaction(doc, 'Place Hangers')
+t = Transaction(doc, 'Place Trapeze Hanger')
 t.Start()
 
 #FabricationPart.CreateHanger(doc, FabricationServiceButton, ElementId.Id, Connector, double, bool)
@@ -266,7 +287,7 @@ hanger = FabricationPart.CreateHanger(doc, FabricationServiceButton, 0, level_id
 t.Commit()
 
 
-t = Transaction(doc, 'Place Hangers')
+t = Transaction(doc, 'Modify Trapeze Hanger')
 t.Start()
 
 if abs(delta_x) > abs(delta_y):
@@ -274,7 +295,7 @@ if abs(delta_x) > abs(delta_y):
         Dimensions.append(dim.Name)
         if dim.Name == "Width":
             width_value = hanger.GetDimensionValue(dim)
-            hanger.SetDimensionValue(dim, delta_y)
+            hanger.SetDimensionValue(dim, delta_y + element.InsulationThickness + element1.InsulationThickness)
         if dim.Name == "Bearer Extn":
             bearer_value = hanger.GetDimensionValue(dim)
             hanger.SetDimensionValue(dim, 0.33333)
@@ -339,4 +360,3 @@ if abs(delta_y) > abs(delta_x):
     ElementTransformUtils.RotateElement(doc, hanger.Id, curve, (90.0 * (math.pi / 180.0)))
 
 t.Commit()
-

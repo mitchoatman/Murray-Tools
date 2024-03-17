@@ -82,14 +82,8 @@ try:
                     groupnamelist.append(FabricationService[Servicenum].GetGroupName(Item3))
 
     if 'SUPPORTS' in groupnamelist:
-        # Display dialog
-        components = [
-            Label('Choose Service Palette:'),
-            ComboBox('Servicegroupnum', groupnamelist, sort=False, default='SUPPORTS'),
-            Button('Ok')
-            ]
-        form = FlexForm('Group', components)
-        form.show()
+        SelectedServicegroupname = 'SUPPORTS'
+        Servicegroupnum = groupnamelist.index(SelectedServicegroupname)
     else:
         # Display dialog
         components = [
@@ -100,9 +94,9 @@ try:
         form = FlexForm('Group', components)
         form.show()
 
-    # Convert dialog input into variable
-    SelectedServicegroupname = (form.values['Servicegroupnum'])
-    Servicegroupnum = groupnamelist.index(SelectedServicegroupname)
+        # Convert else dialog input into variable
+        SelectedServicegroupname = (form.values['Servicegroupnum'])
+        Servicegroupnum = groupnamelist.index(SelectedServicegroupname)
 
     buttoncount = LoadedServices[Servicenum].GetButtonCount(Servicegroupnum)
 

@@ -1,6 +1,6 @@
 from pyrevit import revit, DB, forms
 import os
-
+import sys
 
 uidoc = revit.uidoc
 doc = uidoc.Document
@@ -24,11 +24,15 @@ if len(open_views) > 10:
 view_list = [view.Id for view in open_views]
 
 folder_name = "c:\\Temp"
-filepath = os.path.join(folder_name, 'Ribbon_OpenViews.txt')
 
-# write values to a text file for future retrieval
-with open((filepath), 'w') as the_file:
-    line1 = (str(file_name) + '\n')
-    line2 = (str(view_list) + '\n')
+# Replace spaces in the project name with underscores
+project_name = file_name.replace(" ", "_")
+
+# Append the project name to the file path using format method
+filepath = os.path.join(folder_name, 'Ribbon_OpenViews_{}.txt'.format(project_name))
+
+# Write values to a text file for future retrieval
+with open(filepath, 'w') as the_file:
+    line1 = str(file_name) + '\n'
+    line2 = str(view_list) + '\n'
     the_file.writelines([line1, line2])
-
