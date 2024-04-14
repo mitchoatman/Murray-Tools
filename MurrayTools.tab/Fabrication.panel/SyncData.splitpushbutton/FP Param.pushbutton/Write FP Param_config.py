@@ -75,7 +75,8 @@ for hanger in hanger_collector:
         pass
 
 try:
-    list(map(lambda x: set_parameter_by_name(x, 'FP_CID', get_parameter_value_by_name_AsInteger(x, 'Part Pattern Number')), AllElements))
+    list(map(lambda x: set_parameter_by_name(x, 'FP_CID', x.ItemCustomId), AllElements))
+    list(map(lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength), AllElements))
     list(map(lambda x: set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType)), AllElements))
     list(map(lambda x: set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name')), AllElements))
     list(map(lambda x: set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation')), AllElements))

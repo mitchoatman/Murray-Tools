@@ -1,7 +1,4 @@
-__title__ = 'Fabrication\nPipe Length'
-__doc__ = """Calculates Combined Length of Selected Fabrication Pipes."""
 
-import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import *
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType

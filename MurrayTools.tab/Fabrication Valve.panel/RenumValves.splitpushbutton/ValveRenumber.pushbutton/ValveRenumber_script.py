@@ -112,9 +112,7 @@ if servicelist:
             return point1.DistanceTo(point2)
 
         valves_to_renumber_sorted = sorted(valves_to_renumber, key=lambda x: distance_between_parts(selected_valve, x))
-        
-         
-        
+
         if "-" in value:
             #splits the spoolname
             valuesplit = value.rsplit('-', 1)
@@ -172,9 +170,13 @@ if servicelist:
                     set_parameter_by_name(valve, 'Mark', newvalvenumber)
                     set_customdata_by_custid(valve, 2, newvalvenumber)
 
-        f = open((filepath), 'w')
-        f.write(newvalvenumber)
-        f.close()
+        try:
+            newvalvenumber
+            f = open((filepath), 'w')
+            f.write(newvalvenumber)
+            f.close()
+        except NameError:
+            forms.alert('No Valves Found', ok=True, yes=False, no=False, exitscript=False)
 
     t = Transaction(doc, 'Set Valve Number')
     #Start Transaction

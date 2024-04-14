@@ -9,8 +9,6 @@ layout:
   - WorksetMonitor
   - ForGreg
   - RemoveParameters
-  - CombineNumbers
-  - Trapeze
   - APL
 
 collapsed: true

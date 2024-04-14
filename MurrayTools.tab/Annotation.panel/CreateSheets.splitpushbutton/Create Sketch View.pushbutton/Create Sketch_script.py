@@ -42,7 +42,7 @@ titleblockid = borders.FirstElementId()
 
 if str(curview.ViewType) == 'FloorPlan' :
     #prompt user for box and make sure mins are mins and maxs are maxs
-    pickedBox = uidoc.Selection.PickBox(PickBoxStyle.Directional, "Select area for sketch")
+    pickedBox = uidoc.Selection.PickBox(PickBoxStyle.Directional, "Draw rectangle area for sketch boundary")
     Maxx = pickedBox.Max.X
     Maxy = pickedBox.Max.Y
     Minx = pickedBox.Min.X

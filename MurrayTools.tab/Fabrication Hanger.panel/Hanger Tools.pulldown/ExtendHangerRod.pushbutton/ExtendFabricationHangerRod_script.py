@@ -9,7 +9,6 @@ from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, FamilyS
                                 Family, TransactionGroup, FamilyInstance, ReferencePlane
 import os
 
-
 DB = Autodesk.Revit.DB
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -18,7 +17,6 @@ fec = FilteredElementCollector
 app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float (RevitVersion)
-
 
 class CustomISelectionFilter(ISelectionFilter):
     def __init__(self, nom_categorie):
@@ -59,11 +57,8 @@ if len(Hanger) > 0:
         if not isinstance(ref_plane, DB.ReferencePlane):
             ref_plane = None
 
-
         # Retrieve the reference plane elevation
         valuenum = ref_plane.FreeEnd.Z
-
-
 
         ItmList1 = list()
         zLocs = []

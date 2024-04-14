@@ -1,5 +1,4 @@
 from pyrevit import forms
-import Autodesk
 from Autodesk.Revit.DB import *
 import System
 import os

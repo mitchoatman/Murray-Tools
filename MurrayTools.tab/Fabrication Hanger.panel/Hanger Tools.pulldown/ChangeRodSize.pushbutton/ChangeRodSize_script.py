@@ -1,5 +1,4 @@
 
-import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FabricationPart, FabricationAncillaryUsage, Transaction, FilteredElementCollector, BuiltInCategory, TransactionGroup
 from Autodesk.Revit.UI.Selection import *

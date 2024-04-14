@@ -1,5 +1,4 @@
 
-import Autodesk
 from Autodesk.Revit.DB import FabricationPart
 from Autodesk.Revit.DB import FabricationAncillaryUsage
 from Autodesk.Revit import DB

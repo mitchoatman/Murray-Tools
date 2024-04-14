@@ -1,0 +1,23 @@
+#highlight: new
+
+# bundle title
+title:
+  "Cable\nBrace"
+
+# bundle tooltip
+tooltip: >-
+  Inserts a Cable Seismic Brace Family
+
+    1. Run Script.
+    2. Select where you would like to place family.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Walls
+#  - Text Notes
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

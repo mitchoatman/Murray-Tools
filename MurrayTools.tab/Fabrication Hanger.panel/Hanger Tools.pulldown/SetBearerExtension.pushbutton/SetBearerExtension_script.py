@@ -1,13 +1,10 @@
 
-
 #Imports
-import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol
 from rpw.ui.forms import TextInput
 from Autodesk.Revit.UI.Selection import *
 import os
-
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -22,8 +19,6 @@ if not os.path.exists(filepath):
     f.write('1')
     f.close()
 
-
-
 class MySelectionFilter(ISelectionFilter):
     def __init__(self):
         pass
@@ -36,7 +31,6 @@ class MySelectionFilter(ISelectionFilter):
         return False
 selection_filter = MySelectionFilter()
 Hanger = uidoc.Selection.PickElementsByRectangle(selection_filter)
-
 
 if len(Hanger) > 0:
 

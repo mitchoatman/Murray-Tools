@@ -121,27 +121,27 @@ t = Transaction(doc, 'Set Spool Info')
 # Start Transaction
 t.Start()
 
-for i in selection:
-    isfabpart = i.LookupParameter("Fabrication Service")
-    if isfabpart:
-        if i.ItemCustomId == 838:
-            elev = get_parameter_value_by_name_AsValueString(i, 'Middle Elevation')
-            try:
+try:
+    for i in selection:
+        isfabpart = i.LookupParameter("Fabrication Service")
+        if isfabpart:
+            if i.ItemCustomId == 838:
+                elev = get_parameter_value_by_name_AsValueString(i, 'Middle Elevation')
                 set_customdata_by_custid(i, 12, JobNumber)
                 set_customdata_by_custid(i, 4, elev)
-            except:
-                print 'Database custom data is not correct, contact your admin.'
-                pass
-            try:
+except:
+    print 'Database custom data is not correct, contact your admin.'
+    pass
+try:
                 stat = i.PartStatus
                 STName = Config.GetPartStatusDescription(stat)
                 set_parameter_by_name(i, "STRATUS Assembly", MapName)
                 set_parameter_by_name(i, "STRATUS Status", "Modeled")
                 i.SpoolName = MapName
                 i.PartStatus = 1
-            except:
-                print 'Parameters missing, contact your admin.'
-                pass
+except:
+    print 'Parameters missing, contact your admin.'
+    pass
 # End Transaction
 t.Commit()
 

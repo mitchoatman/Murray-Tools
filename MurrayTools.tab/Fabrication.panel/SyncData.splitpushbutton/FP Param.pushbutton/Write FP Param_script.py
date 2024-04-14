@@ -26,7 +26,7 @@ if selection:
     for x in selection:
         isfabpart = x.LookupParameter("Fabrication Service")
         if isfabpart:
-            set_parameter_by_name(x, 'FP_CID', get_parameter_value_by_name_AsInteger(x, 'Part Pattern Number'))
+            set_parameter_by_name(x, 'FP_CID', x.ItemCustomId)
             set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType))
             set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'))
             set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation'))
@@ -34,6 +34,8 @@ if selection:
                 set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Size of Primary End'))
                 set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No')
                 [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
+            if x.ItemCustomId != 838:
+                set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength)
             try:
                 if (x.GetRodInfo().RodCount) < 2:
                     ItmDims = x.GetDimensions()
@@ -136,7 +138,8 @@ else:
 
 
     try:
-        list(map(lambda x: set_parameter_by_name(x, 'FP_CID', get_parameter_value_by_name_AsInteger(x, 'Part Pattern Number')), AllElements))
+        list(map(lambda x: set_parameter_by_name(x, 'FP_CID', x.ItemCustomId), AllElements))
+        list(map(lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength), AllElements))
         list(map(lambda x: set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType)), AllElements))
         list(map(lambda x: set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name')), AllElements))
         list(map(lambda x: set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation')), AllElements))

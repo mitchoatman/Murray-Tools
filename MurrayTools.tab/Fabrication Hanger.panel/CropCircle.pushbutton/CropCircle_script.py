@@ -42,8 +42,8 @@ class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
 Hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers)\
                                                             .WhereElementIsNotElementType()
 
-ItmList1 = list()
-ItmList2 = list()
+ItmList1 = []
+ItmList2 = []
 
 family_pathCC = path + NewFilename
 

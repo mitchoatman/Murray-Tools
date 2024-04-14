@@ -1,13 +1,10 @@
 
 #Imports
-import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import *
-
 from rpw.ui.forms import TextInput
 from Autodesk.Revit.UI.Selection import *
 import math
-
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument

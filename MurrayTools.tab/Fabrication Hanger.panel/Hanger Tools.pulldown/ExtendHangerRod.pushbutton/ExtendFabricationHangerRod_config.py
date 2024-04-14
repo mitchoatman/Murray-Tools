@@ -10,9 +10,6 @@ from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, FamilyS
                                 Family, TransactionGroup, FamilyInstance
 import os
 
-
-
-
 DB = Autodesk.Revit.DB
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -21,7 +18,6 @@ fec = FilteredElementCollector
 app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float (RevitVersion)
-
 
 class CustomISelectionFilter(ISelectionFilter):
     def __init__(self, nom_categorie):
@@ -64,7 +60,6 @@ if len(Hanger) > 0:
     form = FlexForm('Modify Hanger Rod', components)
     form.show()
 
-
     # Convert dialog input into variable
     value = (form.values['Elevation'])
     InputFT = float(value.split("-", 1)[0])
@@ -100,16 +95,12 @@ if len(Hanger) > 0:
             #Removes x and y coordinate data and returns only z converted back to number.
             zcoord = float((stringrodpos[zcoordloc+2:length]))
             STName1.SetRodLength(n, rodlen + (valuenum - zcoord))
-
     t.Commit()
 else:
     print 'At least one fabrication hanger must be selected.'
 
         #print("Coordinates: {}".format(stringrodpos))
         #print("Length: {}".format(zcoord))
-
-
-
 
 if RodControl == True:
 
@@ -135,7 +126,6 @@ if RodControl == True:
             source.Value = DB.FamilySource.Family
             overwriteParameterValues.Value = False
             return True
-
 
     ItmList1 = list()
     ItmList2 = list()

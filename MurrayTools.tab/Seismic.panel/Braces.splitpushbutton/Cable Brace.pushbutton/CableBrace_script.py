@@ -1,15 +1,4 @@
 
-__title__ = 'Cable\nBrace'
-__doc__ = """Inserts a Cable Seismic Brace Family.
-
-1. Run Script.
-2. Select where you would like to place family.
-"""
-
-
-import clr
-clr.AddReference('RevitAPI')
-clr.AddReference('RevitAPIUI')
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family
 

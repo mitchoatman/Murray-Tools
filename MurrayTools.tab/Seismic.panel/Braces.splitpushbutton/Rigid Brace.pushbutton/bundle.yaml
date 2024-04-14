@@ -1,16 +1,20 @@
-highlight: updated
+#highlight: new
 
 # bundle title
 title:
-  "Combine\nNumbers"
+  "Rigid\nBrace"
 
 # bundle tooltip
-tooltip: |-
-  Combines VM prefix with Item Number.
+tooltip: >-
+  Inserts a Rigid Seismic Brace Family
+
+    1. Run Script.
+    2. Select where you would like to place family.
 
 # context directives are listed under `context` key, the order does not matter
 #context:
-#  - Selection
+#  - Walls
+#  - Text Notes
 
 # bundle help url
 #help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"

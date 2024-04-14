@@ -34,6 +34,7 @@ BundleList = []
 REFLineNumList = []
 REFBSDesigList = []
 elementlist = []
+CommentsList = []
 
 selection = revit.get_selection()
 
@@ -74,6 +75,8 @@ if preselection:
                 REFBSDesigList.append(get_parameter_value_by_name_AsString(x, 'FP_REF BS Designation'))
 
                 Sizelist.append(get_parameter_value_by_name_AsString(x, 'Size of Primary End'))
+                
+                CommentsList.append(get_parameter_value_by_name_AsString(x, 'Comments'))
 
                 # PRTSIZE = get_parameter_value_by_name_AsString(x, 'Size')
                 # Sizelist.append(PRTSIZE)
@@ -95,6 +98,8 @@ if preselection:
     REFBSDesigList_set = set(REFBSDesigList)
     REFLineNumList_set = set(REFLineNumList)
     ValveNumlist_set = set(ValveNumlist)
+    CommentsList_set = set(CommentsList)
+ 
         
     try:
         GroupOptions = {'CID': sorted(CID_set),
@@ -111,6 +116,7 @@ if preselection:
             'Bundle Number': sorted(BundleList_set),
             'REF BS Designation': sorted(REFBSDesigList_set),
             'REF Line Number': sorted(REFLineNumList_set),
+            'Comments': sorted(CommentsList_set),
             'Valve Number': sorted(ValveNumlist_set)}
 
         res = forms.SelectFromList.show(GroupOptions,group_selector_title='Property Type:', multiselect=True, button_name='Select Item(s)', exitscript = True)
@@ -162,6 +168,8 @@ if preselection:
                         elementlist.append(elem.Id)
                 if get_parameter_value_by_name_AsString(elem, 'Size of Primary End') == fil:
                     elementlist.append(elem.Id)
+                if get_parameter_value_by_name_AsString(elem, 'Comments') == fil:
+                    elementlist.append(elem.Id)
                 # if get_parameter_value_by_name_AsString(elem, 'Size') == fil:
                     # elementlist.append(elem.Id)
             selection.set_to(elementlist)
@@ -198,8 +206,9 @@ else:
             REFLineNumList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'FP_REF Line Number'), part_collector))
             REFBSDesigList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'FP_REF BS Designation'), part_collector))
             Sizelist = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'Size'), pipeduct_collector))
+            CommentsList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'Comments'), part_collector))
         except:
-            pass
+            print 'No Fabrication Parts in View'
         try:
             # Size filter only
             for elem in hanger_collector:
@@ -223,6 +232,7 @@ else:
         REFLineNumList_set = set(REFLineNumList)
         ValveNumlist_set = set(ValveNumlist)
         Sizelist_set = set(Sizelist)
+        CommentsList_set = set(CommentsList)
 
         try:
             GroupOptions = {'CID': sorted(CID_set),
@@ -239,6 +249,7 @@ else:
                 'Bundle Number': sorted(BundleList_set),
                 'REF BS Designation': sorted(REFBSDesigList_set),
                 'REF Line Number': sorted(REFLineNumList_set),
+                'Comments': sorted(CommentsList_set),
                 'Valve Number': sorted(ValveNumlist_set)}
 
 
@@ -287,6 +298,9 @@ else:
                             elementlist.append(elem.Id)
                     if fil in ValveNumlist_set:
                         if get_parameter_value_by_name_AsString(elem, 'FP_Valve Number') == fil:
+                            elementlist.append(elem.Id)
+                    if fil in CommentsList_set:
+                        if get_parameter_value_by_name_AsString(elem, 'Comments') == fil:
                             elementlist.append(elem.Id)
                 for elem in pipeduct_collector:
                     if get_parameter_value_by_name_AsString(elem, 'Size') == fil:

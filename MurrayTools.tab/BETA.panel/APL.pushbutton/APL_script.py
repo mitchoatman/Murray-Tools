@@ -1,13 +1,12 @@
 
 #Imports
-import Autodesk
-from pyrevit import DB, revit, script, forms
+from pyrevit import DB, revit, script
 from Autodesk.Revit.DB import Transaction
 from Autodesk.Revit.UI import Selection
 from Autodesk.Revit.UI.Selection import ObjectType
-import os
 from Parameters.Get_Set_Params import set_parameter_by_name
-
+from rpw.ui.forms import FlexForm, Label, TextBox, Button
+import os
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -25,22 +24,51 @@ if not os.path.exists(filepath):
     f.write('123')
     f.close()
 
-f = open((filepath), 'r')
-PrevInput = f.read()
-f.close()
+folder_name = "c:\\Temp"
+filepath = os.path.join(folder_name, 'Ribbon_PointLayout.txt')
+try:
+    # read text file for stored values and show them in dialog
+    with open((filepath), 'r') as file:
+        lines = file.readlines()
+        lines = [line.rstrip() for line in lines]
+except:
+    with open((filepath), 'w') as the_file:
+        line1 = ('pre' + '\n')
+        line2 = ('num' + '\n')
+        the_file.writelines([line1, line2]) 
 
-#This displays dialog
-value = forms.ask_for_string(default=PrevInput, prompt='Enter Point Description:', title='Point Description')
+if len(lines) < 2:
+    with open((filepath), 'w') as the_file:
+        line1 = ('desc' + '\n')
+        line2 = ('pre' + '\n')
+        the_file.writelines([line1, line2]) 
 
-if value:
+# read text file for stored values and show them in dialog
+with open((filepath), 'r') as file:
+    lines = file.readlines()
+    lines = [line.rstrip() for line in lines]
 
-    f = open((filepath), 'w')
-    f.write(value)
-    f.close()
 
-#This displays dialog
-value1 = forms.ask_for_string(default=PrevInput, prompt='Enter Point Number Prefix:', title='Prefix')
+# Display dialog
+components = [
+    Label('Point Prefix:'),
+    TextBox('Pre', lines[1]),
+    Label('Point Description:'),
+    TextBox('Desc', lines[0]),
+    Button('Ok')
+    ]
+form = FlexForm('Renumber Fabrication Parts', components)
+form.show()
 
+# Convert dialog input into variable
+value = (form.values['Desc']).upper()
+value1 = (form.values['Pre']).upper()
+
+# write values to text file for future retrieval
+with open((filepath), 'w') as the_file:
+    line1 = (value + '\n')
+    line2 = (value1 + '\n')
+    the_file.writelines([line1, line2])
 
 t = Transaction(doc, 'Modify Point Data')
 #Start Transaction

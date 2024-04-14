@@ -1,13 +1,11 @@
 
-import Autodesk
-from pyrevit import revit, DB, forms
+from pyrevit import DB, forms
 from itertools import compress
 from System.Collections.Generic import List
 from Autodesk.Revit.DB import Transaction
 from Autodesk.Revit.DB.Fabrication import FabricationPartCompareType
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
-from rpw.ui.forms import FlexForm, Label, TextBox, Button, CheckBox
-import re ,ast, os
+import ast, os
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -183,42 +181,64 @@ for index in indices:
 
 IgnFld = list(compress(ignoreFields,IgnBool))
 
-folder_name = "c:\\Temp"
-filepath = os.path.join(folder_name, 'Ribbon_FabRenumber.txt')
+from rpw.ui.forms import FlexForm, Label, TextBox, Button, CheckBox
 
+filepath = os.path.join(folder_name, 'Ribbon_FabRenumber.txt')
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
 if not os.path.exists(filepath):
-    f = open((filepath), 'w')
-    f.write('1')
-    f.close()
+    with open((filepath), 'w') as the_file:
+        line1 = ('pre' + '\n')
+        line2 = ('num' + '\n')
+        line3 = 'False'
+        the_file.writelines([line1, line2, line3])
 
-f = open((filepath), 'r')
-PrevInput = f.read()
-f.close()
+# read text file for stored values and show them in dialog
+with open((filepath), 'r') as file:
+    lines = file.readlines()
+    lines = [line.rstrip() for line in lines]
+
+if len(lines) < 3:
+    with open((filepath), 'w') as the_file:
+        line1 = ('pre' + '\n')
+        line2 = ('num' + '\n')
+        line3 = 'False'
+        the_file.writelines([line1, line2, line3]) 
+
+# read text file for stored values and show them in dialog
+with open((filepath), 'r') as file:
+    lines = file.readlines()
+    lines = [line.rstrip() for line in lines]
+
+if lines[2] == 'False':
+    checkboxdef = False
+else:
+    checkboxdef = True
 
 # Display dialog
 components = [
+    Label('Prefix and Separator:'),
+    TextBox('prefix', lines[0]),
     Label('Enter Start Number:'),
-    TextBox('StrtNum', PrevInput),
-    CheckBox('checkboxvalue', 'Same Number for Identical Parts:', default=False),
+    TextBox('StrtNum', lines[1]),
+    CheckBox('checkboxvalue', 'Same Number for Identical Parts', default=checkboxdef),
+    CheckBox('SetStartcheckboxvalue', 'Set Numbering Start Location (In Development)', default=False),
     Button('Ok')
     ]
 form = FlexForm('Renumber Fabrication Parts', components)
 form.show()
 
 # Convert dialog input into variable
+valuepre = (form.values['prefix'])
 value = (form.values['StrtNum'])
 snfip = (form.values['checkboxvalue'])
+sslfn = (form.values['SetStartcheckboxvalue'])
 
-# Separate text and numbers using regular expressions
-match = re.match(r'([a-zA-Z\-_]*)(\d+)', value, re.I)
-if match:
-    items = match.groups()
 
-# Extract the text part and the number part from the input
-text_part = items[0] if items[0] else ''
-start_number = int(items[1]) if items[1] else 1
+start_number = int(value)  # Extract the number part starting from the first numeric character
+
+#gets the length of characters for number
+Fill_length = (len(value))
 
 # Start a transaction
 t = Transaction(doc, 'Re-Number Fabrication Hangers')
@@ -229,7 +249,7 @@ unique_elements = {}
 
 if snfip == False:
     for ue in Fhangers1:
-        num_to_assign = text_part + str(start_number)
+        num_to_assign = valuepre + str(start_number).zfill(Fill_length)
         set_parameter_by_name(ue, 'Item Number', str(num_to_assign))
         start_number += 1  # Increment the number for the next element
 else:
@@ -247,7 +267,7 @@ else:
             num_to_assign = unique_elements[key]
         else:
             # If not, assign the next available number and store it in the dictionary
-            num_to_assign = text_part + str(start_number)
+            num_to_assign = valuepre + str(start_number).zfill(Fill_length)
             unique_elements[key] = num_to_assign
             start_number += 1  # Increment the start number for the next unique element
 
@@ -258,11 +278,16 @@ else:
 # Commit the transaction
 t.Commit()
 
-f = open((filepath), 'w')
-f.write (text_part + str(start_number))
-f.close()
+# f = open((filepath), 'w')
+# f.write (valuepre + str(start_number).zfill(Fill_length))
+# f.close()
 
-
+# write values to text file for future retrieval
+with open((filepath), 'w') as the_file:
+    line1 = (valuepre + '\n')
+    line2 = (str(start_number).zfill(Fill_length) + '\n')
+    line3 = str(snfip)
+    the_file.writelines([line1, line2, line3])
 
 
 

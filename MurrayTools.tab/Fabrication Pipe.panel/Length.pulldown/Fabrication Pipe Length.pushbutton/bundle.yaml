@@ -1,0 +1,26 @@
+#highlight: new
+#highlight: updated
+
+# bundle title
+title:
+  "Fabrication\nPipe Length"
+
+# bundle tooltip
+tooltip: |-
+  Calculates Combined Length of Selected Fabrication Pipes.
+
+    1. Run Script.
+    2. Select the pipes to collect length from.
+    3. Linear Ft of pipe will be shown in the dialog
+
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Walls
+#  - Text Notes
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

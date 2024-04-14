@@ -119,9 +119,21 @@ try:
             line1 = (str(buttonnames[0]) + '\n')
             line2 = ('1' + '\n')
             line3 = '4'
-            the_file.writelines([line1, line2, line3])  
+            the_file.writelines([line1, line2, line3])
 
-        # read text file for stored values and show them in dialog
+    # read text file for stored values and show them in dialog
+    with open((filepath), 'r') as file:
+        lines = file.readlines()
+        lines = [line.rstrip() for line in lines]
+
+    if len(lines) < 3:
+        with open((filepath), 'w') as the_file:
+            line1 = (str(buttonnames[0]) + '\n')
+            line2 = ('1' + '\n')
+            line3 = '4'
+            the_file.writelines([line1, line2, line3])
+
+    # read text file for stored values and show them in dialog
     with open((filepath), 'r') as file:
         lines = file.readlines()
         lines = [line.rstrip() for line in lines]
