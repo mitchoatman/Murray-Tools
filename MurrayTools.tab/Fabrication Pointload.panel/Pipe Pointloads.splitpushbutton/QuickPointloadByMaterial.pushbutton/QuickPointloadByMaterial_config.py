@@ -137,7 +137,7 @@ for hanger in hanger_collector:
                 set_parameter_by_name(hanger, 'FP_Pointload', 503.0)
                 set_customdata_by_custid(hanger, 7, '50')
 
-        if Hostmat == 'Stainless Steel: 304L' or 'Stainless Steel: 316L':
+        if Hostmat in ['Stainless Steel: 304L', 'Stainless Steel: 316L']:
             HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
             if HostSize == '1/2"':
                 set_parameter_by_name(hanger, 'FP_Pointload', 4.95)

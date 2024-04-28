@@ -67,7 +67,7 @@ if list_of_filters:
 
     analyticalCollector = FilteredElementCollector(doc).WherePasses(multiple_filters).ToElementIds()
 
-tg = TransactionGroup(doc, "Quick CS Pointload")
+tg = TransactionGroup(doc, "Quick SS Pointload")
 tg.Start()
 
 t = Transaction(doc, "Isolate Services")
@@ -81,7 +81,7 @@ hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInC
                    .WhereElementIsNotElementType() \
                    .ToElements()
 
-t = Transaction(doc, 'Set CU Pointload Values')
+t = Transaction(doc, 'Set SS Pointload Values')
 #Start Transaction
 t.Start()
 

@@ -59,7 +59,7 @@ if selection:
                 set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType))
                 set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'))
                 set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation'))
-                set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Size of Primary End'))
+                set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry'))
                 set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No')
                 [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
             try:
@@ -121,27 +121,31 @@ t = Transaction(doc, 'Set Spool Info')
 # Start Transaction
 t.Start()
 
-try:
-    for i in selection:
-        isfabpart = i.LookupParameter("Fabrication Service")
-        if isfabpart:
-            if i.ItemCustomId == 838:
+custom_data_exception_raised = False  # Initialize the flag
+
+for i in selection:
+    isfabpartbro = i.LookupParameter("Fabrication Service")
+    if isfabpartbro:
+        if i.ItemCustomId == 838:
+            try:
                 elev = get_parameter_value_by_name_AsValueString(i, 'Middle Elevation')
                 set_customdata_by_custid(i, 12, JobNumber)
                 set_customdata_by_custid(i, 4, elev)
-except:
-    print 'Database custom data is not correct, contact your admin.'
-    pass
-try:
+            except Exception as e:
+                if not custom_data_exception_raised:  # Check if exception already raised
+                    print('Custom Data error:', e)
+                    custom_data_exception_raised = True  # Set the flag to True to indicate exception raised
+
+            try:
                 stat = i.PartStatus
                 STName = Config.GetPartStatusDescription(stat)
                 set_parameter_by_name(i, "STRATUS Assembly", MapName)
                 set_parameter_by_name(i, "STRATUS Status", "Modeled")
                 i.SpoolName = MapName
                 i.PartStatus = 1
-except:
-    print 'Parameters missing, contact your admin.'
-    pass
+            except Exception as e:
+                print('Parameter error:', e)
+                pass
 # End Transaction
 t.Commit()
 

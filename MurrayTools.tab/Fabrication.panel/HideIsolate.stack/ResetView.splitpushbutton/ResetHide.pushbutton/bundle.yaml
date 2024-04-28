@@ -1,0 +1,17 @@
+#highlight: new
+
+title:
+  "Reset\nHide"
+
+tooltip: >-
+  Un-Hides any element hidden in active view.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+help_url: "https://youtu.be/4EWlksHoRbI"
+
+# bundle author
+author: Mitchell Oatman

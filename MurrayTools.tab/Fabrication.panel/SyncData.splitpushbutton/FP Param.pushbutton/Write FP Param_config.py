@@ -36,7 +36,7 @@ for hanger in hanger_collector:
             hosted_info = hanger.GetHostedInfo().HostId
             HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
             # Get the hanger's size
-            HangerSize = get_parameter_value_by_name_AsString(hanger, 'Size of Primary End')
+            HangerSize = get_parameter_value_by_name_AsString(hanger, 'Product Entry')
             # Set the 'FP_Hanger Shield' parameter based on whether the host and hanger sizes match
             if HostSize == HangerSize:
                 set_parameter_by_name(hanger, 'FP_Hanger Shield', 'No')
@@ -80,7 +80,7 @@ try:
     list(map(lambda x: set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType)), AllElements))
     list(map(lambda x: set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name')), AllElements))
     list(map(lambda x: set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation')), AllElements))
-    list(map(lambda x: set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Size of Primary End')), hanger_collector))
+    list(map(lambda x: set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry')), hanger_collector))
     list(map(lambda x: set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No'), hanger_collector))
     list(map(lambda hanger: [set_parameter_by_name(hanger, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in hanger.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0], hanger_collector))
 

@@ -10,6 +10,8 @@ tooltip: >-
 
     1. Run Script.
     2. Select where you would like to place family.
+    
+    [Shift]-Click to place braces at centerline elevation of selected fabrication hangers.
 
 # context directives are listed under `context` key, the order does not matter
 #context:
