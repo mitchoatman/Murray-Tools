@@ -1,8 +1,17 @@
+
+from Autodesk.Revit.DB import BuiltInCategory, BuiltInParameter, ElementId, WorksharingUtils, FamilyInstance
 from pyrevit import EXEC_PARAMS
 from pyrevit import revit, DB
 
-doc = EXEC_PARAMS.event_args.GetDocument()
+sender = __eventsender__
+args = __eventargs__
 
-for wall in revit.query.get_elements_by_class(DB.Wall, doc=doc):
-    p = wall.LookupParameter("Unconnected Height")
-    p.Set(5)
+doc = args.GetDocuemnt()
+
+modified_el_ids = args.GetModifiedElementIds()
+deleted_el_ids = args.GetDeletedElementIds()
+new_el_ids = args.GetAddedElementIds()
+
+modified_el = [doc.GetElement(e.id) for e_id in modified_el_ids]
+
+allowed_cats = 

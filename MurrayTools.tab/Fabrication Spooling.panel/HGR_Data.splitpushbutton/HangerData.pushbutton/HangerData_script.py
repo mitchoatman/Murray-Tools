@@ -54,14 +54,18 @@ if selection:
     for x in selection:
         isfabpart = x.LookupParameter("Fabrication Service")
         if isfabpart:
+            set_parameter_by_name(x, 'FP_CID', x.ItemCustomId)
+            set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType))
+            set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'))
+            set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation'))
             if x.ItemCustomId == 838:
-                set_parameter_by_name(x, 'FP_CID', get_parameter_value_by_name_AsInteger(x, 'Part Pattern Number'))
-                set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType))
-                set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'))
-                set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation'))
-                set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry'))
                 set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No')
                 [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
+                ProductEntry = x.LookupParameter('Product Entry')
+                if ProductEntry:
+                    set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry'))
+            if x.ItemCustomId != 838:
+                set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength)
             try:
                 if (x.GetRodInfo().RodCount) > 0:
                     ItmDims = x.GetDimensions()
@@ -106,47 +110,49 @@ components = [
 form = FlexForm('Hanger Data', components)
 form.show()
 
-# Convert dialog input into variable
-JobNumber = form.values['JobNumber']
-MapName= form.values['MapName']
+try:
+    # Convert dialog input into variable
+    JobNumber = form.values['JobNumber']
+    MapName= form.values['MapName']
 
-# write values to text file for future retrieval
-with open((filepath), 'w') as the_file:
-    line1 = JobNumber + '\n'
-    line2 = MapName
-    the_file.writelines([line1, line2])
+    # write values to text file for future retrieval
+    with open((filepath), 'w') as the_file:
+        line1 = JobNumber + '\n'
+        line2 = MapName
+        the_file.writelines([line1, line2])
 
 
-t = Transaction(doc, 'Set Spool Info')
-# Start Transaction
-t.Start()
+    t = Transaction(doc, 'Set Spool Info')
+    # Start Transaction
+    t.Start()
 
-custom_data_exception_raised = False  # Initialize the flag
+    custom_data_exception_raised = False  # Initialize the flag
 
-for i in selection:
-    isfabpartbro = i.LookupParameter("Fabrication Service")
-    if isfabpartbro:
-        if i.ItemCustomId == 838:
-            try:
-                elev = get_parameter_value_by_name_AsValueString(i, 'Middle Elevation')
-                set_customdata_by_custid(i, 12, JobNumber)
-                set_customdata_by_custid(i, 4, elev)
-            except Exception as e:
-                if not custom_data_exception_raised:  # Check if exception already raised
-                    print('Custom Data error:', e)
-                    custom_data_exception_raised = True  # Set the flag to True to indicate exception raised
+    for i in selection:
+        isfabpartbro = i.LookupParameter("Fabrication Service")
+        if isfabpartbro:
+            if i.ItemCustomId == 838:
+                try:
+                    elev = get_parameter_value_by_name_AsValueString(i, 'Middle Elevation')
+                    set_customdata_by_custid(i, 12, JobNumber)
+                    set_customdata_by_custid(i, 4, elev)
+                except Exception as e:
+                    if not custom_data_exception_raised:  # Check if exception already raised
+                        print('Custom Data error:', e)
+                        custom_data_exception_raised = True  # Set the flag to True to indicate exception raised
 
-            try:
-                stat = i.PartStatus
-                STName = Config.GetPartStatusDescription(stat)
-                set_parameter_by_name(i, "STRATUS Assembly", MapName)
-                set_parameter_by_name(i, "STRATUS Status", "Modeled")
-                i.SpoolName = MapName
-                i.PartStatus = 1
-            except Exception as e:
-                print('Parameter error:', e)
-                pass
-# End Transaction
-t.Commit()
-
+                try:
+                    stat = i.PartStatus
+                    STName = Config.GetPartStatusDescription(stat)
+                    set_parameter_by_name(i, "STRATUS Assembly", MapName)
+                    set_parameter_by_name(i, "STRATUS Status", "Modeled")
+                    i.SpoolName = MapName
+                    i.PartStatus = 1
+                except Exception as e:
+                    print('Parameter error:', e)
+                    pass
+    # End Transaction
+    t.Commit()
+except:
+    pass
 

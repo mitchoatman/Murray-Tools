@@ -2,7 +2,7 @@
 import Autodesk
 from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, Transaction, FabricationPart, FabricationConfiguration
 from SharedParam.Add_Parameters import Shared_Params
-from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsInteger
+from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsInteger, get_parameter_value_by_name_AsValueString
 
 Shared_Params()
 
@@ -31,12 +31,16 @@ if selection:
             set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'))
             set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation'))
             if x.ItemCustomId == 838:
-                set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry'))
                 set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No')
                 [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
+                ProductEntry = x.LookupParameter('Product Entry')
+                if ProductEntry:
+                    set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry'))
             if x.ItemCustomId != 838:
                 set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength)
             try:
+                RB = 0
+                RL = 0
                 if (x.GetRodInfo().RodCount) < 2:
                     ItmDims = x.GetDimensions()
                     for dta in ItmDims:
@@ -104,6 +108,8 @@ else:
             pass
 
         try:
+            RB = 0
+            RL = 0
             if (hanger.GetRodInfo().RodCount) < 2:
                 ItmDims = hanger.GetDimensions()
                 for dta in ItmDims:

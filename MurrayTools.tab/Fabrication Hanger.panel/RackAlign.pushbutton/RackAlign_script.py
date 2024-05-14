@@ -52,37 +52,45 @@ try:
     if RevitINT > 2022:
         if BTM:
             for elem in selected_elements:
-                elem.get_Parameter(BuiltInParameter.MEP_LOWER_BOTTOM_ELEVATION).Set(PRTElevation)
+                if elem.ItemCustomId == 2041:
+                    elem.get_Parameter(BuiltInParameter.MEP_LOWER_BOTTOM_ELEVATION).Set(PRTElevation)
             if INS:
                 for elem in selected_elements:
-                    if elem.InsulationThickness:
-                        INSthickness = get_parameter_value(elem, 'Insulation Thickness')
-                        elem.get_Parameter(BuiltInParameter.MEP_LOWER_BOTTOM_ELEVATION).Set(PRTElevation - INSthickness)
+                    if elem.ItemCustomId == 2041:
+                        if elem.InsulationThickness:
+                            INSthickness = get_parameter_value(elem, 'Insulation Thickness')
+                            elem.get_Parameter(BuiltInParameter.MEP_LOWER_BOTTOM_ELEVATION).Set(PRTElevation - INSthickness)
         if TOP:
             for elem in selected_elements:
-                elem.get_Parameter(BuiltInParameter.MEP_LOWER_TOP_ELEVATION).Set(PRTElevation)
+                if elem.ItemCustomId == 2041:
+                    elem.get_Parameter(BuiltInParameter.MEP_LOWER_TOP_ELEVATION).Set(PRTElevation)
             if INS:
                 for elem in selected_elements:
-                    if elem.InsulationThickness:
-                        INSthickness = get_parameter_value(elem, 'Insulation Thickness')
-                        elem.get_Parameter(BuiltInParameter.MEP_LOWER_TOP_ELEVATION).Set(PRTElevation + INSthickness)
+                    if elem.ItemCustomId == 2041:
+                        if elem.InsulationThickness:
+                            INSthickness = get_parameter_value(elem, 'Insulation Thickness')
+                            elem.get_Parameter(BuiltInParameter.MEP_LOWER_TOP_ELEVATION).Set(PRTElevation + INSthickness)
     else:
         if BTM:
             for elem in selected_elements:
-                elem.get_Parameter(BuiltInParameter.FABRICATION_BOTTOM_OF_PART).Set(PRTElevation)
+                if elem.ItemCustomId == 2041:
+                    elem.get_Parameter(BuiltInParameter.FABRICATION_BOTTOM_OF_PART).Set(PRTElevation)
             if INS:
                 for elem in selected_elements:
-                    if elem.InsulationThickness:
-                        INSthickness = get_parameter_value(elem, 'Insulation Thickness')
-                        elem.get_Parameter(BuiltInParameter.FABRICATION_BOTTOM_OF_PART).Set(PRTElevation - INSthickness)
+                    if elem.ItemCustomId == 2041:
+                        if elem.InsulationThickness:
+                            INSthickness = get_parameter_value(elem, 'Insulation Thickness')
+                            elem.get_Parameter(BuiltInParameter.FABRICATION_BOTTOM_OF_PART).Set(PRTElevation - INSthickness)
         if TOP:
             for elem in selected_elements:
-                elem.get_Parameter(BuiltInParameter.FABRICATION_TOP_OF_PART).Set(PRTElevation)
+                if elem.ItemCustomId == 2041:
+                    elem.get_Parameter(BuiltInParameter.FABRICATION_TOP_OF_PART).Set(PRTElevation)
             if INS:
                 for elem in selected_elements:
-                    if elem.InsulationThickness:
-                        INSthickness = get_parameter_value(elem, 'Insulation Thickness')
-                        elem.get_Parameter(BuiltInParameter.FABRICATION_TOP_OF_PART).Set(PRTElevation + INSthickness)
+                    if elem.ItemCustomId == 2041:
+                        if elem.InsulationThickness:
+                            INSthickness = get_parameter_value(elem, 'Insulation Thickness')
+                            elem.get_Parameter(BuiltInParameter.FABRICATION_TOP_OF_PART).Set(PRTElevation + INSthickness)
 
     t.Commit()
 except:

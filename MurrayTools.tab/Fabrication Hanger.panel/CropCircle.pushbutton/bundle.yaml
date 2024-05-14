@@ -10,9 +10,6 @@ tooltip: |-
   1. Execute command.
   2. Crop Circles will be populated on Fabrication Hangers.
 
-  # [Shift]-Click:    
-  # Removes tags.
-
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Selection

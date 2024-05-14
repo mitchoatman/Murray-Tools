@@ -251,6 +251,7 @@ if snfip == False:
     for ue in Fhangers1:
         num_to_assign = valuepre + str(start_number).zfill(Fill_length)
         set_parameter_by_name(ue, 'Item Number', str(num_to_assign))
+        set_parameter_by_name(ue, 'STRATUS Item Number', str(num_to_assign))
         start_number += 1  # Increment the number for the next element
 else:
     for e in Fhangers1:
@@ -274,6 +275,7 @@ else:
         # Assign the number to all identical elements
         for element in identical_elements:
             set_parameter_by_name(element, 'Item Number', num_to_assign)
+            set_parameter_by_name(element, 'STRATUS Item Number', num_to_assign)
 
 # Commit the transaction
 t.Commit()
