@@ -43,19 +43,6 @@ pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
 CustomISelectionFilter("MEP Fabrication Pipework"), "Select Fabrication Pipes to collect weight from")            
 Fpipework = [doc.GetElement( elId ) for elId in pipesel]
 
-    
-
-class CustomISelectionFilter(ISelectionFilter):
-    def __init__(self, nom_categorie):
-        self.nom_categorie = nom_categorie
-    def AllowElement(self, e):
-        if e.Category.Name == self.nom_categorie:
-            return True
-        else:
-            return False
-    def AllowReference(self, ref, point):
-        return true
-
 pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
 CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers to distribute collected weight across")            
 Fhangers = [doc.GetElement( elId ) for elId in pipesel]

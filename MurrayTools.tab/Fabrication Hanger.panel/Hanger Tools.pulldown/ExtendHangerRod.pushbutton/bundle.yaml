@@ -7,14 +7,16 @@ title:
 # bundle tooltip
 tooltip: |-
   Extends Fabrication Hanger Rod(s) to a reference plane.
-    1. Run Script.
-    2. Select Fabrication Hangers (Using Window Selection).
-    3. Pick Reference plane to extend rods to.
-        Enter elevation into dialog using format FT-IN (no spaces)
-        eg:  15-3 or 15-6.5
+    1. Make a reference plane
+    2. Run Script.
+    3. Select Fabrication Hangers (Using Window Selection).
+    4. Pick Reference plane to extend rods to.
+
 
   [Shift]-Click:    
   Extend Fabrication Hanger Rod(s)) to a User Specified Elevation.
+        Enter elevation into dialog using format FT-IN (no spaces)
+        eg:  15-3 or 15-6.5
 
 # context directives are listed under `context` key, the order does not matter
 #context:

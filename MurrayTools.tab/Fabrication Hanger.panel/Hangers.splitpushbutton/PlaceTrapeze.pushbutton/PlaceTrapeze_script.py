@@ -96,7 +96,7 @@ if doc.GetElement(selected_element.ElementId).ItemCustomId != 916:
         checkboxdefBOI = True
 
     # Display dialog
-    if 'PLUMBING: DOMESTIC COLD WATER' in servicenamelist:
+    if lines[3] in servicenamelist:
         components = [
             Label('Choose Service to Place Trapeze on:'),
             ComboBox('ServiceName', servicenamelist, sort=False, default= lines[3]),
@@ -191,34 +191,34 @@ if doc.GetElement(selected_element.ElementId).ItemCustomId != 916:
             buttonnames.append(bt.Name)	
 
     # Display dialog
-    # if lines[0] in buttonnames:
-    components = [
-        Label('Choose Hanger:'),
-        ComboBox('Buttonnum', buttonnames, sort=False, default=lines[0]),
-        Label('Distance from End (Ft):'),
-        TextBox('EndDist', lines[1]),
-        Label('Hanger Spacing (Ft):'),
-        TextBox('Spacing', lines[2]),
-        CheckBox('checkboxBOI', 'Align Trapeze to Bottom of Insulation', default= checkboxdefBOI),
-        CheckBox('checkboxvalue', 'Attach to Structure', default= checkboxdef),
-        Button('Ok')
-        ]
-    form = FlexForm('Hanger and Spacing', components)
-    form.show()
-    # else:
-        # components = [
-            # Label('Choose Hanger:'),
-            # ComboBox('Buttonnum', buttonnames, sort=False),
-            # Label('Distance from End (Ft):'),
-            # TextBox('EndDist', lines[1]),
-            # Label('Hanger Spacing (Ft):'),
-            # TextBox('Spacing', lines[2]),
-            # CheckBox('checkboxBOI', 'Align Trapeze to BOI', default= checkboxdefBOI),
-            # CheckBox('checkboxvalue', 'Attach to Structure', default= checkboxdef),
-            # Button('Ok')
-            # ]
-        # form = FlexForm('Hanger and Spacing', components)
-        # form.show()
+    if lines[0] in buttonnames:
+        components = [
+            Label('Choose Hanger:'),
+            ComboBox('Buttonnum', buttonnames, sort=False, default=lines[0]),
+            Label('Distance from End (Ft):'),
+            TextBox('EndDist', lines[1]),
+            Label('Hanger Spacing (Ft):'),
+            TextBox('Spacing', lines[2]),
+            CheckBox('checkboxBOI', 'Align Trapeze to Bottom of Insulation', default= checkboxdefBOI),
+            CheckBox('checkboxvalue', 'Attach to Structure', default= checkboxdef),
+            Button('Ok')
+            ]
+        form = FlexForm('Hanger and Spacing', components)
+        form.show()
+    else:
+        components = [
+            Label('Choose Hanger:'),
+            ComboBox('Buttonnum', buttonnames, sort=False),
+            Label('Distance from End (Ft):'),
+            TextBox('EndDist', lines[1]),
+            Label('Hanger Spacing (Ft):'),
+            TextBox('Spacing', lines[2]),
+            CheckBox('checkboxBOI', 'Align Trapeze to BOI', default= checkboxdefBOI),
+            CheckBox('checkboxvalue', 'Attach to Structure', default= checkboxdef),
+            Button('Ok')
+            ]
+        form = FlexForm('Hanger and Spacing', components)
+        form.show()
 
     # Convert dialog input into variable
     Selectedbutton = (form.values['Buttonnum'])
@@ -332,10 +332,12 @@ if doc.GetElement(selected_element.ElementId).ItemCustomId != 916:
 
     delta_x = abs(combined_bounding_box.Max.X - combined_bounding_box.Min.X)
     delta_y = abs(combined_bounding_box.Max.Y - combined_bounding_box.Min.Y)
-
+    angle_radians = math.atan2(delta_y, delta_x)
+    angle_degrees = math.degrees(angle_radians)
+    print angle_radians
+    print angle_degrees
     #-----------------------------------------------------------------------------------SETUP SPACING
     Dimensions = []
-
     # Calculate how many hangers in the run
     if (delta_x) > (delta_y):
         qtyofhgrs = int(delta_x / Spacing)
@@ -365,74 +367,46 @@ if doc.GetElement(selected_element.ElementId).ItemCustomId != 916:
         IncrementSpacing = IncrementSpacing + Spacing
 
     #-----------------------------------------------------------------------------------TRAPS IN X DIRECTION, MOVES AND MODIFIES PLACED TRAPS ABOVE
-        if (delta_x) > (delta_y):
-            for dim in hanger.GetDimensions():
-                Dimensions.append(dim.Name)
-                if dim.Name == "Width":
-                    width_value = hanger.GetDimensionValue(dim)
-                    hanger.SetDimensionValue(dim, delta_y)
-                if dim.Name == "Bearer Extn":
-                    bearer_value = hanger.GetDimensionValue(dim)
-                    hanger.SetDimensionValue(dim, 0.33333)
-                if dim.Name == "Width":
-                    width_value = hanger.GetDimensionValue(dim)
-                if dim.Name == "Bearer Extn":
-                    bearer_value = hanger.GetDimensionValue(dim)
-                    in_bvalue = (bearer_value * 12)
-                    bvalue_abvstd = in_bvalue - 4.0
-                    in_wvalue = (width_value * 12)
-                    rnd_value = myround((in_bvalue + in_wvalue + bvalue_abvstd), 2)
-                    abv_value = rnd_value - in_wvalue
-                    hlf_diff = (abv_value - 4.0) / 2
-                    new_value = (abv_value - hlf_diff) / 12
-                    hanger.SetDimensionValue(dim, new_value)
-                translation = X_side_xyz - GetCenterPoint(hanger.Id)
-                ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
-                if BOITrap:
-                    hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(PRTElevation)
-                else:
-                    hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(combined_bounding_box.Min.Z)
 
-    #-----------------------------------------------------------------------------------TRAPS IN Y DIRECTION, MOVES AND MODIFIES PLACED TRAPS ABOVE
-        if (delta_y) > (delta_x):
-            #---------------ROTATION OF TRAP---------------#
-            # Specify the Z-axis direction (adjust as needed)
-            z_axis_direction = XYZ(0, 0, 1)  # Assuming positive Z direction
+        #---------------ROTATION OF TRAP---------------#
+        # Specify the Z-axis direction (adjust as needed)
+        z_axis_direction = XYZ(0, 0, 1)  # Assuming positive Z direction
 
-            # Create a list of points for the curve
-            curve_points = [GetCenterPoint(hanger.Id), GetCenterPoint(hanger.Id) + z_axis_direction * 2]  # Adjust the length as needed
+        # Create a list of points for the curve
+        curve_points = [GetCenterPoint(hanger.Id), GetCenterPoint(hanger.Id) + z_axis_direction * 2]  # Adjust the length as needed
 
-            # Create a curve using the points
-            curve = Autodesk.Revit.DB.Line.CreateBound(curve_points[0], curve_points[1])
-            ElementTransformUtils.RotateElement(doc, hanger.Id, curve, (90.0 * (math.pi / 180.0)))
-            #---------------ROTATION OF TRAP---------------#
+        # Create a curve using the points
+        curve = Autodesk.Revit.DB.Line.CreateBound(curve_points[0], curve_points[1])
+        #ElementTransformUtils.RotateElement(doc, hanger.Id, curve, (max(delta_x, delta_y) * 180.0 / math.pi))
+        ElementTransformUtils.RotateElement(doc, hanger.Id, curve, (angle_degrees * (math.pi / 180.0)))
+        #---------------ROTATION OF TRAP---------------#
 
-            for dim in hanger.GetDimensions():
-                Dimensions.append(dim.Name)
-                if dim.Name == "Width":
-                    width_value = hanger.GetDimensionValue(dim)
-                    hanger.SetDimensionValue(dim, delta_x)
-                if dim.Name == "Bearer Extn":
-                    bearer_value = hanger.GetDimensionValue(dim)
-                    hanger.SetDimensionValue(dim, 0.33333)
-                if dim.Name == "Width":
-                    width_value = hanger.GetDimensionValue(dim)
-                if dim.Name == "Bearer Extn":
-                    bearer_value = hanger.GetDimensionValue(dim)
-                    in_bvalue = (bearer_value * 12)
-                    bvalue_abvstd = in_bvalue - 4.0
-                    in_wvalue = (width_value * 12)
-                    rnd_value = myround((in_bvalue + in_wvalue + bvalue_abvstd), 2)
-                    abv_value = rnd_value - in_wvalue
-                    hlf_diff = (abv_value - 4.0) / 2
-                    new_value = (abv_value - hlf_diff) / 12
-                    hanger.SetDimensionValue(dim, new_value)
-                translation = Y_side_xyz - GetCenterPoint(hanger.Id)
-                ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
-                if BOITrap:
-                    hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(PRTElevation)
-                else:
-                    hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(combined_bounding_box.Min.Z)
+        for dim in hanger.GetDimensions():
+            Dimensions.append(dim.Name)
+            if dim.Name == "Width":
+                width_value = hanger.GetDimensionValue(dim)
+                hanger.SetDimensionValue(dim, delta_x)
+            if dim.Name == "Bearer Extn":
+                bearer_value = hanger.GetDimensionValue(dim)
+                hanger.SetDimensionValue(dim, 0.33333)
+            if dim.Name == "Width":
+                width_value = hanger.GetDimensionValue(dim)
+            if dim.Name == "Bearer Extn":
+                bearer_value = hanger.GetDimensionValue(dim)
+                in_bvalue = (bearer_value * 12)
+                bvalue_abvstd = in_bvalue - 4.0
+                in_wvalue = (width_value * 12)
+                rnd_value = myround((in_bvalue + in_wvalue + bvalue_abvstd), 2)
+                abv_value = rnd_value - in_wvalue
+                hlf_diff = (abv_value - 4.0) / 2
+                new_value = (abv_value - hlf_diff) / 12
+                hanger.SetDimensionValue(dim, new_value)
+            translation = Y_side_xyz - GetCenterPoint(hanger.Id)
+            ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
+            if BOITrap:
+                hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(PRTElevation)
+            else:
+                hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(combined_bounding_box.Min.Z)
         if AtoS:
             hanger.GetRodInfo().AttachToStructure()
         t.Commit()

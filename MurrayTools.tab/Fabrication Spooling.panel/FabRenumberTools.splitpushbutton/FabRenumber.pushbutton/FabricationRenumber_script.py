@@ -253,6 +253,8 @@ if snfip == False:
         set_parameter_by_name(ue, 'Item Number', str(num_to_assign))
         set_parameter_by_name(ue, 'STRATUS Item Number', str(num_to_assign))
         start_number += 1  # Increment the number for the next element
+    if sslfn:
+        print 'Setting start location not available yet'
 else:
     for e in Fhangers1:
         # Create a list to store elements that are identical to 'e'
@@ -276,6 +278,8 @@ else:
         for element in identical_elements:
             set_parameter_by_name(element, 'Item Number', num_to_assign)
             set_parameter_by_name(element, 'STRATUS Item Number', num_to_assign)
+    if sslfn:
+        print 'Setting start location not available yet'
 
 # Commit the transaction
 t.Commit()

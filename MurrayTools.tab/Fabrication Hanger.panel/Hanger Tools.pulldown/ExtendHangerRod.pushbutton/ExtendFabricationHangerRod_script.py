@@ -47,6 +47,18 @@ f = open((filepath), 'r')
 PrevInput = f.read()
 f.close()
 
+collector = FilteredElementCollector(doc)
+reference_planes = collector.OfCategory(BuiltInCategory.OST_CLines).WhereElementIsNotElementType().ToElements()
+
+# Initialize a dictionary to store reference plane names
+reference_plane_names = {}
+
+# Iterate through the reference planes and get their names
+for ref_plane in reference_planes:
+    if isinstance(ref_plane, ReferencePlane):
+        name = ref_plane.Name
+        reference_plane_names[ref_plane.Id] = name
+
 if len(Hanger) > 0:
 
     # Prompt the user to select an existing reference plane
@@ -61,7 +73,6 @@ if len(Hanger) > 0:
         valuenum = ref_plane.FreeEnd.Z
 
         ItmList1 = list()
-        zLocs = []
 
         t = Transaction(doc, 'Extend Hanger Rods')
         t.Start()
