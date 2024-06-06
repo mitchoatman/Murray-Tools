@@ -42,7 +42,9 @@ for hanger in hanger_collector:
                 set_parameter_by_name(hanger, 'FP_Hanger Shield', 'No')
             else:
                 set_parameter_by_name(hanger, 'FP_Hanger Shield', 'Yes')
-        
+                set_parameter_by_name(hanger, 'Comments', HostSize)  
+                set_parameter_by_name(hanger, 'FP_Hanger Host Diameter', HostSize)                
+
             ItmDims = hanger.GetDimensions()
             for dta in ItmDims:
                 if dta.Name == 'Rod Extn Below':
@@ -81,8 +83,8 @@ try:
     list(map(lambda x: set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name')), AllElements))
     list(map(lambda x: set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation')), AllElements))
     list(map(lambda x: set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No'), hanger_collector))
-    list(map(lambda hanger: [set_parameter_by_name(hanger, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in hanger.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0], hanger_collector))
-    list(map(lambda x: set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry')), hanger_collector))
+    list(map(lambda x: [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0], hanger_collector))
+    list(map(lambda x: set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else None, hanger_collector))
 except:
     pass
 t.Commit()

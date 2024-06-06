@@ -1,13 +1,4 @@
-__title__ = 'Rigid\nBrace'
-__doc__ = """Inserts a Rigid Seismic Brace Family.
 
-1. Run Script.
-2. Select where you would like to place family.
-"""
-
-import clr
-clr.AddReference('RevitAPI')
-clr.AddReference('RevitAPIUI')
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family
 
@@ -18,8 +9,8 @@ uidoc = __revit__.ActiveUIDocument
 # Search project for all Families
 families = FilteredElementCollector(doc).OfClass(Family)
 # Set desired family name and type name:
-FamilyName = 'RIGID SEISMIC BRACE'
-FamilyType = 'RIGID SEISMIC BRACE'
+FamilyName = 'CABLE SEISMIC BRACE'
+FamilyType = 'CABLE SEISMIC BRACE'
 # Check if the family is in the project
 Fam_is_in_project = any(f.Name == FamilyName for f in families)
 #print("Family '{}' is in project: {}".format(FamilyName, is_in_project))
@@ -35,9 +26,9 @@ class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
         overwriteParameterValues.Value = False
         return True
 
-family_pathCC = 'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\Families\Structural Stiffeners (Seismic)\RIGID SEISMIC BRACE.rfa'
+family_pathCC = 'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\Families\Structural Stiffeners (Seismic)\CABLE SEISMIC BRACE.rfa'
 
-t = Transaction(doc, 'Load Rigid Brace Family')
+t = Transaction(doc, 'Load Cable Brace Family')
 #Start Transaction
 t.Start()
 if Fam_is_in_project == False:
@@ -45,8 +36,9 @@ if Fam_is_in_project == False:
     family = doc.LoadFamily(family_pathCC, fload_handler)
 t.Commit()
 
+
 #Family symbol name to place.
-symbName = 'RIGID SEISMIC BRACE'
+symbName = 'CABLE SEISMIC BRACE'
 
 #create a filtered element collector set to Category OST_Mass and Class FamilySymbol
 collector = FilteredElementCollector(doc)

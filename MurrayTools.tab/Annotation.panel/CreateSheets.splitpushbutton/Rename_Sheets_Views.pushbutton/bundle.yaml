@@ -1,19 +1,17 @@
-highlight: updated
+highlight: new
+#highlight: updated
 
 # bundle title
 title:
-  "Rigid\nBrace"
+  "Rename Sheet(s)\nor View(s)"
 
 # bundle tooltip
 tooltip: >-
-  Inserts a Rigid Seismic Brace Family
-
-    1. Run Script.
-    2. Select fabrication hanger to place brace on.
-    
-    [Shift]-Click to place braces at user picked XY location.
-        1. Run Script.
-        2. Select where you would like to place family.
+  Renames selected sheets or views.
+      1. Run command.
+      2. Choose sheets or views from dialog.
+      3. Enter find/replace criteria
+      4. Click Rename Views button.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

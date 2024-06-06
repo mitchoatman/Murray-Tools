@@ -5,7 +5,6 @@ from Autodesk.Revit.DB import Transaction
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 from rpw.ui.forms import FlexForm, Label, ComboBox, TextBox, TextBox, Separator, Button, CheckBox
 from SharedParam.Add_Parameters import Shared_Params
-from rpw.ui.forms import Alert
 import sys
 
 Shared_Params()

@@ -1,4 +1,4 @@
-#highlight: new
+highlight: updated
 
 # bundle title
 title:
@@ -7,12 +7,15 @@ title:
 # bundle tooltip
 tooltip: >-
   Extends seismic braces to user defined elevation.
-    REVIT 2020 AND NEWER VERSIONS
       1. Run Script.
       2. Select braces you want to extend.
-      3. Enter elevation into dialog using format FT-IN (no spaces)
-         eg:  15-3 or 15-6.5
+      3. Select fabrication hanger with desired rod height
 
+    [Shift]-Click to place braces at centerline elevation of selected fabrication hangers.
+          1. Run Script.
+          2. Select braces you want to extend.
+          3. Enter elevation into dialog using format FT-IN (no spaces)
+             eg:  15-3 or 15-6.5
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Walls

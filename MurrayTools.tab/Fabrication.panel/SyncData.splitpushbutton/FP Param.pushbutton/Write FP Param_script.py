@@ -1,6 +1,6 @@
 
 import Autodesk
-from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, Transaction, FabricationPart, FabricationConfiguration
+from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, Transaction, FabricationPart, FabricationConfiguration, BuiltInParameter
 from SharedParam.Add_Parameters import Shared_Params
 from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsInteger, get_parameter_value_by_name_AsValueString
 
@@ -35,7 +35,24 @@ if selection:
                 [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
                 ProductEntry = x.LookupParameter('Product Entry')
                 if ProductEntry:
-                    set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry'))
+                    try:
+                        if (x.GetRodInfo().RodCount) < 2:
+                            # Get the host element's size
+                            hosted_info = x.GetHostedInfo().HostId
+                            HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
+                            # Get the hanger's size
+                            HangerSize = get_parameter_value_by_name_AsString(x, 'Product Entry')
+                            set_parameter_by_name(x, 'FP_Hanger Diameter', HangerSize)
+                            # Set the 'FP_Hanger Shield' parameter based on whether the host and hanger sizes match
+                            if HostSize == HangerSize:
+                                set_parameter_by_name(x, 'FP_Hanger Shield', 'No')
+                            else:
+                                set_parameter_by_name(x, 'FP_Hanger Shield', 'Yes')
+                                set_parameter_by_name(x, 'Comments', HostSize)
+                                set_parameter_by_name(x, 'FP_Hanger Host Diameter', HostSize)
+                                
+                    except:
+                        pass
             if x.ItemCustomId != 838:
                 set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength)
             try:
@@ -98,12 +115,15 @@ else:
                 hosted_info = hanger.GetHostedInfo().HostId
                 HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
                 # Get the hanger's size
-                HangerSize = get_parameter_value_by_name_AsString(hanger, 'Size of Primary End')
+                HangerSize = get_parameter_value_by_name_AsString(hanger, 'Product Entry')
                 # Set the 'FP_Hanger Shield' parameter based on whether the host and hanger sizes match
                 if HostSize == HangerSize:
                     set_parameter_by_name(hanger, 'FP_Hanger Shield', 'No')
                 else:
                     set_parameter_by_name(hanger, 'FP_Hanger Shield', 'Yes')
+                    set_parameter_by_name(hanger, 'Comments', HostSize)
+                    set_parameter_by_name(hanger, 'FP_Hanger Host Diameter', HostSize)
+                    
         except:
             pass
 
@@ -142,7 +162,6 @@ else:
         except:
             pass
 
-
     try:
         list(map(lambda x: set_parameter_by_name(x, 'FP_CID', x.ItemCustomId), AllElements))
         list(map(lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength), AllElements))
@@ -150,8 +169,8 @@ else:
         list(map(lambda x: set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name')), AllElements))
         list(map(lambda x: set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation')), AllElements))
         list(map(lambda x: set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No'), hanger_collector))
-        list(map(lambda hanger: [set_parameter_by_name(hanger, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in hanger.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0], hanger_collector))
-        list(map(lambda x: set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry')), hanger_collector))
+        list(map(lambda x: [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0], hanger_collector))
+        list(map(lambda x: set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else None, hanger_collector))
     except:
         pass
     t.Commit()

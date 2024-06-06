@@ -28,11 +28,13 @@ class CustomISelectionFilter(ISelectionFilter):
             return False
     def AllowReference(self, ref, point):
         return true
-
-pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
-CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers to Extend")            
-Hanger = [doc.GetElement( elId ) for elId in pipesel]
-
+try:
+    pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
+    CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers to Extend")            
+    Hanger = [doc.GetElement( elId ) for elId in pipesel]
+except:
+    Hanger = False
+    pass
 folder_name = "c:\\Temp"
 filepath = os.path.join(folder_name, 'Ribbon_ExtentHangerRod.txt')
 
@@ -59,45 +61,45 @@ for ref_plane in reference_planes:
         name = ref_plane.Name
         reference_plane_names[ref_plane.Id] = name
 
-if len(Hanger) > 0:
+if Hanger:
+    if len(Hanger) > 0:
 
-    # Prompt the user to select an existing reference plane
+        # Prompt the user to select an existing reference plane
 
-    try:
-        ref_plane = uidoc.Selection.PickObject(ObjectType.Element, "Select a reference plane")
-        ref_plane = doc.GetElement(ref_plane.ElementId)
-        if not isinstance(ref_plane, DB.ReferencePlane):
-            ref_plane = None
+        try:
+            ref_plane = uidoc.Selection.PickObject(ObjectType.Element, "Select a reference plane")
+            ref_plane = doc.GetElement(ref_plane.ElementId)
+            if not isinstance(ref_plane, DB.ReferencePlane):
+                ref_plane = None
 
-        # Retrieve the reference plane elevation
-        valuenum = ref_plane.FreeEnd.Z
+            # Retrieve the reference plane elevation
+            valuenum = ref_plane.FreeEnd.Z
 
-        ItmList1 = list()
+            ItmList1 = list()
 
-        t = Transaction(doc, 'Extend Hanger Rods')
-        t.Start()
+            t = Transaction(doc, 'Extend Hanger Rods')
+            t.Start()
 
-        for e in Hanger:
-            STName = e.GetRodInfo().RodCount
-            ItmList1.append(STName)
-            #Detaches rods from structure
-            hgrhost = e.GetRodInfo().CanRodsBeHosted = False
-            STName1 = e.GetRodInfo()
-            for n in range(STName):
-                rodlen = STName1.GetRodLength(n)
-                rodpos = STName1.GetRodEndPosition(n)
-                #Turns rodpos into string and removes ( ) to clean it up.
-                stringrodpos = str(rodpos).replace ('(', '').replace(')', '')
-                length = len(stringrodpos)
+            for e in Hanger:
+                STName = e.GetRodInfo().RodCount
+                ItmList1.append(STName)
+                #Detaches rods from structure
+                hgrhost = e.GetRodInfo().CanRodsBeHosted = False
+                STName1 = e.GetRodInfo()
+                for n in range(STName):
+                    rodlen = STName1.GetRodLength(n)
+                    rodpos = STName1.GetRodEndPosition(n)
+                    #Turns rodpos into string and removes ( ) to clean it up.
+                    stringrodpos = str(rodpos).replace ('(', '').replace(')', '')
+                    length = len(stringrodpos)
 
-                #Looks for "," to locate where Z coordinate starts
-                zcoordloc = stringrodpos.rfind(', ', 0, length)
-                #Removes x and y coordinate data and returns only z converted back to number.
-                zcoord = float((stringrodpos[zcoordloc+2:length]))
-                STName1.SetRodLength(n, rodlen + (valuenum - zcoord))
+                    #Looks for "," to locate where Z coordinate starts
+                    zcoordloc = stringrodpos.rfind(', ', 0, length)
+                    #Removes x and y coordinate data and returns only z converted back to number.
+                    zcoord = float((stringrodpos[zcoordloc+2:length]))
+                    STName1.SetRodLength(n, rodlen + (valuenum - zcoord))
 
-        t.Commit()
-    except:
-        pass
-else:
-    print 'At least one fabrication hanger must be selected.'
+            t.Commit()
+        except:
+            pass
+
