@@ -57,20 +57,23 @@ t.Start()
 if Fam_is_in_project == False:
     fload_handler = FamilyLoaderOptionsHandler()
     family = doc.LoadFamily(family_pathCC, fload_handler)
-t.Commit()
+
 
 familyTypes = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_StructuralStiffener)\
                                             .OfClass(FamilySymbol)\
                                             .ToElements()
 
-t = Transaction(doc, 'Populate Cable Brace Family')
-t.Start()
+
 #If the FamilySymbol is the name we are looking for, create a new instance.
 for famtype in familyTypes:
     typeName = famtype.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
     if famtype.Family.Name == FamilyName and typeName == FamilyType:
         famtype.Activate()
         doc.Regenerate()
+t.Commit()
+
+t = Transaction(doc, 'Populate Cable Brace Family')
+t.Start()
 
 for hanger in Fhangers:
 
