@@ -74,45 +74,42 @@ t.Commit()
 
 t = Transaction(doc, 'Populate Rigid Brace Family')
 t.Start()
+
 for hanger in Fhangers:
+    if (hanger.GetRodInfo().RodCount) == 1:
+        ItmDims = hanger.GetDimensions()
+        for dta in ItmDims:
+            if dta.Name == 'Total Height':
+                HangerHeight = hanger.GetDimensionValue(dta)
+        BraceOffsetZ = HangerHeight + 0.01041666
+        # Get the bounding box of the hanger
+        bounding_box = hanger.get_BoundingBox(None)
+        if bounding_box is not None:
+            # Calculate the middle bottom point of the bounding box
+            middle_bottom_point = XYZ((bounding_box.Min.X + bounding_box.Max.X) / 2,
+                                      (bounding_box.Min.Y + bounding_box.Max.Y) / 2,
+                                      bounding_box.Min.Z)
+        new_insertion_point = XYZ(middle_bottom_point.X, middle_bottom_point.Y, middle_bottom_point.Z  + BraceOffsetZ)
+        # Create new instance
+        doc.Create.NewFamilyInstance(new_insertion_point, famtype, DB.Structure.StructuralType.NonStructural)
 
-    try:
-        if (hanger.GetRodInfo().RodCount) == 1:
-            ItmDims = hanger.GetDimensions()
-            for dta in ItmDims:
-                if dta.Name == 'Total Height':
-                    HangerHeight = hanger.GetDimensionValue(dta)
-            BraceOffsetZ = HangerHeight + 0.01041666
-            # Get the bounding box of the hanger
-            bounding_box = hanger.get_BoundingBox(None)
-            if bounding_box is not None:
-                # Calculate the middle bottom point of the bounding box
-                middle_bottom_point = XYZ((bounding_box.Min.X + bounding_box.Max.X) / 2,
-                                          (bounding_box.Min.Y + bounding_box.Max.Y) / 2,
-                                          bounding_box.Min.Z)
-            new_insertion_point = XYZ(middle_bottom_point.X, middle_bottom_point.Y, middle_bottom_point.Z  + BraceOffsetZ)
+
+
+    if (hanger.GetRodInfo().RodCount) > 1:
+        STName = hanger.GetRodInfo().RodCount
+        STName1 = hanger.GetRodInfo()
+        # Get the bounding box of the hanger
+        bounding_box = hanger.get_BoundingBox(None)
+        if bounding_box is not None:
+            # Calculate the middle bottom point of the bounding box
+            middle_bottom_point = XYZ((bounding_box.Min.X + bounding_box.Max.X) / 2,
+                                      (bounding_box.Min.Y + bounding_box.Max.Y) / 2,
+                                      bounding_box.Min.Z)
+        for n in range(STName):
+            rodloc = STName1.GetRodEndPosition(n)
+            combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_bottom_point.Z + 0.229166666))
             # Create new instance
-            doc.Create.NewFamilyInstance(new_insertion_point, famtype, DB.Structure.StructuralType.NonStructural)
-    except:
-        pass
+            doc.Create.NewFamilyInstance(combined_xyz, famtype, DB.Structure.StructuralType.NonStructural)
 
-    try:
-        if (hanger.GetRodInfo().RodCount) > 1:
-            STName = hanger.GetRodInfo().RodCount
-            STName1 = hanger.GetRodInfo()
-            # Get the bounding box of the hanger
-            bounding_box = hanger.get_BoundingBox(None)
-            if bounding_box is not None:
-                # Calculate the middle bottom point of the bounding box
-                middle_bottom_point = XYZ((bounding_box.Min.X + bounding_box.Max.X) / 2,
-                                          (bounding_box.Min.Y + bounding_box.Max.Y) / 2,
-                                          bounding_box.Min.Z)
-            for n in range(STName):
-                rodloc = STName1.GetRodEndPosition(n)
-                combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_bottom_point.Z + 0.229166666))
-                # Create new instance
-                doc.Create.NewFamilyInstance(combined_xyz, famtype, DB.Structure.StructuralType.NonStructural)
-    except:
-        pass
 t.Commit()
 tg.Assimilate()
