@@ -96,14 +96,22 @@ try:
         #combines both halfs of spool name
         newspoolname = firstpart + "-" + lastpart
 
-        f = open((filepath), 'w')
-        f.write(newspoolname)
-        f.close()
+        # f = open((filepath), 'w')
+        # f.write(newspoolname)
+        # f.close()
+        with open((filepath), 'w') as the_file:
+            line1 = (newspoolname + '\n')
+            line2 = (map_name + '\n')
+            the_file.writelines([line1, line2])
 
     else:
-        f = open((filepath), 'w')
-        f.write(value)
-        f.close()
+        # f = open((filepath), 'w')
+        # f.write(value)
+        # f.close()
+        with open((filepath), 'w') as the_file:
+            line1 = (value + '\n')
+            line2 = (map_name + '\n')
+            the_file.writelines([line1, line2])
 
     t = Transaction(doc, 'Set Assembly Number')
     #Start Transaction
@@ -119,14 +127,14 @@ try:
             #print (STName)
             #writes data to Assembly number parameterzr
             set_parameter_by_name(i,"STRATUS Assembly", value)
-            set_parameter_by_name(i,"FP_Spool Map", value)
+            set_parameter_by_name(i,"FP_Spool Map", map_name)
             set_parameter_by_name(i,"STRATUS Status", "Modeled")
             i.SpoolName = value
             i.PartStatus = 1
             i.Pinned = True
         if param_exist:
             set_parameter_by_name(i,"STRATUS Assembly", value)
-            set_parameter_by_name(i,"FP_Spool Map", value)
+            set_parameter_by_name(i,"FP_Spool Map", map_name)
             set_parameter_by_name(i,"STRATUS Status", "Modeled")
             i.Pinned = True
         else:

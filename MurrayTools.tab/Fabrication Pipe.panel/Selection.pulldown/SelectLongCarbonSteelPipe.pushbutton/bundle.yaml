@@ -9,7 +9,7 @@ title:
 tooltip: |-
   Selects all Fabrication pipes in active view with Carbon Steel material and Longer than 20ft.
   1. Execute command.
-  2. All pipes in the view will be selected.
+  2. All pipes longer than standard lengths in the view will be selected.
   3. Do what you will with the selected elements. Isolate etc...
 
 # context directives are listed under `context` key, the order does not matter

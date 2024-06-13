@@ -23,6 +23,6 @@ def on_view_activated(sender, args):
         active_doc.GetWorksetTable().SetActiveWorksetId(WorksetId[index])
 
 view_activated_handler = EventHandler[ViewActivatedEventArgs](on_view_activated)
-__revit__.ViewActivated += view_activated_handler
+__revit__.ViewActivated -= view_activated_handler
 
 

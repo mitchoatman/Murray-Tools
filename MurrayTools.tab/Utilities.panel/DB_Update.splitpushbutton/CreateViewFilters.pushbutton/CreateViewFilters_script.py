@@ -51,11 +51,10 @@ def random_color():
 # Define a dictionary to map system names to their RGB values
 system_colors = {
     'DOMESTIC COLD WATER': (0, 63, 255),
-    'DOMESTIC HOT WATER': (255, 0, 0),
-    'HEATING WATER': (255, 165, 0),
-    'CHILLED WATER': (0, 255, 255),
-    'FIRE SPRINKLER': (255, 0, 0),
-    'STORM DRAIN': (0, 128, 128),
+    'DOMESTIC HOT WATER': (227, 34, 143),
+    'HEATING WATER': (227, 148, 20),
+    'CHILLED WATER': (133, 255, 190),
+    'STORM DRAIN': (157, 56, 224),
     # Add more system names and their corresponding RGB values here
 }
 
