@@ -50,11 +50,46 @@ def random_color():
 
 # Define a dictionary to map system names to their RGB values
 system_colors = {
+#waters
+    'IRRIGATION WATER':(78, 131, 191),
     'DOMESTIC COLD WATER': (0, 63, 255),
     'DOMESTIC HOT WATER': (227, 34, 143),
     'HEATING WATER': (227, 148, 20),
+    'UG DOMESTIC COLD WATER': (0, 63, 255),
     'CHILLED WATER': (133, 255, 190),
+#waste and vent
+    'SUMP PUMP DISCHARGE':(115, 117, 8),
+    'TRAP PRIMER':(12, 38, 207),
+    'OVERFLOW DRAIN':(179, 16, 146),
+    'SANITARY VENT':(21, 237, 50),
+    'SANITARY WASTE':(189, 0, 189),
+    'CONDENSATE DRAIN': (26, 112, 66),
+    'REFRIGERATION HOT GAS': (21, 130, 77),
+    'CARBON DIOXIDE': (22, 107, 37),
     'STORM DRAIN': (157, 56, 224),
+    'EMERGENCY DRAIN':(80, 4, 92),
+    'GREASE WASTE':(131, 138, 58),
+    'GREY WASTE':(138, 109, 58),
+    'LAB WASTE':(55, 120, 81),
+    'LAB VENT':(83, 184, 123),
+    'UG CONDENSATE DRAIN': (26, 112, 66),
+    'UG SANITARY VENT':(21, 237, 50),
+    'UG SANTIARY WASTE':(153, 5, 143),
+    'UG GREY WASTE':(138, 109, 58),
+    'UG STORM DRAIN': (157, 56, 224),
+    'UG LAB WASTE':(55, 120, 81),
+    'UG LAB VENT':(83, 184, 123),
+    'UG TRAP PRIMER':(12, 38, 207),
+#gasses
+    'LAB AIR':(43, 102, 67),
+    'COMPRESSED AIR':(105, 110, 13),
+    'GAS':(11, 97, 14),
+    'NITROGEN':(41, 5, 66),
+    'OXYGEN':(6, 59, 2),
+    'UG CARBON DIOXIDE': (22, 107, 37),
+
+
+    'UG OVERFLOW DRAIN':(179, 16, 146),
     # Add more system names and their corresponding RGB values here
 }
 

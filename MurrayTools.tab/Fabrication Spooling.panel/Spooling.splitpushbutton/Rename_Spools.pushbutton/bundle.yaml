@@ -1,0 +1,24 @@
+highlight: new
+#highlight: updated
+
+# bundle title
+title:
+  "Rename\nSpools"
+
+# bundle tooltip
+tooltip: >-
+  Renames selected spools and packages.
+      1. Select fabrication elements.
+      2. Run command.
+      3. Enter find/replace criteria
+      4. Click Rename Spools button.
+
+# context directives are listed under `context` key, the order does not matter
+context:
+  - Selection
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

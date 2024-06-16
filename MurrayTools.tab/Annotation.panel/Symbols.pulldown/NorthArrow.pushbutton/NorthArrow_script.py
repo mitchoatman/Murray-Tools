@@ -1,13 +1,10 @@
 
-import clr
-clr.AddReference('RevitAPI')
-clr.AddReference('RevitAPIUI')
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family
 import os
 
 path, filename = os.path.split(__file__)
-NewFilename = '\North Arrow.rfa'
+NewFilename = '\\North Arrow.rfa'
 
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
@@ -35,7 +32,7 @@ Fam_is_in_project = any(f.Name == FamilyName for f in families)
 
 family_pathCC = path + NewFilename
 
-t = Transaction(doc, 'Load Rigid Brace Family')
+t = Transaction(doc, 'Load North Arrow Family')
 #Start Transaction
 t.Start()
 if Fam_is_in_project == False:

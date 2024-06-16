@@ -32,17 +32,13 @@ Fam_is_in_project = any(f.Name == FamilyName for f in families)
 
 family_pathCC = path + NewFilename
 
-t = Transaction(doc, 'Load Rigid Brace Family')
+t = Transaction(doc, 'Load Flow Arrow Family')
 #Start Transaction
 t.Start()
 if Fam_is_in_project == False:
     fload_handler = FamilyLoaderOptionsHandler()
     family = doc.LoadFamily(family_pathCC, fload_handler)
 t.Commit()
-
-#t = Transaction(doc, 'Insert POC Family')
-
-#t.Start()
 
 #Family symbol name to place.
 symbName = 'Flow Arrow'
@@ -64,4 +60,3 @@ for item in famtypeitr:
     if famsymb.Family.Name == symbName:
         uidoc.PostRequestForElementTypePlacement(famsymb)
 
-#t.Commit()

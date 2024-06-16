@@ -4,6 +4,7 @@ from pyrevit import forms
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+curview = doc.ActiveView
 
 def GetCenterPoint(ele):
     bBox = doc.GetElement(ele).get_BoundingBox(None)
@@ -14,6 +15,7 @@ def GetCenterPoint(ele):
 AllElements = FilteredElementCollector(doc).OfClass(FabricationPart) \
                    .WhereElementIsNotElementType() \
                    .ToElements()
+
 # Get the center point of each selected element
 element_ids = []
 center_points = []
@@ -25,35 +27,34 @@ for reference in AllElements:
 
 # Find the duplicates in the list of center points
 duplicates = []
+duplicate_element_ids = []
 unique_center_points = []
-for center_point in center_points:
-    if center_point not in unique_center_points:
-        unique_center_points.append(center_point)
+
+for i, cp in enumerate(center_points):
+    if cp not in unique_center_points:
+        unique_center_points.append(cp)
     else:
-        duplicates.append(center_point)
+        duplicates.append(cp)
+        duplicate_element_ids.append(element_ids[i])
 
 # Delete the elements that belong to duplicate center points
 try:
     if duplicates:
-        forms.alert_ifnot(duplicates < 0,
+        forms.alert_ifnot(len(duplicates) < 0,
                           ("Delete Duplicate(s): {}".format(len(duplicates))),
                           yes=True, no=True, exitscript=True)
         
-        for duplicate in duplicates:
-            duplicate_index = center_points.index(duplicate)
-            element_id = element_ids[duplicate_index]
-            with Transaction(doc, "Delete Element") as transaction:
-                transaction.Start()
+        with Transaction(doc, "Delete Elements") as transaction:
+            transaction.Start()
+            for element_id in duplicate_element_ids:
                 doc.Delete(element_id)
-                transaction.Commit()
+            transaction.Commit()
     else:
         forms.toast(
             'No Duplicates Found',
             title="Duplicates",
             appid="Murray Tools",
-            icon="C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\MURRAY RIBBON\Murray.extension\Murray.ico",
+            icon="",
             click="https://murraycompany.com",)
 except:
     pass
-
-
