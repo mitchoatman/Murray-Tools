@@ -1,6 +1,10 @@
 from Autodesk.Revit.UI.Selection import ObjectType
 from Autodesk.Revit.DB import BoundingBoxXYZ, FilteredElementCollector, Transaction, BuiltInCategory, FabricationPart
 from pyrevit import forms
+import os
+
+extension_path = os.path.normpath(os.path.join(__file__, '../../../../../'))
+icon_path = extension_path + '\Murray.ico'
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -51,9 +55,9 @@ try:
     else:
         forms.toast(
             'No Duplicates Found',
-            title="Duplicates",
-            appid="Murray Tools",
-            icon="",
+            title = "Duplicates",
+            appid = "Murray Tools",
+            icon = icon_path,
             click="https://murraycompany.com",)
 except:
     pass

@@ -1,5 +1,3 @@
-
-
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family, Structure, XYZ, FabricationPart, FabricationConfiguration, TransactionGroup, BuiltInParameter
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
@@ -13,9 +11,15 @@ families = FilteredElementCollector(doc).OfClass(Family)
 # Set desired family name and type name:
 FamilyName = 'CABLE SEISMIC BRACE'
 FamilyType = 'CABLE SEISMIC BRACE'
-# Check if the family is in the project
-Fam_is_in_project = any(f.Name == FamilyName for f in families)
-#print("Family '{}' is in project: {}".format(FamilyName, is_in_project))
+
+# Retrieve the specific family by name
+target_family = None
+for f in families:
+    if f.Name == FamilyName:
+        target_family = f
+        break
+
+Fam_is_in_project = target_family is not None
 
 def get_parameter_value_by_name_AsDouble(element, parameterName):
     return element.LookupParameter(parameterName).AsDouble()
@@ -24,7 +28,6 @@ class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):
         overwriteParameterValues.Value = False
         return True
-
 
     def OnSharedFamilyFound(self, sharedFamily, familyInUse, source, overwriteParameterValues):
         source.Value = DB.FamilySource.Family
@@ -40,81 +43,67 @@ class CustomISelectionFilter(ISelectionFilter):
         else:
             return False
     def AllowReference(self, ref, point):
-        return true
+        return True
 
-pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
-CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers to place seismic brace on")            
-Fhangers = [doc.GetElement( elId ) for elId in pipesel]
+pipesel = uidoc.Selection.PickObjects(ObjectType.Element, CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers to place seismic brace on")            
+Fhangers = [doc.GetElement(elId) for elId in pipesel]
 
-family_pathCC = 'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\Families\Structural Stiffeners (Seismic)\CABLE SEISMIC BRACE.rfa'
+family_pathCC = r'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\Families\Structural Stiffeners (Seismic)\CABLE SEISMIC BRACE.rfa'
 
-tg = TransactionGroup(doc, "Place Cable Brace Family")
+tg = TransactionGroup(doc, "Place CABLE Brace Family")
 tg.Start()
 
-t = Transaction(doc, 'Load Cable Brace Family')
-#Start Transaction
+t = Transaction(doc, 'Load CABLE Brace Family')
+# Start Transaction
 t.Start()
-if Fam_is_in_project == False:
+if not Fam_is_in_project:
     fload_handler = FamilyLoaderOptionsHandler()
-    family = doc.LoadFamily(family_pathCC, fload_handler)
+    target_family = doc.LoadFamily(family_pathCC, fload_handler)
 
-
-familyTypes = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_StructuralStiffener)\
-                                            .OfClass(FamilySymbol)\
-                                            .ToElements()
-
-
-#If the FamilySymbol is the name we are looking for, create a new instance.
-for famtype in familyTypes:
-    typeName = famtype.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
-    if famtype.Family.Name == FamilyName and typeName == FamilyType:
-        famtype.Activate()
-        doc.Regenerate()
 t.Commit()
 
-t = Transaction(doc, 'Populate Cable Brace Family')
-t.Start()
+# Retrieve the specific family symbol by family and type name
+familyTypes = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_StructuralStiffener).OfClass(FamilySymbol).ToElements()
+target_famtype = None
+for famtype in familyTypes:
+    typeName = famtype.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
+    if famtype.Family.Id == target_family.Id and typeName == FamilyType:
+        target_famtype = famtype
+        break
 
-for hanger in Fhangers:
+if target_famtype:
+    t = Transaction(doc, 'Activate and Populate CABLE Brace Family')
+    t.Start()
+    target_famtype.Activate()
+    doc.Regenerate()
 
-    try:
-        if (hanger.GetRodInfo().RodCount) == 1:
+    for hanger in Fhangers:
+        if hanger.GetRodInfo().RodCount == 1:
             ItmDims = hanger.GetDimensions()
             for dta in ItmDims:
                 if dta.Name == 'Total Height':
                     HangerHeight = hanger.GetDimensionValue(dta)
             BraceOffsetZ = HangerHeight + 0.01041666
-            # Get the bounding box of the hanger
             bounding_box = hanger.get_BoundingBox(None)
             if bounding_box is not None:
-                # Calculate the middle bottom point of the bounding box
                 middle_bottom_point = XYZ((bounding_box.Min.X + bounding_box.Max.X) / 2,
                                           (bounding_box.Min.Y + bounding_box.Max.Y) / 2,
                                           bounding_box.Min.Z)
-            new_insertion_point = XYZ(middle_bottom_point.X, middle_bottom_point.Y, middle_bottom_point.Z  + BraceOffsetZ)
-            # Create new instance
-            doc.Create.NewFamilyInstance(new_insertion_point, famtype, DB.Structure.StructuralType.NonStructural)
-    except:
-        pass
+            new_insertion_point = XYZ(middle_bottom_point.X, middle_bottom_point.Y, middle_bottom_point.Z + BraceOffsetZ)
+            doc.Create.NewFamilyInstance(new_insertion_point, target_famtype, DB.Structure.StructuralType.NonStructural)
 
-    try:
-        if (hanger.GetRodInfo().RodCount) > 1:
+        if hanger.GetRodInfo().RodCount > 1:
             STName = hanger.GetRodInfo().RodCount
             STName1 = hanger.GetRodInfo()
-            # Get the bounding box of the hanger
             bounding_box = hanger.get_BoundingBox(None)
             if bounding_box is not None:
-                # Calculate the middle bottom point of the bounding box
                 middle_bottom_point = XYZ((bounding_box.Min.X + bounding_box.Max.X) / 2,
                                           (bounding_box.Min.Y + bounding_box.Max.Y) / 2,
                                           bounding_box.Min.Z)
             for n in range(STName):
                 rodloc = STName1.GetRodEndPosition(n)
                 combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_bottom_point.Z + 0.229166666))
-                # Create new instance
-                doc.Create.NewFamilyInstance(combined_xyz, famtype, DB.Structure.StructuralType.NonStructural)
-    except:
-        pass
+                doc.Create.NewFamilyInstance(combined_xyz, target_famtype, DB.Structure.StructuralType.NonStructural)
 
-t.Commit()
+    t.Commit()
 tg.Assimilate()

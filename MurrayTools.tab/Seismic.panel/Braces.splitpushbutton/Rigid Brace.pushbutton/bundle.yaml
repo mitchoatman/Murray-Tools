@@ -14,6 +14,7 @@ tooltip: >-
     [Shift]-Click to place braces at user picked XY location.
         1. Run Script.
         2. Select where you would like to place family.
+        3. *NEW Brace will now be placed and stretched to top of hanger rod.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

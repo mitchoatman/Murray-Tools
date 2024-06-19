@@ -66,7 +66,7 @@ t = Transaction(doc, 'Sheet From View')
 # Begin new transaction
 t.Start()
 for view in selected_views:
-    SHEET = ViewSheet.Create(doc, selected_titleblocks.Id)
+    SHEET = ViewSheet.Create(doc, selected_titleblocks)
     SHEET.Name = sname
     SHEET.SheetNumber = snumber
     x = SHEET.Outline.Max.Add(SHEET.Outline.Min).Divide(2.0)[0]

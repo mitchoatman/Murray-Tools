@@ -2,16 +2,18 @@
 
 # bundle title
 title:
-  "Create Fab\nFilters"
+  "Remove\nFilters"
 
 # bundle tooltip
-tooltip: >-
-  Creates view filters for fabrication services.
+tooltip: |-
+  Removes ALL Filters in the model.
+  
+  Excercise CAUTION using this command.  It will remove all system coloring in your views.
 
 # context directives are listed under `context` key, the order does not matter
 
-# context:
-  # - doc-workshared
+#context:
+#  - Selection
 
 # bundle help url
 #help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
