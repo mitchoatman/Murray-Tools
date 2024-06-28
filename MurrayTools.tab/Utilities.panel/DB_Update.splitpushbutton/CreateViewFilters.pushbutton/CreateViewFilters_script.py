@@ -7,9 +7,11 @@ from Autodesk.Revit.UI import *
 from Autodesk.Revit.Attributes import *
 from System.Collections.Generic import List
 from collections import OrderedDict
+from SharedParam.Add_Parameters import Shared_Params
 import System
-
 from Parameters.Get_Set_Params import get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsInteger
+
+Shared_Params()
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -49,6 +51,19 @@ def random_color():
     g = randint(0, 230)
     b = randint(0, 230)
     return r, g, b
+
+# Looks for Dashed line pattern to collect it's ID.
+# Get the line pattern by name
+line_patterns = FilteredElementCollector(doc).OfClass(LinePatternElement)
+dashed_pattern_id = None
+for pattern in line_patterns:
+    if pattern.Name == "Dash":
+        dashed_pattern_id = pattern.Id
+        break
+
+# Check if the dashed line pattern was found
+if dashed_pattern_id is None:
+    raise ValueError("Dashed line pattern not found in the document.")
 
 # Define a dictionary to map system names to their RGB values
 system_colors = {
@@ -96,79 +111,83 @@ system_colors = {
 }
 
 # Define a dictionary to store custom filters (OrderedDict to preserve order)
-custom_filters = OrderedDict({
-    "SPOOL 1": {
-        "parameter_name": "STRATUS Assembly",
-        "condition": "EndsWith",
-        "value": "1",
-        "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
-        "color": (255, 0, 0)  # Red color for visibility
-    },
-    "SPOOL 2": {
-        "parameter_name": "STRATUS Assembly",
-        "condition": "EndsWith",
-        "value": "2",
-        "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
-        "color": (79, 0, 59)  # White color for visibility
-    },
-    "SPOOL 3": {
-        "parameter_name": "STRATUS Assembly",
-        "condition": "EndsWith",
-        "value": "3",
-        "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
-        "color": (0, 0, 255)  # Blue color for visibility
-    },
-    "SPOOL 4": {
-        "parameter_name": "STRATUS Assembly",
-        "condition": "EndsWith",
-        "value": "4",
-        "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
-        "color": (0, 255, 0)  # Green color for visibility
-    },
-    "SPOOL 5": {
-        "parameter_name": "STRATUS Assembly",
-        "condition": "EndsWith",
-        "value": "5",
-        "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
-        "color": (255, 0, 0)  # Red color for visibility
-    },
-    "SPOOL 6": {
-        "parameter_name": "STRATUS Assembly",
-        "condition": "EndsWith",
-        "value": "6",
-        "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
-        "color": (79, 0, 59)  # White color for visibility
-    },
-    "SPOOL 7": {
-        "parameter_name": "STRATUS Assembly",
-        "condition": "EndsWith",
-        "value": "7",
-        "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
-        "color": (0, 0, 255)  # Blue color for visibility
-    },
-    "SPOOL 8": {
-        "parameter_name": "STRATUS Assembly",
-        "condition": "EndsWith",
-        "value": "8",
-        "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
-        "color": (0, 255, 0)  # Green color for visibility
-    },
-    "SPOOL 9": {
-        "parameter_name": "STRATUS Assembly",
-        "condition": "EndsWith",
-        "value": "9",
-        "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
-        "color": (255, 0, 0)  # Red color for visibility
-    },
-    "SPOOL 0": {
-        "parameter_name": "STRATUS Assembly",
-        "condition": "EndsWith",
-        "value": "0",
-        "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
-        "color": (79, 0, 59)  # White color for visibility
-    },
-    # Add more custom filters here
-})
+custom_filters = OrderedDict()
+
+# Adding items in the desired order
+custom_filters["SPOOL 1"] = {
+    "parameter_name": "STRATUS Assembly",
+    "condition": "EndsWith",
+    "value": "1",
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "color": (255, 0, 0)  # Red color for visibility
+}
+custom_filters["SPOOL 2"] = {
+    "parameter_name": "STRATUS Assembly",
+    "condition": "EndsWith",
+    "value": "2",
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "color": (79, 0, 59)  # White color for visibility
+}
+custom_filters["SPOOL 3"] = {
+    "parameter_name": "STRATUS Assembly",
+    "condition": "EndsWith",
+    "value": "3",
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "color": (0, 0, 255)  # Blue color for visibility
+}
+custom_filters["SPOOL 4"] = {
+    "parameter_name": "STRATUS Assembly",
+    "condition": "EndsWith",
+    "value": "4",
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "color": (0, 255, 0)  # Green color for visibility
+}
+custom_filters["SPOOL 5"] = {
+    "parameter_name": "STRATUS Assembly",
+    "condition": "EndsWith",
+    "value": "5",
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "color": (255, 0, 0)  # Red color for visibility
+}
+custom_filters["SPOOL 6"] = {
+    "parameter_name": "STRATUS Assembly",
+    "condition": "EndsWith",
+    "value": "6",
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "color": (79, 0, 59)  # White color for visibility
+}
+custom_filters["SPOOL 7"] = {
+    "parameter_name": "STRATUS Assembly",
+    "condition": "EndsWith",
+    "value": "7",
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "color": (0, 0, 255)  # Blue color for visibility
+}
+custom_filters["SPOOL 8"] = {
+    "parameter_name": "STRATUS Assembly",
+    "condition": "EndsWith",
+    "value": "8",
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "color": (0, 255, 0)  # Green color for visibility
+}
+custom_filters["SPOOL 9"] = {
+    "parameter_name": "STRATUS Assembly",
+    "condition": "EndsWith",
+    "value": "9",
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "color": (255, 0, 0)  # Red color for visibility
+}
+custom_filters["SPOOL 0"] = {
+    "parameter_name": "STRATUS Assembly",
+    "condition": "EndsWith",
+    "value": "0",
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "color": (79, 0, 59)  # White color for visibility
+}
+
+# Add more custom filters here if needed
+
+
 
 # Get filters already applied to the view
 view_template_id = curview.ViewTemplateId
@@ -205,7 +224,7 @@ with Transaction(doc, "Create and Apply Filters") as t:
                     param_id = p.Id
                     break
             if not param_id:
-                raise Exception('Parameter not found')
+                raise Exception('STRATUS Assembly Parameter not found')
 
             if condition == "EndsWith":
                 rule = ParameterFilterRuleFactory.CreateEndsWithRule(param_id, value, False)
@@ -243,6 +262,9 @@ with Transaction(doc, "Create and Apply Filters") as t:
         if service_name not in applied_filters:
             overrides = OverrideGraphicSettings()
             overrides.SetProjectionLineColor(Color(r, g, b))
+            #overrides.SetSurfaceTransparency(50)
+            #overrides.SetProjectionLinePatternId(dashed_pattern_id)
+            #overrides.SetHalftone(True)
             #overrides.SetCutLineWeight(5)
 
             view_to_modify.AddFilter(paramFilterId)

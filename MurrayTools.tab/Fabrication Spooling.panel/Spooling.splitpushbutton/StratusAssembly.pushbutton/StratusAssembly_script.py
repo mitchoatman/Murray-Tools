@@ -1,145 +1,157 @@
-
-#Imports
 import Autodesk
 from pyrevit import revit
-from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, Transaction, TransactionGroup, FabricationPart, FabricationConfiguration
+from Autodesk.Revit.DB import Transaction, FabricationConfiguration
 import os
 from SharedParam.Add_Parameters import Shared_Params
 from Parameters.Get_Set_Params import set_parameter_by_name
-from rpw.ui.forms import FlexForm, Label, ComboBox, TextBox, TextBox, Separator, Button, CheckBox
 Shared_Params()
+
+# .NET Imports
+import clr
+clr.AddReference('System')
+clr.AddReference('System.Drawing')
+clr.AddReference('System.Windows.Forms')
+import System
+from System.Windows.Forms import *
+from System.Drawing import Point, Size, Font, FontStyle
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 Config = FabricationConfiguration.GetFabricationConfiguration(doc)
-selection = revit.get_selection()
 
 folder_name = "c:\\Temp"
 filepath = os.path.join(folder_name, 'Ribbon_StratusAssembly.txt')
 
-# if not os.path.exists(folder_name):
-    # os.makedirs(folder_name)
-# if not os.path.exists(filepath):
-    # f = open((filepath), 'w')
-    # f.write('L1-A1-CW-01')
-    # f.close()
-
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
 if not os.path.exists(filepath):
-    with open((filepath), 'w') as the_file:
-        line1 = ('L1-A1-CW-01' + '\n')
-        line2 = ('L1-A1-HGR-MAP' + '\n')
+    with open(filepath, 'w') as the_file:
+        line1 = 'L1-A1-CW-01\n'
+        line2 = 'L1-A1-HGR-MAP\n'
         the_file.writelines([line1, line2])
 
-# read text file for stored values and show them in dialog
-with open((filepath), 'r') as file:
+with open(filepath, 'r') as file:
     lines = file.readlines()
     lines = [line.rstrip() for line in lines]
 
-if len(lines) < 2:
-    with open((filepath), 'w') as the_file:
-        line1 = ('L1-A1-CW-01' + '\n')
-        line2 = ('L1-A1-HGR-MAP' + '\n')
-        the_file.writelines([line1, line2]) 
+class TXT_Form(Form):
+    def __init__(self):
+        self.Text = 'Spool Data'
+        self.Size = Size(275, 200)
+        self.StartPosition = FormStartPosition.CenterScreen
+        self.TopMost = True
+        self.ShowIcon = False
+        self.MaximizeBox = False
+        self.MinimizeBox = False
+        self.FormBorderStyle = FormBorderStyle.FixedDialog
 
-# read text file for stored values and show them in dialog
-with open((filepath), 'r') as file:
-    lines = file.readlines()
-    lines = [line.rstrip() for line in lines]
+        self.value = None
 
+        self.label_textbox = Label()
+        self.label_textbox.Text = 'Spool Name:'
+        self.label_textbox.ForeColor = System.Drawing.Color.Black
+        self.label_textbox.Font = Font("Arial", 12, FontStyle.Bold)
+        self.label_textbox.Location = Point(5, 20)
+        self.label_textbox.Size = Size(110, 40)
+        self.Controls.Add(self.label_textbox)
 
+        self.label_textbox2 = Label()
+        self.label_textbox2.Text = 'Map Name:'
+        self.label_textbox2.ForeColor = System.Drawing.Color.Black
+        self.label_textbox2.Font = Font("Arial", 12, FontStyle.Bold)
+        self.label_textbox2.Location = Point(5, 70)
+        self.label_textbox2.Size = Size(110, 40)
+        self.Controls.Add(self.label_textbox2)
 
-f = open((filepath), 'r')
-PrevInput = f.read()
-f.close()
+        self.textBox1 = TextBox()
+        self.textBox1.Text = lines[0]
+        self.textBox1.Location = Point(125, 20)
+        self.textBox1.Size = Size(125, 40)
+        self.Controls.Add(self.textBox1)
 
-#This displays dialog
-components = [Label('Enter Spool Name:'),
-    TextBox('spoolname', default=lines[0]),
-    Label('Enter Spool Map:'),
-    TextBox('spoolmap', default=lines[1]),
-    Button('Ok')]
-form = FlexForm('Stratus Assembly', components)
-form.show()
+        self.textBox2 = TextBox()
+        self.textBox2.Text = lines[1]
+        self.textBox2.Location = Point(125, 70)
+        self.textBox2.Size = Size(125, 40)
+        self.Controls.Add(self.textBox2)
 
-try:
-    value = (form.values['spoolname'])
-    map_name = (form.values['spoolmap'])
-except:
-    pass
+        self.button = Button()
+        self.button.Text = 'Set Spool Data'
+        self.button.Location = Point(80, 120)
+        self.button.Size = Size(100, 30)
+        self.Controls.Add(self.button)
 
-# #This displays dialog
-# value = forms.ask_for_string(default=PrevInput, prompt='Enter Spool name:', title='Stratus Assembly')
-try:
-    #splits the spoolname
-    valuesplit = value.rsplit('-', 1)
+        self.button.Click += self.on_click
 
-    #gets the length of characters for number
-    spoolnumlength = (len(valuesplit[-1]))
+    def on_click(self, sender, event):
+        try:
+            self.value = self.textBox1.Text
+            self.map_name = self.textBox2.Text
+            
+            # Write data to elements
+            selection = revit.get_selection()
+            if not selection:
+                MessageBox.Show("No elements selected. Please select elements.")
+                return
+            
+            t = Transaction(doc, 'Set Assembly Number')
+            t.Start()
+            for i in selection:
+                param_exist = i.LookupParameter("STRATUS Assembly")
+                isfabpart = i.LookupParameter("Fabrication Service")
+                if isfabpart:
+                    stat = i.PartStatus
+                    STName = Config.GetPartStatusDescription(stat)
+                    set_parameter_by_name(i, "STRATUS Assembly", self.value)
+                    set_parameter_by_name(i, "FP_Spool Map", self.map_name)
+                    set_parameter_by_name(i, "STRATUS Status", "Modeled")
+                    i.SpoolName = self.value
+                    i.PartStatus = 1
+                    i.Pinned = True
+                elif param_exist:
+                    set_parameter_by_name(i, "STRATUS Assembly", self.value)
+                    set_parameter_by_name(i, "FP_Spool Map", self.map_name)
+                    set_parameter_by_name(i, "STRATUS Status", "Modeled")
+                    i.Pinned = True
+                else:
+                    print('Elements missing parameters to modify, contact admin.')
+            t.Commit()
 
-    test = (valuesplit[-1]).isnumeric()
+            # Increment the spool name and map name
+            valuesplit = self.value.rsplit('-', 1)
+            spoolnumlength = len(valuesplit[-1])
+            test = valuesplit[-1].isnumeric()
 
-    if test:
-        #converts number from string to integer
-        valuenum = int(float(valuesplit[-1]))
+            if test:
+                valuenum = int(valuesplit[-1])
+                numincrement = valuenum + 1
+                firstpart = valuesplit[0]
+                lastpart = str(numincrement).zfill(spoolnumlength)
+                newspoolname = firstpart + "-" + lastpart
 
-        #increments spool number  by 1
-        numincrement = valuenum + 1
+                # Update the text file with the new values
+                with open(filepath, 'w') as the_file:
+                    line1 = newspoolname + '\n'
+                    line2 = self.map_name + '\n'
+                    the_file.writelines([line1, line2])
 
-        #gets the first half of spool name
-        firstpart = valuesplit[0]
+                # Update the text boxes with the new values
+                self.textBox1.Text = newspoolname
+                self.textBox2.Text = self.map_name
+            else:
+                with open(filepath, 'w') as the_file:
+                    line1 = self.value + '\n'
+                    line2 = self.map_name + '\n'
+                    the_file.writelines([line1, line2])
+        except ValueError:
+            MessageBox.Show("Please enter valid data.")
+        except Exception as e:
+            MessageBox.Show('oof, not sure what happened! Contact admin.')
 
-        #converts spool number back into string and fills in leading zeros
-        lastpart = str(numincrement).zfill(spoolnumlength)
+# Display the form modelessly
+form = TXT_Form()
+form.Show()
 
-        #combines both halfs of spool name
-        newspoolname = firstpart + "-" + lastpart
-
-        # f = open((filepath), 'w')
-        # f.write(newspoolname)
-        # f.close()
-        with open((filepath), 'w') as the_file:
-            line1 = (newspoolname + '\n')
-            line2 = (map_name + '\n')
-            the_file.writelines([line1, line2])
-
-    else:
-        # f = open((filepath), 'w')
-        # f.write(value)
-        # f.close()
-        with open((filepath), 'w') as the_file:
-            line1 = (value + '\n')
-            line2 = (map_name + '\n')
-            the_file.writelines([line1, line2])
-
-    t = Transaction(doc, 'Set Assembly Number')
-    #Start Transaction
-    t.Start()
-
-    for i in selection:
-        param_exist = i.LookupParameter("STRATUS Assembly")
-        isfabpart = i.LookupParameter("Fabrication Service")
-        if isfabpart:
-            stat = i.PartStatus
-            STName = Config.GetPartStatusDescription(stat)
-            #print (stat)
-            #print (STName)
-            #writes data to Assembly number parameterzr
-            set_parameter_by_name(i,"STRATUS Assembly", value)
-            set_parameter_by_name(i,"FP_Spool Map", map_name)
-            set_parameter_by_name(i,"STRATUS Status", "Modeled")
-            i.SpoolName = value
-            i.PartStatus = 1
-            i.Pinned = True
-        if param_exist:
-            set_parameter_by_name(i,"STRATUS Assembly", value)
-            set_parameter_by_name(i,"FP_Spool Map", map_name)
-            set_parameter_by_name(i,"STRATUS Status", "Modeled")
-            i.Pinned = True
-        else:
-            print 'Element selected are missing parameters. Contact admin.'
-    #End Transaction
-    t.Commit()
-except:
-    pass
+# Event loop to keep the form open
+while form.Visible:
+    System.Windows.Forms.Application.DoEvents()
