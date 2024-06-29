@@ -75,9 +75,9 @@ def Shared_Params():
 
     spFile = app.OpenSharedParameterFile()
     for dG in spFile.Groups:
-        if (dG.Name == 'Identity Data'):
+        if (dG.Name == 'MC_General Data'):
             d = dG.Definitions
-            t = Transaction(doc, 'Add TS Parameters')
+            t = Transaction(doc, 'Add General Parameters')
             t.Start()					
             for eD in d:
                 newIB = app.Create.NewInstanceBinding(STRATUScatSet)
