@@ -78,23 +78,23 @@ for hanger in hanger_collector:
 
 try:
     # Using list comprehension
-    [set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else None for x in AllElements]
+        [set_parameter_by_name(x, 'FP_CID', x.ItemCustomId) for x in AllElements]
 
-    [set_parameter_by_name(x, 'FP_CID', x.ItemCustomId) for x in AllElements]
+        [set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) for x in AllElements if x.ItemCustomId == 2041]
 
-    [set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) for x in AllElements if x.ItemCustomId == 2041]
+        [set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType)) for x in AllElements]
 
-    [set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType)) for x in AllElements]
+        [set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name')) for x in AllElements]
 
-    [set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name')) for x in AllElements]
+        [set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation')) for x in AllElements]
 
-    [set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation')) for x in AllElements]
+        [set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No') for x in hanger_collector]
 
-    [set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No') for x in hanger_collector]
+        [[set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0] for x in hanger_collector]
 
-    [[set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0] for x in hanger_collector]
-
-    [set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else None for x in hanger_collector]
+        [set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else None for x in hanger_collector]
+        
+        [set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else None for x in AllElements]
 
 except:
     pass
