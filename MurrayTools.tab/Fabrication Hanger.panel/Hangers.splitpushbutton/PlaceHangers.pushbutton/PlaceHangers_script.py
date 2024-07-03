@@ -210,7 +210,7 @@ try:
     for e in Pipe:
         if e.LookupParameter('Part Pattern Number').AsInteger() in (2041, 866, 40):
             # get length of pipe
-            pipelen = e.LookupParameter('Length').AsDouble()
+            pipelen = e.CenterlineLength
             # test if pipe is long enough for hanger
             if pipelen > distancefromend:
                 # block of code to get connectors on both ends of pipe

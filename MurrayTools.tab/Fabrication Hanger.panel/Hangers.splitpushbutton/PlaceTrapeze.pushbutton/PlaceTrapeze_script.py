@@ -344,18 +344,24 @@ if doc.GetElement(selected_element.ElementId).ItemCustomId != 916:
     
     IncrementSpacing = distancefromend
     #-----------------------------------------------------------------------------------PLACING TRAPS
+    
+    hangers = []
+    
+    t = Transaction(doc, 'Place Trapeze Hanger')
+    t.Start()
     for hgr in range(qtyofhgrs):
-
-        t = Transaction(doc, 'Place Trapeze Hanger')
-        t.Start()
         #--------------DRAWS TRAP AT 0,0,0--------------#
         hanger = FabricationPart.CreateHanger(doc, FabricationServiceButton, 0, level_id)
         #--------------DRAWS TRAP AT 0,0,0--------------#
-        t.Commit()
 
-        t = Transaction(doc, 'Modify Trapeze Hanger')
-        t.Start()
+        # Append each instance to the list
+        hangers.append(hanger)
+    t.Commit()
 
+    t = Transaction(doc, 'Modify Trapeze Hanger')
+    t.Start()
+
+    for hanger in hangers:
         X_side_xyz = XYZ(combined_bounding_box.Min.X + IncrementSpacing, 
                             combined_bounding_box_Center.Y, 
                             combined_bounding_box_Center.Z)
@@ -435,7 +441,7 @@ if doc.GetElement(selected_element.ElementId).ItemCustomId != 916:
                     hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(combined_bounding_box.Min.Z)
         if AtoS:
             hanger.GetRodInfo().AttachToStructure()
-        t.Commit()
+    t.Commit()
 else:
     print 'Coming Soon... \nYou will be able to place a trapeze on a ptrap'
 
