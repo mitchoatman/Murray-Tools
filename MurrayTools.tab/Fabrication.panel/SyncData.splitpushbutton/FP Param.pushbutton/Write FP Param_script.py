@@ -26,6 +26,8 @@ if selection:
     for x in selection:
         isfabpart = x.LookupParameter("Fabrication Service")
         if isfabpart:
+            set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) if x.ItemCustomId == 2041 else None
+            set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) if x.Category.Name == 'MEP Fabrication Ductwork' else None
             set_parameter_by_name(x, 'FP_CID', x.ItemCustomId)
             set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType))
             set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'))
@@ -101,6 +103,16 @@ else:
                        .WhereElementIsNotElementType() \
                        .ToElements()
 
+    # Creating collector instance and collecting all the fabrication hangers from the model
+    pipe_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationPipework) \
+                       .WhereElementIsNotElementType() \
+                       .ToElements()
+
+    # Creating collector instance and collecting all the fabrication hangers from the model
+    duct_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationDuctwork) \
+                       .WhereElementIsNotElementType() \
+                       .ToElements()
+
     # Create a FilteredElementCollector to get all FabricationPart elements
     AllElements = FilteredElementCollector(doc, curview.Id).OfClass(FabricationPart) \
                        .WhereElementIsNotElementType() \
@@ -163,28 +175,40 @@ else:
         except:
             pass
 
-    try:
-        # Using list comprehension
-        [set_parameter_by_name(x, 'FP_CID', x.ItemCustomId) for x in AllElements]
+    def safely_set_parameter(action, elements):
+        for element in elements:
+            try:
+                action(element)
+            except Exception as e:
+                # Log the exception if needed
+                pass
 
-        [set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) for x in AllElements if x.ItemCustomId == 2041]
+    # Define the actions as lambda functions
+    actions = [
+        lambda x: set_parameter_by_name(x, 'FP_CID', x.ItemCustomId),
+        lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) if x.ItemCustomId == 2041 else None,
+        lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength),
+        lambda x: set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType)),
+        lambda x: set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name')),
+        lambda x: set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation')),
+        lambda x: set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No'),
+        lambda x: [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0],
+        lambda x: set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else None,
+        lambda x: set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else None
+    ]
 
-        [set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType)) for x in AllElements]
-
-        [set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name')) for x in AllElements]
-
-        [set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation')) for x in AllElements]
-
-        [set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No') for x in hanger_collector]
-
-        [[set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0] for x in hanger_collector]
-
-        [set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else None for x in hanger_collector]
-        
-        [set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else None for x in AllElements]
-
-    except:
-        pass
+    # Apply the actions to the respective element collections
+    safely_set_parameter(actions[0], AllElements)
+    safely_set_parameter(actions[1], pipe_collector)
+    safely_set_parameter(actions[2], duct_collector)
+    safely_set_parameter(actions[3], AllElements)
+    safely_set_parameter(actions[4], AllElements)
+    safely_set_parameter(actions[5], AllElements)
+    safely_set_parameter(actions[6], hanger_collector)
+    safely_set_parameter(actions[7], hanger_collector)
+    safely_set_parameter(actions[8], hanger_collector)
+    safely_set_parameter(actions[9], AllElements)
 
     t.Commit()
+    
     # --------------ACTIVE VIEW-------------------

@@ -37,6 +37,7 @@ SNamelist_set = set(SNamelist)
 categories = List[ElementId]()
 categories.Add(ElementId(BuiltInCategory.OST_FabricationHangers))
 categories.Add(ElementId(BuiltInCategory.OST_FabricationPipework))
+categories.Add(ElementId(BuiltInCategory.OST_FabricationDuctwork))
 
 # 3a. create rules and filters for each service name
 fabrication_service_name_parameter = ElementId(BuiltInParameter.FABRICATION_SERVICE_NAME)
@@ -67,23 +68,26 @@ if dashed_pattern_id is None:
 
 # Define a dictionary to map system names to their RGB values
 system_colors = {
+    # mech pipe
+    'HEATING HOT WATER': (227, 148, 20),
+    'CHILLED WATER': (133, 255, 190),
+    'REFRIGERATION HOT GAS': (21, 130, 77),
+
     # waters
     'IRRIGATION WATER': (170, 191, 255),
     'DOMESTIC COLD WATER': (0, 63, 255),
     'DOMESTIC HOT WATER': (227, 34, 143),
-    'HEATING WATER': (227, 148, 20),
     'UG DOMESTIC COLD WATER': (0, 63, 255),
-    'CHILLED WATER': (133, 255, 190),
+
     # waste and vent
     'ACID VENT': (255, 0, 127),
     'SUMP PUMP DISCHARGE': (115, 117, 8),
     'TRAP PRIMER': (12, 38, 207),
     'OVERFLOW DRAIN': (179, 16, 146),
+    'STORM DRAIN': (157, 56, 224),
     'SANITARY VENT': (21, 237, 50),
     'SANITARY WASTE': (189, 0, 189),
     'CONDENSATE DRAIN': (86, 129, 118),
-    'REFRIGERATION HOT GAS': (21, 130, 77),
-    'STORM DRAIN': (157, 56, 224),
     'EMERGENCY DRAIN': (80, 4, 92),
     'GREASE WASTE': (189, 189, 126),
     'GREY WASTE': (138, 109, 58),
@@ -98,6 +102,7 @@ system_colors = {
     'UG LAB WASTE': (55, 120, 81),
     'UG LAB VENT': (83, 184, 123),
     'UG TRAP PRIMER': (12, 38, 207),
+
     # gasses
     'CARBON DIOXIDE': (22, 107, 37),
     'LAB AIR': (43, 102, 67),
@@ -106,6 +111,30 @@ system_colors = {
     'NITROGEN': (41, 5, 66),
     'OXYGEN': (6, 59, 2),
     'UG CARBON DIOXIDE': (22, 107, 37),
+
+    # duct
+    'GEN EXH (-2 WG)': (0, 191, 255),
+    'GEN EXH (-3 WG)': (0, 191, 255),
+    'GEN EXH (-4 WG)': (0, 191, 255),
+    'GEN EXH (-6 WG)': (0, 191, 255),
+    'HEAT EXH (-1 WG)': (255, 0, 191),
+    'HEAT EXH (-2 WG)': (255, 0, 191),
+    'HEAT EXH (-3 WG)': (255, 0, 191),
+    'OSA (+2 WG)': (255, 255, 0),
+    'OSA (+3 WG)': (255, 255, 0),
+    'RA (-1 WG)': (0, 255, 0),
+    'RA (-2 WG)': (0, 255, 0),
+    'RA (-3 WG)': (0, 255, 0),
+    'RA (-4 WG)': (0, 255, 0),
+    'RA (-6 WG)': (0, 255, 0),
+    'SA (+2 WG)': (0, 255, 255),
+    'SA (+3 WG)': (0, 255, 255),
+    'SA (+4 WG)': (0, 255, 255),
+    'SA (+6 WG)': (0, 255, 255),
+    'SA (+10 WG)': (0, 255, 255),
+    'RELF EXH (-2 WG)': (0, 94, 189),
+    'RELF EXH (-3 WG)': (0, 94, 189),
+    'RELF EXH (-4 WG)': (0, 94, 189),
 
     # Add more system names and their corresponding RGB values here
 }
@@ -118,70 +147,70 @@ custom_filters["SPOOL 1"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "1",
-    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
     "color": (255, 0, 0)  # Red color for visibility
 }
 custom_filters["SPOOL 2"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "2",
-    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
     "color": (79, 0, 59)  # White color for visibility
 }
 custom_filters["SPOOL 3"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "3",
-    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
     "color": (0, 0, 255)  # Blue color for visibility
 }
 custom_filters["SPOOL 4"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "4",
-    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
     "color": (0, 255, 0)  # Green color for visibility
 }
 custom_filters["SPOOL 5"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "5",
-    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
     "color": (255, 0, 0)  # Red color for visibility
 }
 custom_filters["SPOOL 6"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "6",
-    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
     "color": (79, 0, 59)  # White color for visibility
 }
 custom_filters["SPOOL 7"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "7",
-    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
     "color": (0, 0, 255)  # Blue color for visibility
 }
 custom_filters["SPOOL 8"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "8",
-    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
     "color": (0, 255, 0)  # Green color for visibility
 }
 custom_filters["SPOOL 9"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "9",
-    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
     "color": (255, 0, 0)  # Red color for visibility
 }
 custom_filters["SPOOL 0"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "0",
-    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers],
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
     "color": (79, 0, 59)  # White color for visibility
 }
 

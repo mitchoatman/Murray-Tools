@@ -32,7 +32,7 @@ for pipe in pipe_collector:
     if CID == 2041:
         pipelen = pipe.Parameter[BuiltInParameter.FABRICATION_PART_LENGTH].AsDouble()
         pipemat = pipe.Parameter[BuiltInParameter.FABRICATION_PART_MATERIAL].AsValueString()  #Copper: Hard Copper  #Cast Iron: Cast Iron
-        if pipelen > 10.0 and pipemat == 'Cast Iron: Cast Iron':
+        if pipelen > 10.002 and pipemat == 'Cast Iron: Cast Iron':
             output = script.get_output()
             print('{}: {}'.format('Pick on ID to select or Magnifying Glass to zoom to', output.linkify(pipe.Id)))
             found = True

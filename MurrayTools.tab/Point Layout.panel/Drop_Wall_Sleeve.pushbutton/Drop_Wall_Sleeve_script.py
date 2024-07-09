@@ -111,16 +111,11 @@ def place_and_modify_family(pipe, famsymb):
     connector1, connector2 = list(pipe_connector)
     vec_x = connector2.Origin.X - connector1.Origin.X
     vec_y = connector2.Origin.Y - connector1.Origin.Y
-    vec_z = connector2.Origin.Z - connector1.Origin.Z
-    angle_horizontal = atan2(vec_y, vec_x)
-    angle_vertical = atan2(vec_z, vec_x)
+    angle = atan2(vec_y, vec_x)
+    axis = DB.Line.CreateBound(insertion_point, DB.XYZ(insertion_point.X, insertion_point.Y, insertion_point.Z + 1))
     
     # Set rotation on new family placed in model
-    axis_horizontal = DB.Line.CreateBound(insertion_point, DB.XYZ(insertion_point.X, insertion_point.Y, insertion_point.Z + 1))
-    DB.ElementTransformUtils.RotateElement(doc, new_family_instance.Id, axis_horizontal, angle_horizontal)
-    
-    axis_vertical = DB.Line.CreateBound(insertion_point, DB.XYZ(insertion_point.X + 1, insertion_point.Y, insertion_point.Z))
-    DB.ElementTransformUtils.RotateElement(doc, new_family_instance.Id, axis_vertical, angle_vertical)
+    DB.ElementTransformUtils.RotateElement(doc, new_family_instance.Id, axis, angle)
     
     # Set FP parameters on new family placed in model
     set_parameter_by_name(new_family_instance, 'FP_Service Name', get_parameter_value_by_name_AsString(pipe, 'Fabrication Service Name'))

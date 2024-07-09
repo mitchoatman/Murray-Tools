@@ -1,22 +1,15 @@
 #Imports
 import Autodesk
 from Autodesk.Revit import DB
-from Autodesk.Revit.UI import *
-from Autodesk.Revit.UI.Selection import *
-from rpw.ui.forms import CommandLink, TaskDialog
-from Autodesk.Revit import DB
+from Autodesk.Revit.UI import Selection
+from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, FamilySymbol, Structure, Transaction, BuiltInParameter, \
                                 Family, TransactionGroup, FamilyInstance, ReferencePlane
-import os
 
-DB = Autodesk.Revit.DB
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
-fec = FilteredElementCollector
-app = doc.Application
-RevitVersion = app.VersionNumber
-RevitINT = float (RevitVersion)
+
 
 class CustomISelectionFilter(ISelectionFilter):
     def __init__(self, nom_categorie):
@@ -27,27 +20,15 @@ class CustomISelectionFilter(ISelectionFilter):
         else:
             return False
     def AllowReference(self, ref, point):
-        return true
+        return True
+
 try:
     pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
-    CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers to Extend")            
-    Hanger = [doc.GetElement( elId ) for elId in pipesel]
+    CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers to Extend")
+    Hanger = [doc.GetElement(elId) for elId in pipesel]
 except:
     Hanger = False
     pass
-folder_name = "c:\\Temp"
-filepath = os.path.join(folder_name, 'Ribbon_ExtentHangerRod.txt')
-
-if not os.path.exists(folder_name):
-    os.makedirs(folder_name)
-if not os.path.exists(filepath):
-    f = open((filepath), 'w')
-    f.write('1')
-    f.close()
-
-f = open((filepath), 'r')
-PrevInput = f.read()
-f.close()
 
 collector = FilteredElementCollector(doc)
 reference_planes = collector.OfCategory(BuiltInCategory.OST_CLines).WhereElementIsNotElementType().ToElements()
@@ -64,42 +45,46 @@ for ref_plane in reference_planes:
 if Hanger:
     if len(Hanger) > 0:
 
-        # Prompt the user to select an existing reference plane
+        ref_plane = uidoc.Selection.PickObject(ObjectType.Element, "Select a reference plane")
+        ref_plane = doc.GetElement(ref_plane.ElementId)
+        if not isinstance(ref_plane, DB.ReferencePlane):
+            ref_plane = None
 
-        try:
-            ref_plane = uidoc.Selection.PickObject(ObjectType.Element, "Select a reference plane")
-            ref_plane = doc.GetElement(ref_plane.ElementId)
-            if not isinstance(ref_plane, DB.ReferencePlane):
-                ref_plane = None
+        # Get the plane geometry
+        plane = ref_plane.GetPlane()
+        plane_normal = plane.Normal
+        plane_origin = plane.Origin
 
-            # Retrieve the reference plane elevation
-            valuenum = ref_plane.FreeEnd.Z
+        t = Transaction(doc, 'Extend Hanger Rods')
+        t.Start()
 
-            ItmList1 = list()
+        for e in Hanger:
+            STName = e.GetRodInfo().RodCount
+            # Detaches rods from structure
+            hgrhost = e.GetRodInfo().CanRodsBeHosted = False
+            STName1 = e.GetRodInfo()
+            for n in range(STName):
+                rodlen = STName1.GetRodLength(n)
+                rodpos = STName1.GetRodEndPosition(n)
+                
+                # Calculate the intersection of the rod with the reference plane
+                rod_vector = rodpos - plane_origin
+                distance_to_plane = plane_normal.DotProduct(rod_vector)
+                intersection_point = rodpos - (distance_to_plane * plane_normal)
+                
+                # Calculate the new length of the rod
+                delta_length = intersection_point.DistanceTo(rodpos)
+                
+                # Check if the reference plane is above or below the rod
+                if distance_to_plane > 0:
+                    new_length = rodlen - delta_length
+                else:
+                    new_length = rodlen + delta_length
 
-            t = Transaction(doc, 'Extend Hanger Rods')
-            t.Start()
+                # Set the new rod length
+                STName1.SetRodLength(n, new_length)
 
-            for e in Hanger:
-                STName = e.GetRodInfo().RodCount
-                ItmList1.append(STName)
-                #Detaches rods from structure
-                hgrhost = e.GetRodInfo().CanRodsBeHosted = False
-                STName1 = e.GetRodInfo()
-                for n in range(STName):
-                    rodlen = STName1.GetRodLength(n)
-                    rodpos = STName1.GetRodEndPosition(n)
-                    #Turns rodpos into string and removes ( ) to clean it up.
-                    stringrodpos = str(rodpos).replace ('(', '').replace(')', '')
-                    length = len(stringrodpos)
+        t.Commit()
 
-                    #Looks for "," to locate where Z coordinate starts
-                    zcoordloc = stringrodpos.rfind(', ', 0, length)
-                    #Removes x and y coordinate data and returns only z converted back to number.
-                    zcoord = float((stringrodpos[zcoordloc+2:length]))
-                    STName1.SetRodLength(n, rodlen + (valuenum - zcoord))
 
-            t.Commit()
-        except:
-            pass
 
