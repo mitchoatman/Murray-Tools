@@ -1,29 +1,35 @@
 from Autodesk.Revit.UI.Selection import ObjectType
-from Autodesk.Revit.DB import BoundingBoxXYZ, FilteredElementCollector, Transaction, BuiltInCategory, FabricationPart
+from Autodesk.Revit.DB import BoundingBoxXYZ, FilteredElementCollector, Transaction, BuiltInCategory, FamilyInstance
 from pyrevit import forms
-import os
-
-# extension_path = os.path.normpath(os.path.join(__file__, '../../../../../'))
-# icon_path = extension_path + '\Murray.ico'
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+curview = doc.ActiveView
 
 def GetCenterPoint(ele):
     bBox = doc.GetElement(ele).get_BoundingBox(None)
     center = (bBox.Max + bBox.Min) / 2
     return (center.X, center.Y, center.Z)
 
+def IsNestedFamily(element):
+    # Check if the element is a FamilyInstance and if it has a parent (indicating it's nested)
+    if isinstance(element, FamilyInstance):
+        return element.SuperComponent is not None
+    return False
+
 # Create a FilteredElementCollector to get all PipeAccessory elements
-AllElements = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeAccessory) \
+AllElements = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeAccessory)\
                    .WhereElementIsNotElementType() \
                    .ToElements()
+
+# Filter out nested families
+main_families = [el for el in AllElements if not IsNestedFamily(el)]
 
 # Get the center point of each selected element
 element_ids = []
 center_points = []
 
-for reference in AllElements:
+for reference in main_families:
     center_point = GetCenterPoint(reference.Id)
     center_points.append(center_point)
     element_ids.append(reference.Id)
@@ -53,11 +59,6 @@ try:
             transaction.Commit()
     else:
         forms.show_balloon('Duplicates', 'No Duplicates Found')
-        # forms.toast(
-            # 'No Duplicates Found',
-            # title = "Duplicates",
-            # appid = "Murray Tools",
-            # icon = icon_path,
-            # click="https://murraycompany.com",)
+
 except:
     pass
