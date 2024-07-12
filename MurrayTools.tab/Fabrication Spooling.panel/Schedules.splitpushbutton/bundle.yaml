@@ -1,8 +1,6 @@
 layout:
-  - Spooling
-  - HGR_Data
-  - FabRenumberTools
-  - Schedules
+  - SingleSchedule
+  - TrapezeSchedule
   
 background:
 #  title: 'D5D5CD'

@@ -1,0 +1,19 @@
+highlight: new
+title:
+  "Pipe\nLabel"
+
+tooltip: |-
+  Places a pipe label at user specified point.
+    * Arrow direction determined by direction between selection and placement point.
+    * Rotate label with spacebar
+    
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://youtu.be/2464K7fS2iY"
+
+# bundle author
+author: Mitchell Oatman
