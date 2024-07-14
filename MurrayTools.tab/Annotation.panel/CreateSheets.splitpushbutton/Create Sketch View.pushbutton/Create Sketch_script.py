@@ -53,11 +53,11 @@ class TXT_Form(Form):
         self.snumber = None
 
         self.label_textbox = Label()
-        self.label_textbox.Text = 'Sheet Name:'
+        self.label_textbox.Text = 'Sheet Number:'
         self.label_textbox.ForeColor = System.Drawing.Color.Black
         self.label_textbox.Font = Font("Arial", 12, FontStyle.Bold)
         self.label_textbox.Location = Point(5, 20)
-        self.label_textbox.Size = Size(110, 40)
+        self.label_textbox.Size = Size(125, 40)
         self.Controls.Add(self.label_textbox)
 
         self.label_textbox2 = Label()
@@ -65,19 +65,19 @@ class TXT_Form(Form):
         self.label_textbox2.ForeColor = System.Drawing.Color.Black
         self.label_textbox2.Font = Font("Arial", 12, FontStyle.Bold)
         self.label_textbox2.Location = Point(5, 70)
-        self.label_textbox2.Size = Size(110, 40)
+        self.label_textbox2.Size = Size(125, 40)
         self.Controls.Add(self.label_textbox2)
 
         self.textBox1 = TextBox()
         self.textBox1.Text = lines[0]
-        self.textBox1.Location = Point(125, 20)
-        self.textBox1.Size = Size(125, 40)
+        self.textBox1.Location = Point(130, 20)
+        self.textBox1.Size = Size(120, 40)
         self.Controls.Add(self.textBox1)
 
         self.textBox2 = TextBox()
         self.textBox2.Text = lines[1]
-        self.textBox2.Location = Point(125, 70)
-        self.textBox2.Size = Size(125, 40)
+        self.textBox2.Location = Point(130, 70)
+        self.textBox2.Size = Size(120, 40)
         self.Controls.Add(self.textBox2)
 
         self.button = Button()
@@ -107,7 +107,7 @@ if form.snumber is not None:
     # Check if sheet already exists
     sheet_exists = any(sheet.SheetNumber == snumber for sheet in fec(doc).OfClass(ViewSheet).ToElements())
     if sheet_exists:
-        print("Error", "Sheet with number {} already exists.".format(snumber))
+        print("Error", "Sheet Name or Number {} already exists.".format(snumber))
         sys.exit()
 
     # Check if view already exists
