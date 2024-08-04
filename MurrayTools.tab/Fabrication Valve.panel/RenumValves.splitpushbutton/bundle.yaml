@@ -3,6 +3,7 @@ layout:
   - ReNumber
   - TagValves
   - SelectValves
+  - ValveSchedule
 
 
 background:

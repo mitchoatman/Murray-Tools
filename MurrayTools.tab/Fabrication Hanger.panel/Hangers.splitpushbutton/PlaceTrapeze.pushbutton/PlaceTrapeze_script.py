@@ -310,6 +310,19 @@ if doc.GetElement(selected_element.ElementId).ItemCustomId != 916:
                                 max(combined_max.Y, pipe_bounding_box.Max.Y),
                                 max(combined_max.Z, pipe_bounding_box.Max.Z))
 
+    # Function to get the reference level of a hanger
+    def get_reference_level(hanger):
+        level_id = hanger.LevelId
+        level = doc.GetElement(level_id)
+        return level
+
+    # Function to get the elevation of the reference level
+    def get_level_elevation(level):
+        if level:
+            return level.Elevation
+        else:
+            return None
+
     # Create a new combined bounding box using the calculated coordinates
     combined_bounding_box = BoundingBoxXYZ()
     combined_bounding_box.Min = combined_min
@@ -394,10 +407,13 @@ if doc.GetElement(selected_element.ElementId).ItemCustomId != 916:
                     hanger.SetDimensionValue(dim, new_value)
                 translation = X_side_xyz - GetCenterPoint(hanger.Id)
                 ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
+                reference_level = get_reference_level(hanger)
+                if reference_level:
+                    elevation = get_level_elevation(reference_level)
                 if BOITrap:
                     hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(PRTElevation)
                 else:
-                    hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(combined_bounding_box.Min.Z)
+                    hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(combined_bounding_box.Min.Z - elevation)
 
     #-----------------------------------------------------------------------------------TRAPS IN Y DIRECTION, MOVES AND MODIFIES PLACED TRAPS ABOVE
         if (delta_y) > (delta_x):
@@ -435,10 +451,13 @@ if doc.GetElement(selected_element.ElementId).ItemCustomId != 916:
                     hanger.SetDimensionValue(dim, new_value)
                 translation = Y_side_xyz - GetCenterPoint(hanger.Id)
                 ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
+                reference_level = get_reference_level(hanger)
+                if reference_level:
+                    elevation = get_level_elevation(reference_level)
                 if BOITrap:
                     hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(PRTElevation)
                 else:
-                    hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(combined_bounding_box.Min.Z)
+                    hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(combined_bounding_box.Min.Z - elevation)
         if AtoS:
             hanger.GetRodInfo().AttachToStructure()
     t.Commit()

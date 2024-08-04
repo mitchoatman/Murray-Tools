@@ -1,14 +1,27 @@
+
+import Autodesk
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FilteredElementCollector, Family, BuiltInCategory, FamilySymbol, LocationCurve, Transaction
+from Autodesk.Revit.DB import FilteredElementCollector, Family, BuiltInCategory, FamilySymbol, LocationCurve,ElementCategoryFilter, BuiltInCategory, ElementClassFilter, BuiltInParameter, \
+                                ElementId, ElementParameterFilter, ParameterValueProvider, FilterStringRule, FilterStringEquals, LogicalAndFilter, Transaction, FamilyInstance
+from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, \
+                                        get_parameter_value_by_name_AsInteger, get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsDouble
 from Autodesk.Revit.UI.Selection import ObjectType
-from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsInteger
 import re
 from math import atan2, degrees
 from fractions import Fraction
 
-app = __revit__.Application
+from SharedParam.Add_Parameters import Shared_Params
+Shared_Params()
+
+DB = Autodesk.Revit.DB
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+curview = doc.ActiveView
+fec = FilteredElementCollector
+app = doc.Application
+RevitVersion = app.VersionNumber
+RevitINT = float (RevitVersion)
+
 
 class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):
@@ -51,7 +64,7 @@ if famsymb:
 
 t.Commit()
 
-symbName = 'WS'
+symbName = 'Pipe Label'
 
 def set_parameter_by_name(element, parameterName, value):
     element.LookupParameter(parameterName).Set(value)
@@ -101,14 +114,26 @@ def place_and_modify_family(pipe, famsymb):
         return str(int(i) + float(f))
 
     if '/' in get_parameter_value_by_name_AsString(pipe, 'Overall Size'):
-        diameter = float(re.sub(r'(?:(\d+)[-\s])?(\d+/\d+)[^\d.]', frac2string, get_parameter_value_by_name_AsString(pipe, 'Overall Size'))) / 12 + 0.0833333
+        diameter = float(re.sub(r'(?:(\d+)[-\s])?(\d+/\d+)[^\d.]', frac2string, get_parameter_value_by_name_AsString(pipe, 'Overall Size'))) / 12
     else:
-        diameter = float(re.sub(r'[^\d.]', '', get_parameter_value_by_name_AsString(pipe, 'Overall Size'))) / 12 + 0.0833333
+        diameter = float(re.sub(r'[^\d.]', '', get_parameter_value_by_name_AsString(pipe, 'Overall Size'))) / 12
     set_parameter_by_name(new_family_instance, "Diameter", diameter)
     
-    # Get connector location and angle on pipe
-    pipe_connector = pipe.ConnectorManager.Connectors
-    connector1, connector2 = list(pipe_connector)
+    # Get connector locations
+    pipe_connectors = list(pipe.ConnectorManager.Connectors)
+    connector1, connector2 = pipe_connectors[0], pipe_connectors[1]
+
+    # Calculate distances to the picked_point
+    distance1 = picked_point.DistanceTo(connector1.Origin)
+    distance2 = picked_point.DistanceTo(connector2.Origin)
+
+    # Determine the nearest connector
+    if distance1 < distance2:
+        connector1, connector2 = connector1, connector2
+    else:
+        connector1, connector2 = connector2, connector1
+
+    # Calculate vector components and angle
     vec_x = connector2.Origin.X - connector1.Origin.X
     vec_y = connector2.Origin.Y - connector1.Origin.Y
     angle = atan2(vec_y, vec_x)
@@ -121,6 +146,64 @@ def place_and_modify_family(pipe, famsymb):
     set_parameter_by_name(new_family_instance, 'FP_Service Name', get_parameter_value_by_name_AsString(pipe, 'Fabrication Service Name'))
     set_parameter_by_name(new_family_instance, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(pipe, 'Fabrication Service Abbreviation'))
 
+def set_pipe_label_size():
+
+    # Create a filter for pipe accessories
+    pipe_accessory_filter = ElementCategoryFilter(BuiltInCategory.OST_PipeAccessory)
+
+    # Create a filter for family instances (optional, as pipe accessories are already family instances)
+    family_instance_filter = ElementClassFilter(FamilyInstance)
+
+    # Create a parameter value provider for the family name
+    provider = ParameterValueProvider(ElementId(BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM))
+
+    # Define the rule to filter by the family name "Pipe Label"
+    # Remove False for new Revit versions
+    if RevitINT > 2022:
+        rule = FilterStringRule(provider, FilterStringEquals(), "Pipe Label")
+    else:
+        rule = FilterStringRule(provider, FilterStringEquals(), "Pipe Label", False)
+
+    # Create a parameter filter using the rule
+    family_name_filter = ElementParameterFilter(rule)
+
+    # Combine the filters
+    filter = LogicalAndFilter(pipe_accessory_filter, family_name_filter)
+
+    # Collect all elements that match the filter
+    pipe_labels = FilteredElementCollector(doc).WherePasses(filter).ToElements()
+
+    t = Transaction(doc, "Set Pipe Label type")
+    t.Start()
+    # Iterate over elements and fetch parameter values
+    for pipe_label in pipe_labels:
+        try:
+            diameter = (get_parameter_value_by_name_AsDouble(pipe_label, 'Diameter') * 12)
+            # print diameter
+            # print diameter <= 0.5
+            if diameter <= 0.50:
+                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'AA')
+            if 0.50 < diameter < 1.001:
+                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'A')
+            if 1.00 < diameter < 2.376:
+                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'B')
+            if 2.375 < diameter < 3.251:
+                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'C')
+            if 3.25 < diameter < 4.501:
+                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'D')
+            if 4.50 < diameter < 5.876:
+                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'E')
+            if 5.875 < diameter < 7.876:
+                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'F')
+            if 7.875 < diameter < 9.876:
+                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'G')
+            if diameter > 9.876:
+                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'H')
+        except:
+            pass
+    t.Commit()
+
+
 while True:
     try:
         t = Transaction(doc, 'Place Pipe Label Family')
@@ -130,8 +213,10 @@ while True:
         place_and_modify_family(pipe, famsymb)
         
         t.Commit()
-        
+
     except Exception as e:
         if t.HasStarted() and not t.HasEnded():
             t.RollBack()
         break
+
+set_pipe_label_size()

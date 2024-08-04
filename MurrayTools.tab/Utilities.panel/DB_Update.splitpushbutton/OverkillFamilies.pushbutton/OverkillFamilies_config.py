@@ -18,6 +18,7 @@ model_categories = {
     "Plumbing Fixtures": BuiltInCategory.OST_PlumbingFixtures,
     "Mechanical Equipment": BuiltInCategory.OST_MechanicalEquipment,
     "Duct Accessory": BuiltInCategory.OST_DuctAccessory,
+    "Generic Models": BuiltInCategory.OST_GenericModel,
     # Add more model categories as needed
 }
 
