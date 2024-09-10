@@ -77,6 +77,7 @@ system_colors = {
     'IRRIGATION WATER': (170, 191, 255),
     'DOMESTIC COLD WATER': (0, 63, 255),
     'DOMESTIC HOT WATER': (227, 34, 143),
+    'DOMESTIC HOT WATER RETURN': (255, 127, 0),
     'UG DOMESTIC COLD WATER': (0, 63, 255),
 
     # waste and vent
@@ -102,6 +103,7 @@ system_colors = {
     'UG LAB WASTE': (55, 120, 81),
     'UG LAB VENT': (83, 184, 123),
     'UG TRAP PRIMER': (12, 38, 207),
+    'UG GREASE WASTE': (189, 189, 126),
 
     # gasses
     'CARBON DIOXIDE': (22, 107, 37),
@@ -136,7 +138,7 @@ system_colors = {
     'RELF EXH (-3 WG)': (0, 94, 189),
     'RELF EXH (-4 WG)': (0, 94, 189),
 
-    # Add more system names and their corresponding RGB values here
+# Add more system names and their corresponding RGB values here
 }
 
 # Define a dictionary to store custom filters (OrderedDict to preserve order)

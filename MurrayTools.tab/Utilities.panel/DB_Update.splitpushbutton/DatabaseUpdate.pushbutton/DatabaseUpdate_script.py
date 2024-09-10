@@ -5,7 +5,7 @@ import os
 # NewFilename = '\Murray.ico'
 
 endtime_hms_claim = "Synchronisation took"
-forms.show_balloon('Database Update', 'The Database and Support files are being synced to your Hard Drive. Once sync is complete, you must reload the Fabrication database inside Revit to receive any database changes after.')
+forms.show_balloon('Database Update', 'The Database and Support files are being synced to your Hard Drive. Once sync is complete, you must reload the Fabrication database inside your Revit project to receive any database changes.')
 
 # forms.toast(
     # "The Database and Support files are being synced to your Hard Drive. You must reload the Fabrication database inside Revit to receive any database changes.",

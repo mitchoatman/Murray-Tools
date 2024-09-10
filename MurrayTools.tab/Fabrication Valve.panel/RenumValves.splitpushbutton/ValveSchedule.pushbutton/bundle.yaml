@@ -7,6 +7,8 @@ title:
 # bundle tooltip
 tooltip: |-
   Creates a valve number schedule to use as a template.
+  
+    - Still requires filters, sorting, and grouping by user.
 
 # context directives are listed under `context` key, the order does not matter
 # context:

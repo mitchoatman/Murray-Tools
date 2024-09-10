@@ -72,7 +72,9 @@ for hanger in hanger_collector:
             ItmDims = hanger.GetDimensions()
             for dta in ItmDims:
                 if dta.Name == 'Length A':
-                    RL = hanger.GetDimensionValue(dta)
+                    RLA = hanger.GetDimensionValue(dta)
+                if dta.Name == 'Length B':
+                    RLB = hanger.GetDimensionValue(dta)
                 if dta.Name == 'Width':
                     TrapWidth = hanger.GetDimensionValue(dta)
                 if dta.Name == 'Bearer Extn':
@@ -83,7 +85,9 @@ for hanger in hanger_collector:
                     TrapLRod = hanger.GetDimensionValue(dta)
             BearerLength = TrapWidth + TrapExtn + TrapExtn
             set_parameter_by_name(hanger, 'FP_Bearer Length', BearerLength)
-            set_parameter_by_name(hanger, 'FP_Rod Length', RL)
+            set_parameter_by_name(hanger, 'FP_Rod Length', RLA)
+            set_parameter_by_name(hanger, 'FP_Rod Length A', RLA)
+            set_parameter_by_name(hanger, 'FP_Rod Length B', RLB)
     except:
         pass
 

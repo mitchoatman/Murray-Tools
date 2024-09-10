@@ -5,7 +5,7 @@ from Autodesk.Revit.DB import Transaction
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 from rpw.ui.forms import FlexForm, Label, ComboBox, TextBox, TextBox, Separator, Button, CheckBox
 from SharedParam.Add_Parameters import Shared_Params
-import sys
+import sys, math
 
 Shared_Params()
 doc = __revit__.ActiveUIDocument.Document
@@ -32,12 +32,29 @@ class CustomISelectionFilter(ISelectionFilter):
     def AllowReference(self, ref, point):
         return true
 
+def set_fp_parameters(element, InsertDepth, TRL):
+    # Set the 'FP_Insert Depth' parameter
+    set_parameter_by_name(element, 'FP_Insert Depth', InsertDepth)
+    # Calculate and set the 'FP_Rod Cut Length' parameter
+    rod_cut_length = InsertDepth + TRL
+    set_parameter_by_name(element, 'FP_Rod Cut Length', rod_cut_length)
+
+def round_to_nearest_half(value):
+    value_in_inches = value * 12
+    rounded_value_in_inches = math.ceil(value_in_inches * 2) / 2
+    return rounded_value_in_inches / 12
+
+def round_to_nearest_quarter(value):
+    value_in_inches = value * 12
+    rounded_value_in_inches = math.ceil(value_in_inches * 4) / 4
+    return rounded_value_in_inches / 12
+
 pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
 CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers")            
 hangers = [doc.GetElement( elId ) for elId in pipesel]
 
 if len(hangers) > 0:
-    
+  
         #Define dialog options and show it
     components = [Label('Insert Type:'),
         ComboBox('Insert', {'(1) BlueBanger MD': 1, '(2) BlueBanger WD': 2, '(3) BlueBanger RDI': 3, '(4) Dewalt DDI': 4, '(5) Dewalt Wood Knocker': 5, '(6) Extend or Cut Rod': 6}),
@@ -57,6 +74,43 @@ if len(hangers) > 0:
     t.Start() 
     if InsertType == 1:  #BlueBanger MD
         for e in hangers:
+            try:
+                RB = 0
+                RL = 0
+                if (e.GetRodInfo().RodCount) < 2:
+                    ItmDims = e.GetDimensions()
+                    for dta in ItmDims:
+                        if dta.Name == 'Rod Extn Below':
+                            RB = e.GetDimensionValue(dta)
+                        if dta.Name == 'Rod Length':
+                            RL = e.GetDimensionValue(dta)
+                    TRL = RL + RB
+                    TRL = round_to_nearest_half(TRL)
+                    set_parameter_by_name(e, 'FP_Rod Length', TRL)
+            except:
+                pass 
+
+            try:
+                if (e.GetRodInfo().RodCount) > 1:
+                    ItmDims = e.GetDimensions()
+                    for dta in ItmDims:
+                        if dta.Name == 'Length A':
+                            RL = e.GetDimensionValue(dta)
+                            TRL = round_to_nearest_quarter(RL)
+                        if dta.Name == 'Width':
+                            TrapWidth = e.GetDimensionValue(dta)
+                        if dta.Name == 'Bearer Extn':
+                            TrapExtn = e.GetDimensionValue(dta)
+                        if dta.Name == 'Right Rod Offset':
+                            TrapRRod = e.GetDimensionValue(dta)
+                        if dta.Name == 'Left Rod Offset':
+                            TrapLRod = e.GetDimensionValue(dta)
+                    BearerLength = TrapWidth + TrapExtn + TrapExtn
+                    set_parameter_by_name(e, 'FP_Bearer Length', BearerLength)
+                    set_parameter_by_name(e, 'FP_Rod Length', TRL)
+            except:
+                pass
+
             set_parameter_by_name(e, 'FP_Insert Type', 'BlueBanger MD - ' + str(DeckThickness * 12))
             AnciObj = e.GetPartAncillaryUsage()
             for n in AnciObj:
@@ -67,30 +121,73 @@ if len(hangers) > 0:
                     if formatted_elinfo == '0.031250': #3/8"
                         InsertDepth = (DeckThickness + (1.25 / 12))
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.041667': #1/2"
                         InsertDepth = (DeckThickness + (0.75 / 12))
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.052083': #5/8"
                         InsertDepth = (DeckThickness + (0.75 / 12))
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.062500': #3/4"
                         InsertDepth = (DeckThickness + (1.0 / 12))
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.072917': #7/8"
                         InsertDepth = (-4.0 / 12)
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.083333': #1"
                         InsertDepth = (-4.0 / 12)
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
 
     if InsertType == 2:  #BlueBanger WD
         for e in hangers:
+            try:
+                RB = 0
+                RL = 0
+                if (e.GetRodInfo().RodCount) < 2:
+                    ItmDims = e.GetDimensions()
+                    for dta in ItmDims:
+                        if dta.Name == 'Rod Extn Below':
+                            RB = e.GetDimensionValue(dta)
+                        if dta.Name == 'Rod Length':
+                            RL = e.GetDimensionValue(dta)
+                    TRL = RL + RB
+                    TRL = round_to_nearest_half(TRL)
+                    set_parameter_by_name(e, 'FP_Rod Length', TRL)
+            except:
+                pass 
+
+            try:
+                if (e.GetRodInfo().RodCount) > 1:
+                    ItmDims = e.GetDimensions()
+                    for dta in ItmDims:
+                        if dta.Name == 'Length A':
+                            RL = e.GetDimensionValue(dta)
+                            TRL = round_to_nearest_quarter(RL)
+                        if dta.Name == 'Width':
+                            TrapWidth = e.GetDimensionValue(dta)
+                        if dta.Name == 'Bearer Extn':
+                            TrapExtn = e.GetDimensionValue(dta)
+                        if dta.Name == 'Right Rod Offset':
+                            TrapRRod = e.GetDimensionValue(dta)
+                        if dta.Name == 'Left Rod Offset':
+                            TrapLRod = e.GetDimensionValue(dta)
+                    BearerLength = TrapWidth + TrapExtn + TrapExtn
+                    set_parameter_by_name(e, 'FP_Bearer Length', BearerLength)
+                    set_parameter_by_name(e, 'FP_Rod Length', TRL)
+            except:
+                pass
+
             set_parameter_by_name(e, 'FP_Insert Type', 'BlueBanger WD')
             AnciObj = e.GetPartAncillaryUsage()
             for n in AnciObj:
@@ -101,30 +198,73 @@ if len(hangers) > 0:
                     if formatted_elinfo == '0.031250': #3/8"
                         InsertDepth = (1.75 / 12)
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.041667': #1/2"
                         InsertDepth = (1.25 / 12)
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.052083': #5/8"
                         InsertDepth = (1.75 / 12)
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.062500': #3/4"
                         InsertDepth = (1.25 / 12)
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.072917': #7/8"
                         InsertDepth = (-4.0 / 12)
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.083333': #1"
                         InsertDepth = (-4.0 / 12)
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
 
     if InsertType == 3:  #BlueBanger RDI
         for e in hangers:
+            try:
+                RB = 0
+                RL = 0
+                if (e.GetRodInfo().RodCount) < 2:
+                    ItmDims = e.GetDimensions()
+                    for dta in ItmDims:
+                        if dta.Name == 'Rod Extn Below':
+                            RB = e.GetDimensionValue(dta)
+                        if dta.Name == 'Rod Length':
+                            RL = e.GetDimensionValue(dta)
+                    TRL = RL + RB
+                    TRL = round_to_nearest_half(TRL)
+                    set_parameter_by_name(e, 'FP_Rod Length', TRL)
+            except:
+                pass 
+
+            try:
+                if (e.GetRodInfo().RodCount) > 1:
+                    ItmDims = e.GetDimensions()
+                    for dta in ItmDims:
+                        if dta.Name == 'Length A':
+                            RL = e.GetDimensionValue(dta)
+                            TRL = round_to_nearest_quarter(RL)
+                        if dta.Name == 'Width':
+                            TrapWidth = e.GetDimensionValue(dta)
+                        if dta.Name == 'Bearer Extn':
+                            TrapExtn = e.GetDimensionValue(dta)
+                        if dta.Name == 'Right Rod Offset':
+                            TrapRRod = e.GetDimensionValue(dta)
+                        if dta.Name == 'Left Rod Offset':
+                            TrapLRod = e.GetDimensionValue(dta)
+                    BearerLength = TrapWidth + TrapExtn + TrapExtn
+                    set_parameter_by_name(e, 'FP_Bearer Length', BearerLength)
+                    set_parameter_by_name(e, 'FP_Rod Length', TRL)
+            except:
+                pass
+            
             set_parameter_by_name(e, 'FP_Insert Type', 'BlueBanger RDI')
             AnciObj = e.GetPartAncillaryUsage()
             for n in AnciObj:
@@ -135,16 +275,55 @@ if len(hangers) > 0:
                     if formatted_elinfo == '0.031250': #3/8"
                         InsertDepth = (DeckThickness + (-0.75 / 12))
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.041667': #1/2"
                         InsertDepth = (DeckThickness + (-1.25 / 12))
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo > '0.052083': #Bigger than 1/2"
                         print 'Some rod sizes bigger than insert can accept! \n Depth not written.'
 
     if InsertType == 4:  #Dewalt DDI
         for e in hangers:
+            try:
+                RB = 0
+                RL = 0
+                if (e.GetRodInfo().RodCount) < 2:
+                    ItmDims = e.GetDimensions()
+                    for dta in ItmDims:
+                        if dta.Name == 'Rod Extn Below':
+                            RB = e.GetDimensionValue(dta)
+                        if dta.Name == 'Rod Length':
+                            RL = e.GetDimensionValue(dta)
+                    TRL = RL + RB
+                    TRL = round_to_nearest_half(TRL)
+                    set_parameter_by_name(e, 'FP_Rod Length', TRL)
+            except:
+                pass 
+
+            try:
+                if (e.GetRodInfo().RodCount) > 1:
+                    ItmDims = e.GetDimensions()
+                    for dta in ItmDims:
+                        if dta.Name == 'Length A':
+                            RL = e.GetDimensionValue(dta)
+                            TRL = round_to_nearest_quarter(RL)
+                        if dta.Name == 'Width':
+                            TrapWidth = e.GetDimensionValue(dta)
+                        if dta.Name == 'Bearer Extn':
+                            TrapExtn = e.GetDimensionValue(dta)
+                        if dta.Name == 'Right Rod Offset':
+                            TrapRRod = e.GetDimensionValue(dta)
+                        if dta.Name == 'Left Rod Offset':
+                            TrapLRod = e.GetDimensionValue(dta)
+                    BearerLength = TrapWidth + TrapExtn + TrapExtn
+                    set_parameter_by_name(e, 'FP_Bearer Length', BearerLength)
+                    set_parameter_by_name(e, 'FP_Rod Length', TRL)
+            except:
+                pass
+            
             set_parameter_by_name(e, 'FP_Insert Type', 'Dewalt DDI')
             AnciObj = e.GetPartAncillaryUsage()
             for n in AnciObj:
@@ -156,30 +335,74 @@ if len(hangers) > 0:
                     if formatted_elinfo == '0.031250': #3/8"
                         InsertDepth = (DeckThickness + (-6.25 / 12))
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.041667': #1/2"
                         InsertDepth = (DeckThickness + (-6.0 / 12))
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.052083': #5/8"
                         InsertDepth = (DeckThickness + (-5.625 / 12))
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.062500': #3/4"
                         InsertDepth = (DeckThickness + (-5.375 / 12))
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.072917': #7/8"
                         InsertDepth = (DeckThickness + (-5.375 / 12))
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.083333': #1"
                         InsertDepth = (-4.0 / 12)
                         set_customdata_by_custid(e, 9, InsertDepth)
                         set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
 
     if InsertType == 5:  #Dewalt Wood Knocker
         for e in hangers:
+            try:
+                RB = 0
+                RL = 0
+                if (e.GetRodInfo().RodCount) < 2:
+                    ItmDims = e.GetDimensions()
+                    for dta in ItmDims:
+                        if dta.Name == 'Rod Extn Below':
+                            RB = e.GetDimensionValue(dta)
+                        if dta.Name == 'Rod Length':
+                            RL = e.GetDimensionValue(dta)
+                    TRL = RL + RB
+                    TRL = round_to_nearest_half(TRL)
+                    set_parameter_by_name(e, 'FP_Rod Length', TRL)
+            except:
+                pass 
+
+            try:
+                if (e.GetRodInfo().RodCount) > 1:
+                    ItmDims = e.GetDimensions()
+                    for dta in ItmDims:
+                        if dta.Name == 'Length A':
+                            RL = e.GetDimensionValue(dta)
+                            TRL = round_to_nearest_quarter(RL)
+                        if dta.Name == 'Width':
+                            TrapWidth = e.GetDimensionValue(dta)
+                        if dta.Name == 'Bearer Extn':
+                            TrapExtn = e.GetDimensionValue(dta)
+                        if dta.Name == 'Right Rod Offset':
+                            TrapRRod = e.GetDimensionValue(dta)
+                        if dta.Name == 'Left Rod Offset':
+                            TrapLRod = e.GetDimensionValue(dta)
+                    BearerLength = TrapWidth + TrapExtn + TrapExtn
+                    set_parameter_by_name(e, 'FP_Bearer Length', BearerLength)
+                    set_parameter_by_name(e, 'FP_Rod Length', TRL)
+            except:
+                pass
+            
             set_parameter_by_name(e, 'FP_Insert Type', 'Dewalt Wood Knocker')
             AnciObj = e.GetPartAncillaryUsage()
             for n in AnciObj:
@@ -190,27 +413,33 @@ if len(hangers) > 0:
                     if formatted_elinfo == '0.031250': #3/8"
                         InsertDepth = (0.875 / 12)
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.041667': #1/2"
                         InsertDepth = (0.375 / 12)
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.052083': #5/8"
                         InsertDepth = (0.375/ 12)
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.062500': #3/4"
                         InsertDepth = (0.375 / 12)
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.072917': #7/8"
                         InsertDepth = (0.375 / 12)
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
                     if formatted_elinfo == '0.083333': #1"
                         InsertDepth = (-4.0 / 12)
                         set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
+                        #see function above
+                        set_fp_parameters(e, InsertDepth, TRL)
 
     if InsertType == 6:  #Custom Cut/Extended Rod
         for e in hangers:

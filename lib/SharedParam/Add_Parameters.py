@@ -1,14 +1,16 @@
-import System
-from Autodesk.Revit.DB import BuiltInCategory, Transaction, BuiltInParameterGroup, TransactionGroup
 import os
+from Autodesk.Revit.DB import BuiltInCategory, Transaction, TransactionGroup
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 app = doc.Application
+RevitVersion = app.VersionNumber
+RevitINT = float (RevitVersion)
 
 def Shared_Params():
     path, filename = os.path.split(__file__)
-    NewFilename = '\MC Shared Parameters.txt'
+    NewFilename = 'MC Shared Parameters.txt'
+    fullPath = os.path.join(path, NewFilename)
 
     sel = uidoc.Selection
     cat1 = doc.Settings.Categories.get_Item(BuiltInCategory.OST_FabricationPipework)
@@ -18,7 +20,6 @@ def Shared_Params():
     FPcatSet.Insert(cat1)
     FPcatSet.Insert(cat2)
     FPcatSet.Insert(cat3)
-
 
     cat4 = doc.Settings.Categories.get_Item(BuiltInCategory.OST_PlumbingFixtures)
     cat5 = doc.Settings.Categories.get_Item(BuiltInCategory.OST_PipeAccessory)
@@ -36,61 +37,69 @@ def Shared_Params():
     STRATUScatSet.Insert(cat7)
     STRATUScatSet.Insert(cat8)
     STRATUScatSet.Insert(cat9)
-    
-    tg = TransactionGroup(doc, "Add Parameters")
-    tg.Start()
 
-    t = Transaction(doc, 'Change SParam File')
-    t.Start()	
-    app.SharedParametersFilename = path + NewFilename
-    t.Commit()
+    t = Transaction(doc, 'Add Parameters')
+    t.Start()    
 
-    spFile = app.OpenSharedParameterFile()
-    for dG in spFile.Groups:
-        if (dG.Name == 'FP Parameters'):
-            d = dG.Definitions
-            t = Transaction(doc, 'FP Parameters')
-            t.Start()					
-            for eD in d:
-                if eD.Name == 'FP_Service Name' or 'FP_Valve Number' or 'FP_Line Number' or 'FP_Bundle':
+    if RevitINT > 2024:
+        from Autodesk.Revit.DB import GroupTypeId
+
+        app.SharedParametersFilename = fullPath
+
+        spFile = app.OpenSharedParameterFile()
+        for dG in spFile.Groups:
+            if dG.Name == 'FP Parameters':
+                d = dG.Definitions
+                for eD in d:
+                    # Use GroupTypeId.INVALID or appropriate GroupTypeId
                     newIB = app.Create.NewInstanceBinding(STRATUScatSet)
-                    doc.ParameterBindings.Insert(eD,newIB,BuiltInParameterGroup.INVALID)   #BuiltInParameterGroup.INVALID for other   BuiltInParameterGroup.PG_IDENTITY_DATA for Identity Data
-                else:
-                    newIB = app.Create.NewInstanceBinding(FPcatSet)
-                    doc.ParameterBindings.Insert(eD,newIB,BuiltInParameterGroup.INVALID)   #BuiltInParameterGroup.INVALID for other   BuiltInParameterGroup.PG_IDENTITY_DATA for Identity Data
+                    doc.ParameterBindings.Insert(eD, newIB, GroupTypeId.General)  # Adjust as needed
 
-            t.Commit()
-
-    spFile = app.OpenSharedParameterFile()
-    for dG in spFile.Groups:
-        if (dG.Name == 'STRATUS Parameters'):
-            d = dG.Definitions
-            t = Transaction(doc, 'Add STRATUS Parameters')
-            t.Start()					
-            for eD in d:
-                newIB = app.Create.NewInstanceBinding(STRATUScatSet)
-                doc.ParameterBindings.Insert(eD,newIB,BuiltInParameterGroup.INVALID)   #BuiltInParameterGroup.INVALID for other   BuiltInParameterGroup.PG_IDENTITY_DATA for Identity Data
-
-            t.Commit()
-
-    spFile = app.OpenSharedParameterFile()
-    for dG in spFile.Groups:
-        if (dG.Name == 'MC_General Data'):
-            d = dG.Definitions
-            t = Transaction(doc, 'Add General Parameters')
-            t.Start()					
-            for eD in d:
-                newIB = app.Create.NewInstanceBinding(STRATUScatSet)
-                doc.ParameterBindings.Insert(eD,newIB,BuiltInParameterGroup.INVALID)   #BuiltInParameterGroup.INVALID for other   BuiltInParameterGroup.PG_IDENTITY_DATA for Identity Data
-
-            t.Commit()
-    #End Transaction Group
-    tg.Assimilate()
+        spFile = app.OpenSharedParameterFile()
+        for dG in spFile.Groups:
+            if dG.Name == 'STRATUS Parameters':
+                d = dG.Definitions
+                for eD in d:
+                    newIB = app.Create.NewInstanceBinding(STRATUScatSet)
+                    doc.ParameterBindings.Insert(eD, newIB, GroupTypeId.General)  # Adjust as needed
 
 
+        spFile = app.OpenSharedParameterFile()
+        for dG in spFile.Groups:
+            if dG.Name == 'MC_General Data':
+                d = dG.Definitions
+                for eD in d:
+                    newIB = app.Create.NewInstanceBinding(STRATUScatSet)
+                    doc.ParameterBindings.Insert(eD, newIB, GroupTypeId.General)  # Adjust as needed
+    else:
+        from Autodesk.Revit.DB import BuiltInParameterGroup
+
+        app.SharedParametersFilename = fullPath
+
+        spFile = app.OpenSharedParameterFile()
+        for dG in spFile.Groups:
+            if dG.Name == 'FP Parameters':
+                d = dG.Definitions
+                for eD in d:
+                    # Use GroupTypeId.INVALID or appropriate GroupTypeId
+                    newIB = app.Create.NewInstanceBinding(STRATUScatSet)
+                    doc.ParameterBindings.Insert(eD, newIB, BuiltInParameterGroup.INVALID)  # Adjust as needed
+
+        spFile = app.OpenSharedParameterFile()
+        for dG in spFile.Groups:
+            if dG.Name == 'STRATUS Parameters':
+                d = dG.Definitions
+                for eD in d:
+                    newIB = app.Create.NewInstanceBinding(STRATUScatSet)
+                    doc.ParameterBindings.Insert(eD, newIB, BuiltInParameterGroup.INVALID)  # Adjust as needed
 
 
-
-
-
+        spFile = app.OpenSharedParameterFile()
+        for dG in spFile.Groups:
+            if dG.Name == 'MC_General Data':
+                d = dG.Definitions
+                for eD in d:
+                    newIB = app.Create.NewInstanceBinding(STRATUScatSet)
+                    doc.ParameterBindings.Insert(eD, newIB, BuiltInParameterGroup.INVALID)  # Adjust as needed
+    t.Commit()
 

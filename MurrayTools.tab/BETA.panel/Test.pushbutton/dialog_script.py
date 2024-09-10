@@ -1,71 +1,84 @@
-import Autodesk
-from Autodesk.Revit.DB import FilteredElementCollector, ElementCategoryFilter, FamilyInstance, BuiltInCategory, ElementClassFilter, BuiltInParameter, \
-                                ElementId, ElementParameterFilter, ParameterValueProvider, FilterStringRule, FilterStringEquals, LogicalAndFilter, Transaction
-from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, \
-                                        get_parameter_value_by_name_AsInteger, get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsDouble
-from SharedParam.Add_Parameters import Shared_Params
-Shared_Params()
+# -*- coding: utf-8 -*-
+# Created by Vasile Corjan
+import System
+from System import Enum
+from pyrevit import forms, script, DB, revit
+from category_lists import category_names_type, category_names_instance, built_in_parameter_group
 
-DB = Autodesk.Revit.DB
-doc = __revit__.ActiveUIDocument.Document
-uidoc = __revit__.ActiveUIDocument
-curview = doc.ActiveView
-fec = FilteredElementCollector
-app = doc.Application
-RevitVersion = app.VersionNumber
-RevitINT = float (RevitVersion)
+# Get all categories and built-in parameter groups
+app = __revit__.Application
+doc = revit.doc
+all_categories = [category for category in doc.Settings.Categories]
+built_in_parameter_groups = [group for group in System.Enum.GetValues(DB.BuiltInParameterGroup)]
+built_in_parameter_group_names = [DB.LabelUtils.GetLabelFor(n) for n in built_in_parameter_groups]
 
-# Create a filter for pipe accessories
-pipe_accessory_filter = ElementCategoryFilter(BuiltInCategory.OST_PipeAccessory)
+# Get the shared parameter file and its groups
+sp_file = app.OpenSharedParameterFile()
+sp_groups = sp_file.Groups
+dict_pg = {g.Name:g for g in sp_groups}
 
-# Create a filter for family instances (optional, as pipe accessories are already family instances)
-family_instance_filter = ElementClassFilter(FamilyInstance)
+# Select the parameter group
+parameter_groups_dict = forms.SelectFromList.show(sorted(dict_pg),
+                                        title='Select the Parameter Group',
+                                        multiselect=False,
+                                        button_name='Select')
+if not parameter_groups_dict:
+	script.exit()
 
-# Create a parameter value provider for the family name
-provider = ParameterValueProvider(ElementId(BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM))
+# Select the parameter
+definitions = dict_pg.get(parameter_groups_dict).Definitions
+parameter_definitions_dict = {d.Name:d for d in definitions}
+selected_parameters_names = forms.SelectFromList.show(sorted(parameter_definitions_dict),
+                                        title='Select the Parameter',
+                                        multiselect=True,
+                                        button_name='Select')
+if not selected_parameters_names:
+	script.exit()
+    
+parameter_definitions = [parameter_definitions_dict.get(s) for s in selected_parameters_names]
 
-# Define the rule to filter by the family name "Pipe Label"
-# Remove False for new Revit versions
-if RevitINT > 2022:
-    rule = FilterStringRule(provider, FilterStringEquals(), "Pipe Label")
+# Select the built-in parameter group
+selected_parameters = forms.SelectFromList.show(sorted(built_in_parameter_group),
+                                        title='Select the parameters',
+                                        multiselect=False,
+                                        button_name='Select')
+                                        
+if selected_parameters in built_in_parameter_group_names: 
+    parameter = built_in_parameter_groups[built_in_parameter_group_names.index(selected_parameters)]
 else:
-    rule = FilterStringRule(provider, FilterStringEquals(), "Pipe Label", False)
+    None
 
-# Create a parameter filter using the rule
-family_name_filter = ElementParameterFilter(rule)
+# Select the binding type (Type or Instance)
+bindings = ["Type","Instance"]
+selected_binding = forms.SelectFromList.show(bindings,
+                                        title='Select the binding type',
+                                        multiselect=False,
+                                        button_name='Select')
+if not selected_binding:
+    script.exit()
+# Get the category names based on the selected binding type
+if selected_binding == "Type":
+    category_names = sorted(category_names_type)
+else:
+    category_names = sorted(category_names_instance)
 
-# Combine the filters
-filter = LogicalAndFilter(pipe_accessory_filter, family_name_filter)
+selected_categories = forms.SelectFromList.show(category_names,
+                                              title='Select the category',
+                                              multiselect=True,
+                                              button_name='Select')
+if not selected_categories:
+    script.exit()
+categories = [c for c in all_categories if c.Name in selected_categories]
+built_in_categories = [bic.BuiltInCategory for bic in categories]
 
-# Collect all elements that match the filter
-pipe_labels = FilteredElementCollector(doc).WherePasses(filter).ToElements()
-
-t = Transaction(doc, "Set Pipe Label type")
-t.Start()
-# Iterate over elements and fetch parameter values
-for pipe_label in pipe_labels:
-    try:
-        diameter = (get_parameter_value_by_name_AsDouble(pipe_label, 'Diameter') * 12)
-        # print diameter
-        # print diameter <= 0.5
-        if diameter <= 0.50:
-            set_parameter_by_name(pipe_label, 'FP_Product Entry', 'AA')
-        if 0.50 < diameter < 1.00:
-            set_parameter_by_name(pipe_label, 'FP_Product Entry', 'A')
-        if 1.00 < diameter < 2.375:
-            set_parameter_by_name(pipe_label, 'FP_Product Entry', 'B')
-        if 2.375 < diameter < 3.25:
-            set_parameter_by_name(pipe_label, 'FP_Product Entry', 'C')
-        if 3.25 < diameter < 4.50:
-            set_parameter_by_name(pipe_label, 'FP_Product Entry', 'D')
-        if 4.50 < diameter < 5.875:
-            set_parameter_by_name(pipe_label, 'FP_Product Entry', 'E')
-        if 5.875 < diameter < 7.875:
-            set_parameter_by_name(pipe_label, 'FP_Product Entry', 'F')
-        if 7.875 < diameter < 9.875:
-            set_parameter_by_name(pipe_label, 'FP_Product Entry', 'G')
-        if diameter > 9.875:
-            set_parameter_by_name(pipe_label, 'FP_Product Entry', 'H')
-    except:
-        pass
-t.Commit()
+# Adding the parameter
+with revit.Transaction("Add Parameter"):
+    category_set = app.Create.NewCategorySet()
+    for bic in built_in_categories:
+        category_set.Insert(DB.Category.GetCategory(doc,bic))
+    if selected_binding == "Type":
+        binding = app.Create.NewTypeBinding(category_set)
+    else:
+        binding = app.Create.NewInstanceBinding(category_set)
+    for param_def in parameter_definitions:
+        doc.ParameterBindings.Insert(param_def, binding, parameter)

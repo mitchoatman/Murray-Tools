@@ -3,7 +3,15 @@ title:
   "Wall\nSleeve"
 
 tooltip: |-
-  Command will help users place familes on pipe centerline at wall locations for point layout purposes.
+  Place wall sleeve family on pipe centerline at wall locations for point layout purposes.
+  It will also append Fabrication service name and abbreviation to the sleeve.
+  
+  1.  Pick the pipe to place sleeve on.
+  2.  Pick the intersection of the pipe and wall.
+  3.  Repeat as necessary, ESC to end the command.
+
+  [Shift]-Click:
+  Place DROP wall sleeve family on pipe centerline at wall locations for point layout purposes.
   It will also append Fabrication service name and abbreviation to the sleeve.
   
   1.  Pick the pipe to place sleeve on.
