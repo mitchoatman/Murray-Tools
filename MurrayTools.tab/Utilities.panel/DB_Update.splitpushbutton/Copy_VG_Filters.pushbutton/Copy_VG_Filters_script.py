@@ -1,11 +1,4 @@
 
-__title__ = 'Copy VG\nFilters'
-__doc__ = """Copying filter overrides from selected or active view to chosen view templates. 
-If VG override for this filter already exists in a template it will be updated.
-
-Context: Select or activate a view
-"""
-
 import clr
 import os
 import os.path as op
@@ -14,24 +7,14 @@ import pickle as pl
 from System.Collections.Generic import List
 from Autodesk.Revit.DB import *
 
-from pyrevit import versionmgr
+from pyrevit import script, revit
+from pyrevit.forms import SelectFromList
+from pyrevit.revit import doc, uidoc, selection
 
-PYREVIT_VERSION = versionmgr.get_pyrevit_version()
-
-# if pyrevit is newer than 4.5 (major.minor)
-if PYREVIT_VERSION.major >= 4 and PYREVIT_VERSION.minor >= 5:
-    from pyrevit import script, revit
-    from pyrevit.forms import SelectFromList
-    from pyrevit.revit import doc, uidoc, selection
-    output = script.get_output()
-    logger = script.get_logger()
-    linkify = output.linkify
-    selection = selection.get_selection()
-# otherwise use the older pyrevit api
-else:
-    from scriptutils import logger
-    from scriptutils.userinput import SelectFromList
-    from revitutils import doc, uidoc, selection
+output = script.get_output()
+logger = script.get_logger()
+linkify = output.linkify
+selection = selection.get_selection()
 
 selected_ids = selection.element_ids
 
@@ -195,8 +178,8 @@ def main():
 
     # active_template = doc.GetElement(active_view.ViewTemplateId)
 
-    t = Transaction(doc)
-    t.Start(__title__)
+    t = Transaction(doc, "Copy VG Filters")
+    t.Start()
 
     for vt in view_checkboxes_sel:
         if vt.Id == active_view.ViewTemplateId:
@@ -219,7 +202,7 @@ def main():
 
     t.Commit()
 
-    print("Completed")
+    print("Filters Copied")
 
 if __name__ == "__main__":
     main()

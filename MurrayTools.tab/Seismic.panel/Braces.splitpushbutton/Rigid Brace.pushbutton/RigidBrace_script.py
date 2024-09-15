@@ -36,6 +36,8 @@ def stretch_brace():
     #Equation to get the new hypotenus
     Height = ((valuenum - BraceElevation) - 0.2330)
     newhypotenus = ((Height / sinofangle) - 0.2290)
+    if newhypotenus < 0:
+        newhypotenus = 1
     #writes new Brace length to parameter
     set_parameter_by_name(new_family_instance,"BraceLength", newhypotenus)
 
@@ -109,7 +111,10 @@ if target_famtype:
             for dta in ItmDims:
                 if dta.Name == 'Total Height':
                     HangerHeight = hanger.GetDimensionValue(dta)
-            BraceOffsetZ = HangerHeight + 0.01041666
+                    BraceOffsetZ = HangerHeight + 0.01041666
+                if dta.Name == 'Weld Lug Height':
+                    HangerHeight = hanger.GetDimensionValue(dta)
+                    BraceOffsetZ = HangerHeight + 0.1197916          
             bounding_box = hanger.get_BoundingBox(None)
             if bounding_box is not None:
                 middle_bottom_point = XYZ((bounding_box.Min.X + bounding_box.Max.X) / 2,
