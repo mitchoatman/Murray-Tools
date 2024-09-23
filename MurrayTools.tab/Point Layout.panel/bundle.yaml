@@ -1,6 +1,8 @@
 layout:
   - APL
   - Wall_Sleeve
+  - Round_Duct_Wall_Sleeve
+  - Rect_Duct_Wall_Sleeve
   
 background:
 #  title: 'D5D5CD'

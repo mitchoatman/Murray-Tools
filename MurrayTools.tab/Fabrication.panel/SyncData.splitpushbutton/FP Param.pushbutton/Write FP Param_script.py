@@ -192,9 +192,9 @@ else:
 
     # Define the actions as lambda functions
     actions = [
-        lambda x: set_parameter_by_name(x, 'FP_CID', x.ItemCustomId),
         lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) if x.ItemCustomId == 2041 else None,
         lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength),
+        lambda x: set_parameter_by_name(x, 'FP_CID', x.ItemCustomId),
         lambda x: set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType)),
         lambda x: set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name')),
         lambda x: set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation')),
