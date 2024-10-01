@@ -9,9 +9,15 @@ from Autodesk.Revit.UI.Selection import ObjectType
 import re
 from math import atan2, degrees
 from fractions import Fraction
-
 from SharedParam.Add_Parameters import Shared_Params
+import os
+
+
+
 Shared_Params()
+
+path, filename = os.path.split(__file__)
+NewFilename = '\Pipe Label.rfa'
 
 DB = Autodesk.Revit.DB
 doc = __revit__.ActiveUIDocument.Document
@@ -43,7 +49,7 @@ FamilyType = 'Pipe Label'
 # Check if the family is in the project
 Fam_is_in_project = any(f.Name == FamilyName for f in families)
 
-family_pathCC = r'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Pipe Accessories\Sleeves\Pipe Label.rfa'
+family_pathCC = path + NewFilename
 
 t = Transaction(doc, 'Load Pipe Label Family')
 t.Start()
