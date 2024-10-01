@@ -41,53 +41,25 @@ t.Start()
 
 for hanger in hanger_collector:
     try:
-        if (hanger.GetRodInfo().RodCount) < 2:
-        
-            # Get the host element's size
-            hosted_info = hanger.GetHostedInfo().HostId
-            HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
-            # Get the hanger's size
-            HangerSize = get_parameter_value_by_name_AsString(hanger, 'Product Entry')
-            # Set the 'FP_Hanger Shield' parameter based on whether the host and hanger sizes match
-            if HostSize == HangerSize:
-                set_parameter_by_name(hanger, 'FP_Hanger Shield', 'No')
-            else:
-                set_parameter_by_name(hanger, 'FP_Hanger Shield', 'Yes')
-                set_parameter_by_name(hanger, 'Comments', HostSize)  
-                set_parameter_by_name(hanger, 'FP_Hanger Host Diameter', HostSize)                
-
-            ItmDims = hanger.GetDimensions()
-            for dta in ItmDims:
-                if dta.Name == 'Rod Extn Below':
-                    RB = hanger.GetDimensionValue(dta)
-                if dta.Name == 'Rod Length':
-                    RL = hanger.GetDimensionValue(dta)
-            TRL = RL + RB
-            set_parameter_by_name(hanger, 'FP_Rod Length', TRL)
-    except:
-        pass
-
-    try:
-        if (hanger.GetRodInfo().RodCount) > 1:
-            ItmDims = hanger.GetDimensions()
-            for dta in ItmDims:
-                if dta.Name == 'Length A':
-                    RLA = hanger.GetDimensionValue(dta)
-                if dta.Name == 'Length B':
-                    RLB = hanger.GetDimensionValue(dta)
-                if dta.Name == 'Width':
-                    TrapWidth = hanger.GetDimensionValue(dta)
-                if dta.Name == 'Bearer Extn':
-                    TrapExtn = hanger.GetDimensionValue(dta)
-                if dta.Name == 'Right Rod Offset':
-                    TrapRRod = hanger.GetDimensionValue(dta)
-                if dta.Name == 'Left Rod Offset':
-                    TrapLRod = hanger.GetDimensionValue(dta)
-            BearerLength = TrapWidth + TrapExtn + TrapExtn
-            set_parameter_by_name(hanger, 'FP_Bearer Length', BearerLength)
-            set_parameter_by_name(hanger, 'FP_Rod Length', RLA)
-            set_parameter_by_name(hanger, 'FP_Rod Length A', RLA)
-            set_parameter_by_name(hanger, 'FP_Rod Length B', RLB)
+        ItmDims = hanger.GetDimensions()
+        for dta in ItmDims:
+            if dta.Name == 'Length A':
+                RLA = hanger.GetDimensionValue(dta)
+            if dta.Name == 'Length B':
+                RLB = hanger.GetDimensionValue(dta)
+            if dta.Name == 'Width':
+                TrapWidth = hanger.GetDimensionValue(dta)
+            if dta.Name == 'Bearer Extn':
+                TrapExtn = hanger.GetDimensionValue(dta)
+            if dta.Name == 'Right Rod Offset':
+                TrapRRod = hanger.GetDimensionValue(dta)
+            if dta.Name == 'Left Rod Offset':
+                TrapLRod = hanger.GetDimensionValue(dta)
+        BearerLength = TrapWidth + TrapExtn + TrapExtn
+        set_parameter_by_name(hanger, 'FP_Bearer Length', BearerLength)
+        set_parameter_by_name(hanger, 'FP_Rod Length', RLA)
+        set_parameter_by_name(hanger, 'FP_Rod Length A', RLA)
+        set_parameter_by_name(hanger, 'FP_Rod Length B', RLB)
     except:
         pass
 

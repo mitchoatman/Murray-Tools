@@ -2,6 +2,7 @@ layout:
   - SyncData
   - HideIsolate
   - SelectFabFilter
+  - Leveler
 
 
 background:

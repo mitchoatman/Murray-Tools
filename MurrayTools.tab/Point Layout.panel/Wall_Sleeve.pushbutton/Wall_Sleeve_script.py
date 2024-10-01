@@ -5,6 +5,10 @@ from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value
 import re
 from math import atan2, degrees
 from fractions import Fraction
+import os
+
+path, filename = os.path.split(__file__)
+NewFilename = '\WS.rfa'
 
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
@@ -32,7 +36,7 @@ FamilyType = 'WS'
 # Check if the family is in the project
 Fam_is_in_project = any(f.Name == FamilyName for f in families)
 
-family_pathCC = r'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Pipe Accessories\Sleeves\WS.rfa'
+family_pathCC = path + NewFilename
 
 t = Transaction(doc, 'Load Trimble Wall Sleeve Family')
 t.Start()

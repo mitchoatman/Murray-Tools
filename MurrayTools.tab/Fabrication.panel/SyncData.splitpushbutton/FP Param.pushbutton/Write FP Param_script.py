@@ -65,38 +65,62 @@ if selection:
                         pass
             if x.ItemCustomId != 838 and x.ItemCustomId == 2041:
                 set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength)
-            try:
-                RB = 0
-                RL = 0
-                if (x.GetRodInfo().RodCount) < 2:
-                    ItmDims = x.GetDimensions()
-                    for dta in ItmDims:
-                        if dta.Name == 'Rod Extn Below':
-                            RB = x.GetDimensionValue(dta)
-                        if dta.Name == 'Rod Length':
-                            RL = x.GetDimensionValue(dta)
-                    TRL = RL + RB
-                    set_parameter_by_name(x, 'FP_Rod Length', TRL)
-            except:
-                pass
+            # try:
+                # RB = 0
+                # RL = 0
+                # if (x.GetRodInfo().RodCount) < 2:
+                    # ItmDims = x.GetDimensions()
+                    # for dta in ItmDims:
+                        # if dta.Name == 'Rod Extn Below':
+                            # RB = x.GetDimensionValue(dta)
+                        # if dta.Name == 'Rod Length':
+                            # RL = x.GetDimensionValue(dta)
+                    # TRL = RL + RB
+                    # set_parameter_by_name(x, 'FP_Rod Length', TRL)
+                    # set_parameter_by_name(x, 'FP_Rod Length A', TRL)
+            # except:
+                # pass
 
+            # try:
+                # if (x.GetRodInfo().RodCount) > 1:
+                    # ItmDims = x.GetDimensions()
+                    # for dta in ItmDims:
+                        # if dta.Name == 'Length A':
+                            # RL = x.GetDimensionValue(dta)
+                        # if dta.Name == 'Width':
+                            # TrapWidth = x.GetDimensionValue(dta)
+                        # if dta.Name == 'Bearer Extn':
+                            # TrapExtn = x.GetDimensionValue(dta)
+                        # if dta.Name == 'Right Rod Offset':
+                            # TrapRRod = x.GetDimensionValue(dta)
+                        # if dta.Name == 'Left Rod Offset':
+                            # TrapLRod = x.GetDimensionValue(dta)
+                    # BearerLength = TrapWidth + TrapExtn + TrapExtn
+                    # set_parameter_by_name(x, 'FP_Bearer Length', BearerLength)
+                    # set_parameter_by_name(x, 'FP_Rod Length', RL)
+                    # set_parameter_by_name(x, 'FP_Rod Length A', RL)
+            # except:
+                # pass
             try:
-                if (x.GetRodInfo().RodCount) > 1:
-                    ItmDims = x.GetDimensions()
-                    for dta in ItmDims:
-                        if dta.Name == 'Length A':
-                            RL = x.GetDimensionValue(dta)
-                        if dta.Name == 'Width':
-                            TrapWidth = x.GetDimensionValue(dta)
-                        if dta.Name == 'Bearer Extn':
-                            TrapExtn = x.GetDimensionValue(dta)
-                        if dta.Name == 'Right Rod Offset':
-                            TrapRRod = x.GetDimensionValue(dta)
-                        if dta.Name == 'Left Rod Offset':
-                            TrapLRod = x.GetDimensionValue(dta)
-                    BearerLength = TrapWidth + TrapExtn + TrapExtn
-                    set_parameter_by_name(x, 'FP_Bearer Length', BearerLength)
-                    set_parameter_by_name(x, 'FP_Rod Length', RL)
+                ItmDims = x.GetDimensions()
+                for dta in ItmDims:
+                    if dta.Name == 'Length A':
+                        RLA = x.GetDimensionValue(dta)
+                    if dta.Name == 'Length B':
+                        RLB = x.GetDimensionValue(dta)
+                    if dta.Name == 'Width':
+                        TrapWidth = x.GetDimensionValue(dta)
+                    if dta.Name == 'Bearer Extn':
+                        TrapExtn = x.GetDimensionValue(dta)
+                    if dta.Name == 'Right Rod Offset':
+                        TrapRRod = x.GetDimensionValue(dta)
+                    if dta.Name == 'Left Rod Offset':
+                        TrapLRod = x.GetDimensionValue(dta)
+                BearerLength = TrapWidth + TrapExtn + TrapExtn
+                set_parameter_by_name(x, 'FP_Bearer Length', BearerLength)
+                set_parameter_by_name(x, 'FP_Rod Length', RLA)
+                set_parameter_by_name(x, 'FP_Rod Length A', RLA)
+                set_parameter_by_name(x, 'FP_Rod Length B', RLB)
             except:
                 pass
     t.Commit()
@@ -159,6 +183,7 @@ else:
                         RL = hanger.GetDimensionValue(dta)
                 TRL = RL + RB
                 set_parameter_by_name(hanger, 'FP_Rod Length', TRL)
+                set_parameter_by_name(hanger, 'FP_Rod Length A', TRL)
         except:
             pass
 
@@ -179,6 +204,27 @@ else:
                 BearerLength = TrapWidth + TrapExtn + TrapExtn
                 set_parameter_by_name(hanger, 'FP_Bearer Length', BearerLength)
                 set_parameter_by_name(hanger, 'FP_Rod Length', RL)
+                set_parameter_by_name(hanger, 'FP_Rod Length A', RL)
+        except:
+            pass
+        try:
+            if (hanger.GetRodInfo().RodCount) > 1:
+                ItmDims = hanger.GetDimensions()
+                for dta in ItmDims:
+                    if dta.Name == 'Length B':
+                        RL = hanger.GetDimensionValue(dta)
+                    if dta.Name == 'Width':
+                        TrapWidth = hanger.GetDimensionValue(dta)
+                    if dta.Name == 'Bearer Extn':
+                        TrapExtn = hanger.GetDimensionValue(dta)
+                    if dta.Name == 'Right Rod Offset':
+                        TrapRRod = hanger.GetDimensionValue(dta)
+                    if dta.Name == 'Left Rod Offset':
+                        TrapLRod = hanger.GetDimensionValue(dta)
+                BearerLength = TrapWidth + TrapExtn + TrapExtn
+                set_parameter_by_name(hanger, 'FP_Bearer Length', BearerLength)
+                set_parameter_by_name(hanger, 'FP_Rod Length', RL)
+                set_parameter_by_name(hanger, 'FP_Rod Length B', RL)
         except:
             pass
 

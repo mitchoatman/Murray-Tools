@@ -1,0 +1,31 @@
+#highlight: new
+
+# bundle title
+title:
+  "Leveler"
+
+# bundle tooltip
+tooltip: |-
+  Assigns levels to Fabrication parts (in active view only) based on their position.
+  1. Run Script.
+  2. Set top and bottom levels.
+  3. Elements will be selected.
+  4. Fabrication elements will be assigned a level.
+
+  -----
+  Elements are assigned to level based off their location.
+  User specifies zone in model by setting top and bottom levels.
+  Command determines which elements are located in the zone and
+  assigns them to the level specified by the user.
+  
+  Underground and Roof levels the user will use the (None) options respectively.
+  -----
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+help_url: "https://youtu.be/lSqrnCQ3Hng"
+
+# bundle author
+author: Mitchell Oatman

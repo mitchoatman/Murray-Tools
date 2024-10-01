@@ -57,7 +57,7 @@ if not schedule_exists(schedule_name, categoryId):
             field.ColumnHeading = userColumnName
         elif paramName == "Reference Level":
             # Handle the Item Number parameter using the built-in parameter
-            paramId = ElementId(BuiltInParameter.FABRICATION_PART_ITEM_NUMBER)
+            paramId = ElementId(BuiltInParameter.FABRICATION_LEVEL_PARAM)
             field = definition.AddField(ScheduleFieldType.Instance, paramId)
             field.ColumnHeading = userColumnName
         else:

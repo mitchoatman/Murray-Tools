@@ -5,11 +5,27 @@ from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value
 import re
 from math import atan2, degrees
 from fractions import Fraction
+import os
+
+path, filename = os.path.split(__file__)
+NewFilename = '\RWS.rfa'
 
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 active_view = doc.ActiveView
+
+folder_name = "c:\\Temp"
+filepath = os.path.join(folder_name, 'Ribbon_Duct-Wall-Sleeve.txt')
+
+if not os.path.exists(folder_name):
+    os.makedirs(folder_name)
+if not os.path.exists(filepath):
+    with open(filepath, 'w') as f:
+        f.write('1')
+
+with open(filepath, 'r') as f:
+    AnnularSpace = float(f.read())
 
 # Get the associated level of the active view
 level = active_view.GenLevel
@@ -32,7 +48,7 @@ FamilyType = 'RWS'
 # Check if the family is in the project
 Fam_is_in_project = any(f.Name == FamilyName for f in families)
 
-family_pathCC = r'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Duct Accessories\Sleeves\RWS.rfa'
+family_pathCC = path + NewFilename
 
 t = Transaction(doc, 'Load Trimble Wall Sleeve Family')
 t.Start()
@@ -114,8 +130,8 @@ def place_and_modify_family(duct, famsymb):
         else:
             raise ValueError("Overall Size format is invalid")
     width, height = extract_width_height(duct)
-    set_parameter_by_name(new_family_instance, 'Width', width / 12)
-    set_parameter_by_name(new_family_instance, 'Height', height / 12)  
+    set_parameter_by_name(new_family_instance, 'Width', width  /12 + (AnnularSpace / 12))
+    set_parameter_by_name(new_family_instance, 'Height', height  /12 + (AnnularSpace / 12))  
 
     # Get connector locations
     duct_connectors = list(duct.ConnectorManager.Connectors)
