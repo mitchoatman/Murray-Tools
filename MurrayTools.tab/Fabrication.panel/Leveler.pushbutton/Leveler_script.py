@@ -36,12 +36,12 @@ try:
     # Display dialog to choose top and bottom levels, including a (None) option
     components = [
         Label('Choose Top Level:'),
-        ComboBox('TopLevel', level_elevations.keys(), default=pre_set_top_level, sort=False),
+        ComboBox('TopLevel', level_elevations.keys(), default=pre_set_top_level, sort=True),
         Label('Choose Bottom Level:'),
-        ComboBox('BotLevel', level_elevations.keys(), default=pre_set_bottom_level, sort=False),
+        ComboBox('BotLevel', level_elevations.keys(), default=pre_set_bottom_level, sort=True),
+        Label('Parts are assigned to Bottom when both levels are set.'),
         Label('Parts are assigned to Bottom if Top is (None) ROOF.'),
         Label('Parts are assigned to Top if Bottom is (None) UG.'),
-        Label('Parts assigned to Bottom when both levels are set.'),
         Button('Ok')
     ]
     form = FlexForm('Select Levels', components)

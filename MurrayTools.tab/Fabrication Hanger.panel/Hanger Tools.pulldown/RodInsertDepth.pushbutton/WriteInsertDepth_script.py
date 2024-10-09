@@ -37,7 +37,7 @@ def set_fp_parameters(element, InsertDepth, TRL):
     set_parameter_by_name(element, 'FP_Insert Depth', InsertDepth)
     # Calculate and set the 'FP_Rod Cut Length' parameter
     rod_cut_length = InsertDepth + TRL
-    set_parameter_by_name(element, 'FP_Rod Cut Length', rod_cut_length)
+    set_parameter_by_name(element, 'FP_Rod Cut Length', round_to_nearest_quarter(rod_cut_length))
 
 def round_to_nearest_half(value):
     value_in_inches = value * 12
@@ -73,28 +73,50 @@ if len(hangers) > 0:
     t = Transaction(doc, "Set Insert Depth")
     t.Start() 
     for e in hangers:
-        try:
-            ItmDims = e.GetDimensions()
-            for dta in ItmDims:
+        ItmDims = e.GetDimensions()
+        for dta in ItmDims:
+            try:
                 if dta.Name == 'Length A':
                     RLA = e.GetDimensionValue(dta)
+            except Exception as ex:
+                pass
+            try:
                 if dta.Name == 'Length B':
                     RLB = e.GetDimensionValue(dta)
+            except Exception as ex:
+                pass
+            try:
                 if dta.Name == 'Width':
                     TrapWidth = e.GetDimensionValue(dta)
+            except Exception as ex:
+                pass
+            try:
                 if dta.Name == 'Bearer Extn':
                     TrapExtn = e.GetDimensionValue(dta)
+            except Exception as ex:
+                pass
+            try:
                 if dta.Name == 'Right Rod Offset':
                     TrapRRod = e.GetDimensionValue(dta)
+            except Exception as ex:
+                pass
+            try:
                 if dta.Name == 'Left Rod Offset':
                     TrapLRod = e.GetDimensionValue(dta)
+            except Exception as ex:
+                pass
+        try:
             BearerLength = TrapWidth + TrapExtn + TrapExtn
             set_parameter_by_name(e, 'FP_Bearer Length', BearerLength)
+        except Exception as ex:
+            pass
+        try:
             set_parameter_by_name(e, 'FP_Rod Length', RLA)
             set_parameter_by_name(e, 'FP_Rod Length A', RLA)
             set_parameter_by_name(e, 'FP_Rod Length B', RLB)
-        except:
+        except Exception as ex:
             pass
+
 
     if InsertType == 1:  #BlueBanger MD
         for e in hangers:

@@ -9,9 +9,9 @@ app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = int(RevitVersion)
 
-try:
-    selected_elements = [doc.GetElement(id) for id in uidoc.Selection.GetElementIds()]
 
+selected_elements = [doc.GetElement(id) for id in uidoc.Selection.GetElementIds()]
+try:
     #FUNCTION TO GET PARAMETER VALUE  change "AsDouble()" to "AsString()" to change data type.
     def get_parameter_value_by_name(element, parameterName):
         return element.LookupParameter(parameterName).AsValueString()
@@ -19,7 +19,7 @@ try:
         return element.LookupParameter(parameterName).AsDouble()
 
     if selected_elements and RevitINT > 2022:
-        ElevationEstimate = get_parameter_value_by_name(selected_elements[0], 'Bottom Elevation')
+        ElevationEstimate = get_parameter_value_by_name(selected_elements[0], 'Lower End Bottom Elevation')
     else:
         ElevationEstimate = get_parameter_value_by_name(selected_elements[0], 'Bottom')
 
@@ -28,7 +28,7 @@ try:
         CheckBox('TOPmode', 'Align TOP', default=False),
         CheckBox('BTMmode', 'Align BOTTOM', default=True),
         CheckBox('INSMmode', 'Ignore Insulation', default=True),
-        Label('Reference Btm Elevation '+ '[' + ElevationEstimate + ']:'),
+        Label('Reference Btm Elevation ' + '[' + str(ElevationEstimate) + ']:'),
         Label('Elevation use format [FT-IN]:'),
         TextBox('Elev', ''),
         Button('Ok')

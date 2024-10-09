@@ -5,7 +5,7 @@ title:
   "Restore\nViews"
 
 # bundle tooltip
-tooltip: >-
+tooltip: |-
   Opens the view list stored with the "Save Views" button.
   Can be used as a way to continue where you left off in a previous session.
   
