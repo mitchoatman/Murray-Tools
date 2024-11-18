@@ -16,6 +16,28 @@ RevitVersion = app.VersionNumber
 RevitINT = float (RevitVersion)
 Config = FabricationConfiguration.GetFabricationConfiguration(doc)
 
+# Function to get fabrication connector names and track their IDs
+def get_fabrication_connector_info(fabPart):
+    # Create a dictionary to store connector names with their IDs
+    connector_info = {}
+    # Check if the element is a fabrication part
+    if isinstance(fabPart, FabricationPart):
+        connectors = fabPart.ConnectorManager.Connectors
+        # Loop through each connector
+        for connector in connectors:
+            try:
+                # Get FabricationConnectorInfo from the connector
+                fab_connector_info = connector.GetFabricationConnectorInfo()
+                # Extract the BodyConnectorId
+                fabrication_connector_id = fab_connector_info.BodyConnectorId
+                # Use GetFabricationConnectorName with the correct fabrication configuration and connector ID
+                connector_name = FabricationConfiguration.GetFabricationConfiguration(doc).GetFabricationConnectorName(fabrication_connector_id)
+                # Store the connector ID and name in the dictionary
+                connector_info[connector.Id] = connector_name  # Directly use connector.Id
+            except:
+                pass
+    return connector_info
+
 # Creating collector instance and collecting all the fabrication hangers from the model
 hanger_collector = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_FabricationHangers) \
                    .WhereElementIsNotElementType() \
@@ -38,6 +60,22 @@ AllElements = FilteredElementCollector(doc).OfClass(FabricationPart) \
 
 t = Transaction(doc, "Update FP Parameters")
 t.Start()
+
+for duct in duct_collector:
+    try:
+        TOPE = 0
+        BOTE = 0
+        ItmDims = duct.GetDimensions()
+        for dta in ItmDims:
+            if dta.Name == 'Top Extension':
+                TOPE = duct.GetDimensionValue(dta)
+            if dta.Name == 'Bottom Extension':
+                BOTE = duct.GetDimensionValue(dta)
+        if TOPE and BOTE != 0:      
+            set_parameter_by_name(duct, 'FP_Extension Top', TOPE)
+            set_parameter_by_name(duct, 'FP_Extension Bottom', BOTE)
+    except:
+        pass
 
 for hanger in hanger_collector:
     try:
@@ -70,11 +108,9 @@ def safely_set_parameter(action, elements):
         except Exception as e:
             # Log the exception if needed
             pass
-
 # Define the actions as lambda functions
 actions = [
     lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) if x.ItemCustomId == 2041 else None,
-    lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength),
     lambda x: set_parameter_by_name(x, 'FP_CID', x.ItemCustomId),
     lambda x: set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType)),
     lambda x: set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name')),
@@ -88,22 +124,28 @@ actions = [
 
     lambda x: set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') \
     else set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Size')) if x.Alias != 'TRM' \
-    else set_parameter_by_name(x, 'FP_Product Entry', (get_parameter_value_by_name_AsString(x, 'Size') or '') + ' x ' + (get_parameter_value_by_name_AsValueString(x, 'Angle') or ''))
-
-
-]
+    else set_parameter_by_name(x, 'FP_Product Entry', (get_parameter_value_by_name_AsString(x, 'Size') or '') + ' x ' + (get_parameter_value_by_name_AsValueString(x, 'Angle') or '')),
+    ]
 
 # Apply the actions to the respective element collections
 safely_set_parameter(actions[0], AllElements)
-safely_set_parameter(actions[1], pipe_collector)
-safely_set_parameter(actions[2], duct_collector)
+safely_set_parameter(actions[1], AllElements)
+safely_set_parameter(actions[2], AllElements)
 safely_set_parameter(actions[3], AllElements)
 safely_set_parameter(actions[4], AllElements)
-safely_set_parameter(actions[5], AllElements)
+safely_set_parameter(actions[5], hanger_collector)
 safely_set_parameter(actions[6], hanger_collector)
 safely_set_parameter(actions[7], hanger_collector)
-safely_set_parameter(actions[8], hanger_collector)
-safely_set_parameter(actions[9], AllElements)
-safely_set_parameter(actions[10], pipe_collector)
+safely_set_parameter(actions[8], AllElements)
+safely_set_parameter(actions[9], pipe_collector)
+
+try:
+    for x in AllElements:
+        connector_info = get_fabrication_connector_info(x)
+        for connector_id, name in connector_info.items():
+            param_name = "FP_Connector C{}".format(connector_id + 1)  # Offset by 1
+            set_parameter_by_name(x, param_name, name)
+except:
+    pass
 
 t.Commit()

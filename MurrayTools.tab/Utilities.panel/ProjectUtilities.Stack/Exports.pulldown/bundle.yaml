@@ -4,6 +4,7 @@ layout:
   - ExportPCF
   - ExportMAJ
   - OpenBOMTemplate
+  - OpenCADRequest
 
 
 background:

@@ -20,7 +20,7 @@ def schedule_exists(schedule_name, category_id):
 fieldNames = [
     ("Item Number", "No."),
     ("Family", "Description"),
-    ("FP_Hanger Diameter", "Size"),
+    ("FP_Product Entry", "Size"),
     ("FP_Rod Size", "Rod Size"),
     ("FP_Service Abbreviation", "System"),
     ("FP_Bundle", "Bundle"),

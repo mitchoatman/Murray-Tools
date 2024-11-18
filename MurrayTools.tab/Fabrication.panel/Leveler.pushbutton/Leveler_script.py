@@ -32,6 +32,12 @@ def GetCenterPoint(ele):
     bBox = doc.GetElement(ele).get_BoundingBox(None)
     center = (bBox.Max + bBox.Min) / 2
     return center.Z  # Only return the Z (elevation) coordinate
+
+# Function to get the bottom Z elevation of a fabrication part's bounding box
+def get_bottom_point_z(ele):
+    bBox = doc.GetElement(ele).get_BoundingBox(None)
+    return bBox.Min.Z  # Return the Z coordinate of the bottom point
+
 try:
     # Display dialog to choose top and bottom levels, including a (None) option
     components = [
@@ -80,7 +86,7 @@ try:
     # Iterate over the fabrication parts and check their center Z elevation
     for elem in fabrication_elements:
         try:
-            center_z = GetCenterPoint(elem.Id)  # Get the Z center point of the fabrication part
+            center_z = get_bottom_point_z(elem.Id)  # Get the Z center point of the fabrication part
 
             # If both levels are selected (not None), check if the center Z is between the levels
             if BotLevelElev is not None and TopLevelElev is not None:

@@ -63,7 +63,7 @@ if selection:
                 [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
                 ProductEntry = x.LookupParameter('Product Entry')
                 if ProductEntry:
-                    set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry'))
+                    set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Product Entry'))
             if x.ItemCustomId != 838:
                 set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength)
             try:

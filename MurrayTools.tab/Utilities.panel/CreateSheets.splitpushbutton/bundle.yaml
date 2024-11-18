@@ -3,6 +3,7 @@ layout:
   - CreateSheetFromView
   - DuplicateView
   - Rename_Sheets_Views
+  - SetCropRegion
 
 
 background:

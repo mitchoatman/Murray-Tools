@@ -1,0 +1,13 @@
+highlight: new
+
+# bundle title
+title:
+  "Fabrication Part BOM (Excel)"
+
+# bundle tooltip
+tooltip: >-
+  Will open browser to helpful page.
+
+hyperlink: "https://apple-puppy-32a.notion.site/Fabrication-Part-BOM-Excel-13742e29c18880a0abffc13fc865115a?pvs=4"
+context: zero-doc
+

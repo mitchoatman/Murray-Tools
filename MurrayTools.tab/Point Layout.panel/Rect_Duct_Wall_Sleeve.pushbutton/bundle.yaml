@@ -3,8 +3,9 @@ title:
   "Rect Duct\nWall Sleeve"
 
 tooltip: |-
-  Place wall sleeve family on pipe centerline at wall locations for point layout purposes.
+  Place wall sleeve family on duct centerline at wall locations for point layout purposes.
   It will also append Fabrication service name and abbreviation to the sleeve.
+  Sleeve will read the "Overall Size" of element.
   
   1.  Pick the pipe to place sleeve on.
   2.  Pick the intersection of the pipe and wall.

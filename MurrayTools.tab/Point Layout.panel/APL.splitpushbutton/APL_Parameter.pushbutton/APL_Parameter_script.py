@@ -144,12 +144,17 @@ try:
             accessory_models_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_PipeAccessory)
             # Filter elements by name
             accessory_elements = [element for element in accessory_models_collector if "Metal Sleeve" in element.Name or "Plastic Sleeve" in element.Name or "Cast Iron Sleeve" in element.Name]
-
             for x in accessory_elements:
                 slvdiameter = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Pipe Nominal Diameter') * 12)
                 slvlength = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Sleeve Length') * 12)
                 result_string = 'SLV ' + slvdiameter + ' x ' + slvlength
                 set_parameter_by_name(x, 'TS_Point_Description', result_string)
+
+            accessory_elements2 = [element for element in accessory_models_collector if "Pipe Riser" in element.Name]
+            for x in accessory_elements2:
+                slvdiameter = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Diameter') * 12)
+                result_string2 = slvdiameter + ' RISER'
+                set_parameter_by_name(x, 'TS_Point_Description', result_string2)
     except:
         pass
         print 'Something did not get data, good luck!  Trust but verify...'

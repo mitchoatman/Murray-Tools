@@ -2,6 +2,7 @@ layout:
   - DB_Update
   - ProjectUtilities
   - SaveViews
+  - CreateSheets
 
 collapsed: false
 

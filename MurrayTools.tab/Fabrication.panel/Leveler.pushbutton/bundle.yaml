@@ -20,6 +20,10 @@ tooltip: |-
   
   Underground and Roof levels the user will use the (None) options respectively.
   -----
+
+  [Shift]-Click:    
+  Automatically assigns levels to Fabrication parts based on their location (in active view only).
+
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Selection

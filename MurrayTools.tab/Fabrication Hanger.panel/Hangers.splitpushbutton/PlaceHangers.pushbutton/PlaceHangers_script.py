@@ -238,27 +238,39 @@ try:
                     except:
                         pass
 
-                if SupportJoint == False:
-                    for connector in pipe_connector:
-                        connector = connector
-                    # setting up and increment addition loop
-                    IncrementSpacing = distancefromend
-                    try:
-                        # adding hanger to one end of pipe by end distance specified
-                        FabricationPart.CreateHanger(doc, FabricationServiceButton, e.Id, connector, distancefromend, AtoS)
-                            
-                        # testing if pipe is long enough for hangers and spacing
-                        if pipelen > (int(Spacing) + (distancefromend * 2)):
-                            
-                            # calculating how many hangers spaced on pipe are required
-                            qtyofhgrs = range(int((math.floor(pipelen) - (distancefromend * 3)) / Spacing))
-                            
-                            # looping thru qty of hangers and placing them
-                            for hgr in qtyofhgrs:
-                                IncrementSpacing = IncrementSpacing + Spacing
-                                FabricationPart.CreateHanger(doc, FabricationServiceButton, e.Id, connector, IncrementSpacing, AtoS)
-                    except:
-                        pass
+    if SupportJoint == False:
+        IncrementSpacing = distancefromend  # Initial offset from the start of the run
+
+        for pipe in Pipe:
+            # Filter only valid pipe elements
+            if pipe.LookupParameter('Part Pattern Number').AsInteger() not in (2041, 866, 40):
+                print "Skipping non-pipe element:", pipe.Id
+                continue
+
+            pipelen = pipe.CenterlineLength
+            pipe_connector = pipe.ConnectorManager.Connectors
+            first_connector = next(iter(pipe_connector))  # Starting connector for this segment
+
+            print "Processing pipe segment with length:", pipelen
+            print "Starting IncrementSpacing:", IncrementSpacing
+
+            # Place hangers within the current segment based on last hanger location
+            while IncrementSpacing < pipelen:
+                try:
+                    # Place a hanger at this exact local position on the current pipe segment
+                    FabricationPart.CreateHanger(doc, FabricationServiceButton, pipe.Id, first_connector, IncrementSpacing, AtoS)
+                    print "Placed hanger at:", IncrementSpacing, "on pipe:", pipe.Id
+                except Exception as e:
+                    print "Failed to place hanger at", IncrementSpacing, "on pipe", pipe.Id, "Error:", e
+
+                # Calculate the next position based on the last hanger placement
+                IncrementSpacing += Spacing
+                print "Next IncrementSpacing:", IncrementSpacing
+
+            # Update IncrementSpacing for the next segment by adjusting it to only the overflow beyond the current segment
+            IncrementSpacing -= pipelen  # Carry over the spacing remainder to the next segment
+            print "Adjusted IncrementSpacing for next segment:", IncrementSpacing
+
     # end transaction
     t.Commit()
 except:
