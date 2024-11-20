@@ -54,7 +54,10 @@ if selection:
             set_parameter_by_name(x, 'FP_CID', x.ItemCustomId)
             set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType))
             set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'))
-            set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation'))
+            # Set the parameter only if it has a value
+            service_abbreviation = get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation')
+            if service_abbreviation:
+                set_parameter_by_name(x, 'FP_Service Abbreviation', service_abbreviation)
             try:
                 [set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Size'))]
                 if x.Alias == 'TRM':

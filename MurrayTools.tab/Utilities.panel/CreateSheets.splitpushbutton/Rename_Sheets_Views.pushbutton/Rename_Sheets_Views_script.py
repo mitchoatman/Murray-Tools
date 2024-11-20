@@ -30,14 +30,11 @@ if selected_views:
         replace = user_inputs['replace']
         suffix  = user_inputs['suffix']
 
-
+        t = Transaction(doc, 'Rename Sheets and Views')
+        t.Start()
         for view in selected_views:
             current_name = view.Name
             new_name = prefix + view.Name.replace(find, replace) + suffix
-
-
-            t = Transaction(doc, 'Rename Sheets and Views')
-            t.Start()
             for i in range(20):
                 try:
                     view.Name = new_name
@@ -45,7 +42,7 @@ if selected_views:
                     break
                 except:
                     new_name += "*"
-            t.Commit()
+        t.Commit()
     except:
         print 'User aborted operation, nothing renamed.'
 else:
