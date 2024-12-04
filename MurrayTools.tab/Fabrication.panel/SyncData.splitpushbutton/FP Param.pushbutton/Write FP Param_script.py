@@ -170,15 +170,12 @@ else:
 
     for duct in duct_collector:
         try:
-            TOPE = 0
-            BOTE = 0
             ItmDims = duct.GetDimensions()
             for dta in ItmDims:
                 if dta.Name == 'Top Extension':
                     TOPE = duct.GetDimensionValue(dta)
                 if dta.Name == 'Bottom Extension':
                     BOTE = duct.GetDimensionValue(dta)
-            if TOPE and BOTE != 0:      
                 set_parameter_by_name(duct, 'FP_Extension Top', TOPE)
                 set_parameter_by_name(duct, 'FP_Extension Bottom', BOTE)
         except:
