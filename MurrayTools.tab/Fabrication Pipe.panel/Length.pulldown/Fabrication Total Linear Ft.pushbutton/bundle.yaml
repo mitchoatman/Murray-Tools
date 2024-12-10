@@ -9,7 +9,7 @@ title:
 tooltip: |-
   Collects combined length of Fabrication Pipes in the (ACTIVE VIEW).
 
-    1. Run Script.
+    1. Run Command.
     2. Linear Ft of pipe will be shown in the dialog
     Hold SHIFT to calculate combined length of ALL Fabrication Pipes in the model [By Level] [By Material].
 

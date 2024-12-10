@@ -1,7 +1,7 @@
 __title__ = 'Rigid\nBrace'
 __doc__ = """Inserts a Rigid Seismic Brace Family.
 
-1. Run Script.
+1. Run Command.
 2. Select where you would like to place family.
 """
 

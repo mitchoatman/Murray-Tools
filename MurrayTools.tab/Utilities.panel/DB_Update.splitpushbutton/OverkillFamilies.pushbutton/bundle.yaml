@@ -8,7 +8,7 @@ title:
 # bundle tooltip
 tooltip: |-
   Search for duplicate Families by category in ACTIVE VIEW that occupy the same physical space.
-      1. Run script.
+      1. Run Command.
       2. Select categories you want to check for duplicates in.
       3. If duplicates are found confirm you wish to delete with Yes or No.
 

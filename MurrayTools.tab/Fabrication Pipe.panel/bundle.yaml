@@ -3,7 +3,7 @@ layout:
   - Length
   - Selection
   - RefrigerationData
-  - Pipe_Label
+  - Pipe-Label
 
 background:
 #  title: 'D5D5CD'

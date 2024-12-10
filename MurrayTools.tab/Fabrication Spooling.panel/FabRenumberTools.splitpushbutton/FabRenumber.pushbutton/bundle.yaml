@@ -8,7 +8,7 @@ title:
 tooltip: |-
   Re-Numbers selected fabrication parts per user defined sequence.
 
-    1. Run Script.
+    1. Run Command.
     2. Select elements you want to number.
     3. Select any fabrication fields you wish to exclude when determining identical elements.
     4. Enter starting number sequence.

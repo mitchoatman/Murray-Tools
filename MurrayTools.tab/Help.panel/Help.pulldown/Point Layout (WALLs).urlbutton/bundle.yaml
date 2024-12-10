@@ -1,0 +1,13 @@
+highlight: new
+
+# bundle title
+title:
+  "Point Layout (WALLs)"
+
+# bundle tooltip
+tooltip: >-
+  Will open browser to helpful page.
+
+hyperlink: "https://apple-puppy-32a.notion.site/Wall-Trimble-Revit-15442e29c18880cdad12f46058aeb3df?pvs=4"
+context: zero-doc
+

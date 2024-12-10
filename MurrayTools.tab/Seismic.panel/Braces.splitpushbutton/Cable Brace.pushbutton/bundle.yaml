@@ -8,7 +8,7 @@ title:
 tooltip: >-
   Inserts a Cable Seismic Brace Family
 
-    1. Run Script.
+    1. Run Command.
     2. Select where you would like to place family.
 
 # context directives are listed under `context` key, the order does not matter

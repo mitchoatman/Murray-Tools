@@ -5,7 +5,7 @@ title:
 
 tooltip: >-
   Hides Fabrication Service
-    1. Run Script.
+    1. Run Command.
     2. Select a fabrication part.
     3. Fabrication elements matching the service name of selected part are hidden.
 

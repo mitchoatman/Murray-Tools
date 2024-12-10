@@ -8,7 +8,7 @@ title:
 tooltip: |-
   Writes User Defined Bundle Number Value to the FP_Bundle Number Parameter and to Fabrication Custom Data Field so data is accessible from AutoCAD and Fabrication reports.
 
-    1. Run Script.
+    1. Run Command.
     2. Select elements you want to assign a Bundle Number.
     3. Enter Bundle Number value in the dialog.
     4. Click Finish

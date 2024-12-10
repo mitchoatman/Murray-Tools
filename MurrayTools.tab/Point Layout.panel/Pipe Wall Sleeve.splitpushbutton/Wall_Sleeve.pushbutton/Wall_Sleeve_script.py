@@ -8,7 +8,7 @@ from fractions import Fraction
 import os
 
 path, filename = os.path.split(__file__)
-NewFilename = '\DR-WS.rfa'
+NewFilename = '\WS.rfa'
 
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
@@ -31,8 +31,8 @@ class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
 # Search project for all Families
 families = FilteredElementCollector(doc).OfClass(Family)
 # Set desired family name and type name:
-FamilyName = 'DR-WS'
-FamilyType = 'DR-WS'
+FamilyName = 'WS'
+FamilyType = 'WS'
 # Check if the family is in the project
 Fam_is_in_project = any(f.Name == FamilyName for f in families)
 
@@ -59,7 +59,7 @@ if famsymb:
 
 t.Commit()
 
-symbName = 'DR-WS'
+symbName = 'WS'
 
 def set_parameter_by_name(element, parameterName, value):
     element.LookupParameter(parameterName).Set(value)
@@ -112,7 +112,7 @@ def place_and_modify_family(pipe, famsymb):
         diameter = float(re.sub(r'(?:(\d+)[-\s])?(\d+/\d+)[^\d.]', frac2string, get_parameter_value_by_name_AsString(pipe, 'Overall Size'))) / 12 + 0.0833333
     else:
         diameter = float(re.sub(r'[^\d.]', '', get_parameter_value_by_name_AsString(pipe, 'Overall Size'))) / 12 + 0.0833333
-    set_parameter_by_name(new_family_instance, "Diameter", diameter)
+    set_parameter_by_name(new_family_instance, 'Diameter', diameter)
     
     # Get connector locations
     pipe_connectors = list(pipe.ConnectorManager.Connectors)
@@ -138,10 +138,12 @@ def place_and_modify_family(pipe, famsymb):
     DB.ElementTransformUtils.RotateElement(doc, new_family_instance.Id, axis, angle)
     
     # Set FP parameters on new family placed in model
+    set_parameter_by_name(new_family_instance, 'FP_Product Entry', get_parameter_value_by_name_AsString(pipe, 'Overall Size'))
     set_parameter_by_name(new_family_instance, 'FP_Service Name', get_parameter_value_by_name_AsString(pipe, 'Fabrication Service Name'))
     set_parameter_by_name(new_family_instance, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(pipe, 'Fabrication Service Abbreviation'))
     schedule_level_param = new_family_instance.LookupParameter("Schedule Level")
     schedule_level_param.Set(level.Id)
+
 
 while True:
     try:

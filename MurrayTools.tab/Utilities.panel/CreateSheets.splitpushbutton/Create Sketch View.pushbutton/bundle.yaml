@@ -8,7 +8,7 @@ title:
 # bundle tooltip
 tooltip: >-
   Duplicates active view and crops based on user defined area.
-      1. Run Script.
+      1. Run Command.
       2. Window area to crop for sketch.
       3. Enter Sheet name and number.
       4. Choose TitleBlock to be used.

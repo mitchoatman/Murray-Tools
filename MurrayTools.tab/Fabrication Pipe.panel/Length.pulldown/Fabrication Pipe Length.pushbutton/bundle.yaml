@@ -9,7 +9,7 @@ title:
 tooltip: |-
   Calculates Combined Length of Selected Fabrication Pipes.
 
-    1. Run Script.
+    1. Run Command.
     2. Select the pipes to collect length from.
     3. Linear Ft of pipe will be shown in the dialog
 

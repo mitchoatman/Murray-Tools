@@ -1,6 +1,6 @@
 __title__ = 'Extend\nBraces'
 __doc__ = """Extends Seismic braces to a user specified elevation.
-1. Run Script.
+1. Run Command.
 2. Select braces you want to extend.
 3. Enter elevation into dialog using format FT-IN (no spaces)
 eg:  15-3 or 15-6.5

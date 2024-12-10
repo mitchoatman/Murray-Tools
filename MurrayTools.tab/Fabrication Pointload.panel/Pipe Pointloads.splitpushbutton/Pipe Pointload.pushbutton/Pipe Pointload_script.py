@@ -1,7 +1,7 @@
 __title__ = 'Pipe\nPointload'
 __doc__ = """Calculates the combined weight of selected Fabrication Pipes
 and divides that weight across the selected Fabrication Hangers.
-1. Run Script.
+1. Run Command.
 2. Select Fabrication Pipes you wish to collect weight from.
 3. Select Fabrication Hangers you wish to distribute the collected weight across.
 

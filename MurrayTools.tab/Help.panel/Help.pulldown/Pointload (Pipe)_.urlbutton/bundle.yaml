@@ -1,0 +1,12 @@
+highlight: new
+
+# bundle title
+title:
+  "Pointload (Pipe)_"
+
+# bundle tooltip
+tooltip: >-
+  Will open browser to helpful page.
+
+hyperlink: "https://lol.com/"
+context: zero-doc

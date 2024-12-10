@@ -7,7 +7,7 @@ title:
 # bundle tooltip
 tooltip: |-
   Populates hangers on selected pipe(s).
-    1. Run script.
+    1. Run Command.
     2. Select a fabrication pipe to specify service.
     3. Choose group.
     4. Choose hanger button and specify settings.

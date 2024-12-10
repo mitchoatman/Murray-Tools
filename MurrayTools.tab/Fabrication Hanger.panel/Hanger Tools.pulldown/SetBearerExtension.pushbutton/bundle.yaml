@@ -7,7 +7,7 @@ title:
 # bundle tooltip
 tooltip: |-
   Sets the Trapeze extension length..
-    1. Run Script.
+    1. Run Command.
     2. Select Fabrication Hangers (Using Window Selection).
     3. Enter length in the dialog.
 

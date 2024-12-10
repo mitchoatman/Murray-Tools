@@ -7,7 +7,7 @@ title:
 # bundle tooltip
 tooltip: |-
   Places a Structural family on the top of Fabrication hanger rods to prevent them from being "Attached" to Revit Structure.
-    1. Run Script.
+    1. Run Command.
     2. Select Fabrication hangers (Using Window Selection).
     3. A family will be placed on top of all selected hangers.
 

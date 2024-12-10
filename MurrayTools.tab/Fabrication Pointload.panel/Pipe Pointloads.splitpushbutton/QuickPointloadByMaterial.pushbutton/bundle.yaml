@@ -12,6 +12,7 @@ tooltip: |-
   Example: 1 = 0-10.lbs  2 = 11-20.lbs  3 = 21-30.lbs  4 = 31-40.lbs
     1. Run command.
     2. Data is written to all hangers visible in view based on the material of their host.
+        Loads are calculated using standard hanger spacing rules.
         Cast Iron
         Copper
         Carbon Steel
