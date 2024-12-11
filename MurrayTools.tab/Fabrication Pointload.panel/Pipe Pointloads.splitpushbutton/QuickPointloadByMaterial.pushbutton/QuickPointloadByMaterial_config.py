@@ -174,7 +174,7 @@ for hanger in hanger_collector:
                 set_customdata_by_custid(hanger, 7, '37')
     except:
         output = script.get_output()
-        print('{}: {}'.format('Disconnected Hanger', output.linkify(hanger.Id,hanger.ServiceAbbreviation)))
+        print('{}: {}'.format('Disconnected Hanger', output.linkify(hanger.Id)))
 
 #End Transaction
 t.Commit()

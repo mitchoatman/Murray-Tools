@@ -1,0 +1,13 @@
+highlight: new
+
+# bundle title
+title:
+  "Tagging Room Numbers"
+
+# bundle tooltip
+tooltip: >-
+  Will open browser to helpful page.
+
+hyperlink: "https://apple-puppy-32a.notion.site/Tagging-Room-Names-15842e29c1888080b91ffa60233ee6e9?pvs=4"
+context: zero-doc
+
