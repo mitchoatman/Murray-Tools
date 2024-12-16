@@ -12,12 +12,13 @@ tooltip: >-
       2. Window area to crop.
       3. Crop region will be modified.
 
-  [Shift]-Click:    
+  [Shift]+Click:    
       1. Open a Floorplan view.
       2. Select multiple Floorplan views in Project Browser.
-      3. Run Command.
-      4. Draw desired crop region in active view.
-      5. Crop region will be modified in All selected views.
+      3. You must click back into Floorplan you opened.
+      4. Run Command.
+      5. Draw desired crop region in active view.
+      6. Crop region will be modified in All selected views.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

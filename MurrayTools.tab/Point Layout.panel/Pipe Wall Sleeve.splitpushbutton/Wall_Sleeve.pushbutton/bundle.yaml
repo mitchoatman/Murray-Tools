@@ -10,7 +10,7 @@ tooltip: |-
   2.  Pick the intersection of the pipe and wall.
   3.  Repeat as necessary, ESC to end the command.
 
-  [Shift]-Click:
+  [Shift]+Click:
   Place DROP wall sleeve family on pipe centerline at wall locations for point layout purposes.
   It will also append Fabrication service name and abbreviation to the sleeve.
   

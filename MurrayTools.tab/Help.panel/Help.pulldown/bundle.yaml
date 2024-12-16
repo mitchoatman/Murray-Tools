@@ -1,15 +1,18 @@
 layout:
+  - Tagging Room Numbers
+  - Fabrication Part BOM (Excel)
+  - ---
   - Valve Numbering
   - Rough In Drawings
   - Point Layout (APL)
   - Point Layout (WALLs)
   - Fabrication Hangers in Revit
-  - Fabrication Part BOM (Excel)
   - Stiffy Hanger BOM (WIP)
   - Pipe Labels
-  - Tagging Room Numbers
-  - Pointload (Pipe)_
-  - Pointload (Duct)_
+  - Pointload (Pipe)
+  - ---
+  - Pointload (Duct)
+  - ---
   - About
 
 

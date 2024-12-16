@@ -76,15 +76,15 @@ if len(Fpipework) > 0:
             Hanger_Count = Hanger_Count + hangercount
 
     
-    pointload = Total_Weight / Hanger_Count
-
+    pointload = ((Total_Weight / Hanger_Count) / 10)
+    
     t = Transaction(doc, 'Write Pointload Info')
     #Start Transaction
     t.Start()
 
     for whanger in Fhangers:
         numofrods = whanger.GetRodInfo().RodCount
-        roundedpointload = round_up(pointload) / numofrods
+        roundedpointload = round_up((pointload) / numofrods)
         set_parameter_by_name(whanger,"FP_Pointload", roundedpointload)
         
     #End Transaction

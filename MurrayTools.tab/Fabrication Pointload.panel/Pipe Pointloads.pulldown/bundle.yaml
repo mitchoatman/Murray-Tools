@@ -1,9 +1,12 @@
 layout:
+  - QuickPointloadByMaterial
+  - ---
   - Pipe Pointload
   - Pipe Pointload 10x
+  - ---
   - QuickCIPointload
   - QuickCUPointload
   - QuickCSPointload
   - QuickSSPointload
-  - QuickPointloadByMaterial
+  - ---
   - Pipe Accessory Pointload

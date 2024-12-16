@@ -1,4 +1,4 @@
-highlight: new
+# highlight: new
 title:
   "Round Duct\nWall Sleeve"
 
@@ -11,7 +11,7 @@ tooltip: |-
   2.  Pick the intersection of the pipe and wall.
   3.  Repeat as necessary, ESC to end the command.
 
-  [Shift]-Click:
+  [Shift]+Click:
     Setup Annular Space
 # context directives are listed under `context` key, the order does not matter
 #context:

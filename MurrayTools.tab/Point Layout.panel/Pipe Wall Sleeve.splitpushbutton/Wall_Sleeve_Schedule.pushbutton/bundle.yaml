@@ -6,10 +6,12 @@ title:
 
 # bundle tooltip
 tooltip: |-
-  Creates a Wall Sleeve schedule to use as a template.
+  Creates a Pipe Wall Sleeve schedule to use as a template.
   
     - Still requires filters, sorting, and grouping by user.
 
+  [Shift]+Click:
+    Creates a Duct Wall Sleeve schedule to use as a template.
 # context directives are listed under `context` key, the order does not matter
 # context:
   # - Selection

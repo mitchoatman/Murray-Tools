@@ -13,7 +13,7 @@ tooltip: |-
         Enter elevation into dialog using format FT-IN (no spaces)
         eg:  15-3 or 15-6.5
 
-  [Shift]-Click:    
+  [Shift]+Click:    
   Extend Fabrication Hanger Rod(s)) to a User Specified Elevation.
 
 # context directives are listed under `context` key, the order does not matter

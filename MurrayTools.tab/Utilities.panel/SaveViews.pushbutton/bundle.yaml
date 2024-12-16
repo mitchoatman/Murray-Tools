@@ -11,7 +11,7 @@ tooltip: |-
   
   Known Limitation:  Will not open Schedule views.
 
-  [Shift]-Click:
+  [Shift]+Click:
   Saves a list of open views to be used with Restore function.
 
 # bundle help url

@@ -1,6 +1,6 @@
 layout:
   - Duct Pointload
-  - Pipe Pointloads
+  - Pipe Pointloads[title:Pipe\nPointloads]
   - Tag Pointloads
 
 

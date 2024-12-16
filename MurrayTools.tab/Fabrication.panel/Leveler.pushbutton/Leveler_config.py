@@ -1,5 +1,5 @@
 from Autodesk.Revit.DB import BoundingBoxXYZ, FilteredElementCollector, Transaction, BuiltInCategory, FabricationPart, Level, LogicalOrFilter, ElementCategoryFilter
-
+import System
 doc = __revit__.ActiveUIDocument.Document
 curview = doc.ActiveView
 

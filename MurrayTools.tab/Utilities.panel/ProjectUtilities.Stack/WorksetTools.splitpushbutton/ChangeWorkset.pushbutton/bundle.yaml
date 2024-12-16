@@ -5,8 +5,12 @@ title:
   "Change\nWorkset"
 
 # bundle tooltip
-tooltip: >-
-  Changes the workset of SELECTED elements to the ACTIVE workset.
+tooltip: |-
+  Command changes the workset of selected elements.
+  1. Run Command
+  2. Select Elements to Change.
+  3. Click Finish button.
+  3. Select Workset to apply in dialog.
 
 # context directives are listed under `context` key, the order does not matter
 context:

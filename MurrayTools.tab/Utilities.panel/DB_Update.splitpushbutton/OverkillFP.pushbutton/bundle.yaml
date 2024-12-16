@@ -11,7 +11,7 @@ tooltip: |-
       1. Run Command.
       2. If duplicates are found confirm you wish to delete with Yes or No.
 
-  [Shift]-Click:
+  [Shift]+Click:
   Search for duplicate fabrication parts in the ENTIRE model.
 
 # context directives are listed under `context` key, the order does not matter

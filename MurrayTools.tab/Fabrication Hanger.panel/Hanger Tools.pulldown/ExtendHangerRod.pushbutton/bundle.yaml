@@ -12,7 +12,7 @@ tooltip: |-
     3. Pick Reference plane to extend rods to.
 
 
-  [Shift]-Click:    
+  [Shift]+Click:    
   Extend Fabrication Hanger Rod(s)) to a User Specified Elevation.
     Enter elevation into dialog using format FT-IN (no spaces)
     eg:  15-3 or 15-6.5

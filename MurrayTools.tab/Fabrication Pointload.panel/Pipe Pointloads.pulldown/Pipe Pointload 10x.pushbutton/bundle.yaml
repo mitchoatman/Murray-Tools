@@ -7,7 +7,7 @@ title:
 
 # bundle tooltip
 tooltip: |-
-  Divides existing pointload values on hangers in active view by 10x.
+  Divides EXISTING pointload values on hangers in active view by 10x.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

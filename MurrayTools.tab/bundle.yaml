@@ -10,8 +10,8 @@ layout:
   - Point Layout
   - Annotation
   - Seismic
-  - Help
-  - BETA
+  - Help[before:Utilities]
+  - BETA[afterall:]
 
 
 highlight: new      # highlight as new

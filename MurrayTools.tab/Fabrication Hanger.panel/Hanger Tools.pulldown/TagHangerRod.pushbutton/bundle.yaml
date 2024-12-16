@@ -10,7 +10,7 @@ tooltip: |-
   1. Execute command.
   2. Hangers will be tagged.
 
-  [Shift]-Click:    
+  [Shift]+Click:    
   Removes tags.
 
 # context directives are listed under `context` key, the order does not matter

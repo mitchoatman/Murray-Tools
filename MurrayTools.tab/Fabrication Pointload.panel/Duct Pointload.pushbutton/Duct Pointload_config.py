@@ -70,25 +70,3 @@ if len(Fpipework) > 0:
     if len(Fhangers) > 0:
 
         Hanger_Count = 0.0
-        
-        for hanger in Fhangers:
-            hangercount = 1
-            Hanger_Count = Hanger_Count + hangercount
-
-    
-    pointload = Total_Weight / Hanger_Count
-
-    t = Transaction(doc, 'Write Pointload Info')
-    #Start Transaction
-    t.Start()
-
-    for whanger in Fhangers:
-        numofrods = whanger.GetRodInfo().RodCount
-        roundedpointload = round_up(pointload /10) / numofrods
-        set_parameter_by_name(whanger,"FP_Pointload", roundedpointload)
-        
-    #End Transaction
-    t.Commit()
-else:
-    from pyrevit import forms
-    forms.alert('At least one fabrication Duct or Hanger was not selected.')

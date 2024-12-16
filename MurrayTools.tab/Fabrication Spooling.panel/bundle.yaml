@@ -1,6 +1,6 @@
 layout:
   - Spooling
-  - HGR_Data
+  - HGR_Data[title:Hanger\nData]
   - FabRenumberTools
   
 background:

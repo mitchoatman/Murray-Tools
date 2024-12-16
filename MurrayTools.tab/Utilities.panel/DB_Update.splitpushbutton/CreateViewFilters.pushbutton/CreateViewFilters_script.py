@@ -164,8 +164,14 @@ system_colors = {
 
 # Define a dictionary to store custom filters (OrderedDict to preserve order)
 custom_filters = OrderedDict()
-
 # Adding items in the desired order
+custom_filters["INSULATION"] = {
+    "parameter_name": "Specification",
+    "condition": "DoesNotContain",
+    "value": "XYZ",
+    "categories": [BuiltInCategory.OST_FabricationPipeworkInsulation, BuiltInCategory.OST_FabricationDuctworkInsulation, BuiltInCategory.OST_FabricationDuctworkLining],
+    "color": (0, 0, 0)  # Black
+}
 custom_filters["SPOOL 1"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
@@ -280,7 +286,14 @@ with Transaction(doc, "Create and Apply Filters") as t:
 
             if condition == "EndsWith":
                 rule = ParameterFilterRuleFactory.CreateEndsWithRule(param_id, value, False)
-            # Add more conditions as needed
+            elif condition == "DoesNotContain":
+                # Create a Contains rule first
+                contains_rule = ParameterFilterRuleFactory.CreateContainsRule(param_id, value, False)
+                # Invert the Contains rule using the NOT operator
+                rule = FilterInverseRule(contains_rule)
+            elif condition == "Contains":
+                # Create a Contains rule first
+                contains_rule = ParameterFilterRuleFactory.CreateContainsRule(param_id, value, False)
             else:
                 raise Exception('Condition not supported')
 

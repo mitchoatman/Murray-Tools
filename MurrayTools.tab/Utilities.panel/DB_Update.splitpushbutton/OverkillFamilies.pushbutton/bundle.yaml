@@ -12,7 +12,7 @@ tooltip: |-
       2. Select categories you want to check for duplicates in.
       3. If duplicates are found confirm you wish to delete with Yes or No.
 
-  [Shift]-Click:
+  [Shift]+Click:
   Search for duplicate Families by category in the ENTIRE model.
 
 # context directives are listed under `context` key, the order does not matter

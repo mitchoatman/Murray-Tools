@@ -3,17 +3,17 @@
 
 # bundle title
 title:
-  "Quick\nCI Pointload"
+  "Quick\nSS Pointload"
 
 # bundle tooltip
 tooltip: |-
-  Calculates pointload values for all hangers on service drawn in CAST IRON.
-  It rounds the values to a power of 10x.
+  Calculates pointload values for all hangers on service drawn in STAINLESS STEEL.
+  It rounds the values to a power of 10x. The calculations are based on plumbing code hanger spacing.
   Example: 1 = 0-10.lbs  2 = 11-20.lbs  3 = 21-30.lbs  4 = 31-40.lbs
     1. Isolate services drawn with cast iron material.
     2. Data is written to all hangers isolated in the view.
-
-  [Shift]-Click:    
+    
+  [Shift]+Click:    
   Add actual loads NOT to the power of 10x.
 
 # context directives are listed under `context` key, the order does not matter

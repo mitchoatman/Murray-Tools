@@ -1,0 +1,11 @@
+#highlight: new
+# bundle title
+title:
+  "About"
+
+# bundle tooltip
+tooltip: >-
+  Will open browser to helpful page.
+
+hyperlink: "https://apple-puppy-32a.notion.site/Murray-Help-Documents-13742e29c1888006985dc097da4c522e?pvs=73"
+context: zero-doc

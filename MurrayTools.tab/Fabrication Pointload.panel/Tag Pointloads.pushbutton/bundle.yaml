@@ -8,7 +8,7 @@ tooltip: |-
     1. Run Command.
     2. Pointload tags will be added to Fabrication Hangers in active view ONLY.
 
-  [Shift]-Click:
+  [Shift]+Click:
   Populates Pointload tag on SELECTED Fabrication Hanger rods.
     1. Run Command.
     2. Pointload tags will be added to selected Fabrication Hangers.

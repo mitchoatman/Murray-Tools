@@ -3,18 +3,18 @@
 
 # bundle title
 title:
-  "Pipe Accessory\nPointload"
+  "Pipe\nPointload"
 
 # bundle tooltip
 tooltip: |-
   Calculates the combined weight of selected Fabrication Pipes
-  and divides that weight across the selected Pipe Accessories.
+  and divides that weight across the selected Fabrication Hangers.
     1. Run Command.
     2. Select Fabrication Pipes to collect weight from.
-    3. Select Pipe Accessories to distribute weight across.
-    Muti-point supports are not accommodated for, User must cut weight in half manually.
+    3. Select Fabrication Hangers to distribute weight across.
+    Muti-point supports weights are halved automatically.
 
-  [Shift]-Click:
+  [Shift]+Click:
   Execute point load command that divides values by 10x.
 
 # context directives are listed under `context` key, the order does not matter

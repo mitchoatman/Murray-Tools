@@ -10,7 +10,7 @@ tooltip: |-
   1. Execute command.
   2. Valves will be tagged.
 
-  [Shift]-Click:    
+  [Shift]+Click:    
   Add tags with leaders.
 
 # context directives are listed under `context` key, the order does not matter

@@ -1,9 +1,9 @@
 layout:
   - ChangeRodSize
   - ExtendHangerRod
-  - AnchorHangerRod
-  - SetBearerExtension
   - RodInsertDepth
-  - RoundRackWidth
+  - AnchorHangerRod
   - ToggleBeamHanger
   - TagHangerRod
+  - RoundRackWidth
+  - SetBearerExtension
