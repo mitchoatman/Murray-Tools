@@ -4,7 +4,7 @@ title:
   "Reset\nHide"
 
 tooltip: >-
-  Un-Hides any element hidden in active view.
+  Un-Hides all elements hidden in active view.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

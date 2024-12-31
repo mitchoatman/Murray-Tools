@@ -44,6 +44,9 @@ def convert_fractions(string):
 def get_parameter_value_by_name(element, parameterName):
     return element.LookupParameter(parameterName).AsString()
 
+def get_parameter_value_by_name_AsValueString(element, parameterName):
+    return element.LookupParameter(parameterName).AsValueString()
+
 def set_parameter_by_name(element, parameterName, value):
     element.LookupParameter(parameterName).Set(value)
 
@@ -185,7 +188,7 @@ try:
             hanger.HangerRodKit = newrodkit
         except:
             output = script.get_output()
-            print('{}: {}'.format('Disconnected Hanger', output.linkify(hanger.Id)))
+            print('{}: {}'.format((get_parameter_value_by_name_AsValueString(hanger, 'Family')), output.linkify(hanger.Id)))
     t.Commit()
     
     t = Transaction(doc, "Update FP Parameter")

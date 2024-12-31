@@ -2,6 +2,7 @@ layout:
   - Spooling
   - HGR_Data[title:Hanger\nData]
   - FabRenumberTools
+  - SetWorkPlane
   
 background:
 #  title: 'D5D5CD'

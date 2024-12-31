@@ -1,0 +1,25 @@
+highlight: new
+
+# bundle title
+title:
+  "Set\nWork Plane"
+
+# bundle tooltip
+tooltip: |-
+  Sets a Work Plane to selected Fabrication Part.
+    1. Run Command.
+    2. Select Fabrication Part you align work plane to.
+    3. Choose direction of work plane.
+    
+    DOES NOT ALIGN TO THE ANGLE OF SLOPING PIPE!
+
+
+# context directives are listed under `context` key, the order does not matter
+# context:
+  # - Selection
+
+# bundle help url
+help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

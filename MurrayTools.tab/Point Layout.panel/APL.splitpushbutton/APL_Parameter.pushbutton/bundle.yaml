@@ -3,8 +3,8 @@ title:
   "APL\nParameters"
 
 tooltip: |-
-  Specify point number prefix and change point description by selection. Cleanup sleeve 
-  and insert descriptions in active view.
+  Specify point number prefix and change point description by selection.
+  Cleanup sleeve and insert descriptions in active view.
   Users do not have to select anything if only cleaning up sleeve and insert descriptions.
 
 # context directives are listed under `context` key, the order does not matter

@@ -12,8 +12,6 @@ from fractions import Fraction
 from SharedParam.Add_Parameters import Shared_Params
 import os
 
-
-
 Shared_Params()
 
 path, filename = os.path.split(__file__)

@@ -22,28 +22,5 @@ hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInC
                    .WhereElementIsNotElementType() \
                    .ToElements()
 
-t = Transaction(doc, "Select Single Hangers")
-t.Start()
-
-for hanger in hanger_collector:
-    try:
-        if (hanger.GetRodInfo().RodCount) > 1:
-            ItmDims = hanger.GetDimensions()
-            for dta in ItmDims:
-                if dta.Name == 'Width':
-                    TrapWidth = hanger.GetDimensionValue(dta)
-                if dta.Name == 'Bearer Extn':
-                    TrapExtn = hanger.GetDimensionValue(dta)
-                if dta.Name == 'Right Rod Offset':
-                    TrapRRod = hanger.GetDimensionValue(dta)
-                if dta.Name == 'Left Rod Offset':
-                    TrapLRod = hanger.GetDimensionValue(dta)
-            BearerLength = TrapWidth + TrapExtn + TrapExtn
-            set_parameter_by_name(hanger, 'FP_Bearer Length', BearerLength)
-    except:
-        pass
-
-t.Commit()
-
-elementlist = [hanger.Id for hanger in hanger_collector if not hanger.LookupParameter('FP_Bearer Length').HasValue]
+elementlist = [hanger.Id for hanger in hanger_collector if (hanger.GetRodInfo().RodCount) < 2]
 selection.set_to(elementlist)
