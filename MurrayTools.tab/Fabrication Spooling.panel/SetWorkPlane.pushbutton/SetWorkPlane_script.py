@@ -64,44 +64,12 @@ def select_fabrication_pipe_and_create_plane():
                     # Align with X-axis
                     x_vector = XYZ.BasisX
                     y_vector = line_vector.Normalize()  # Use the line vector as Y
-                    bounding_box = pipe.get_BoundingBox(doc.ActiveView)
-                    if bounding_box:
-                        plane_origin = (bounding_box.Min + bounding_box.Max) / 2  # Center of the bounding box
-                    else:
-                        plane_origin = (connector_1 + connector_2) / 2  # Fallback to midpoint
-
-                    # Adjust alignment vectors based on the pipe's direction
-                    if abs(line_vector.X) > abs(line_vector.Y):  # X-aligned pipe
-                        x_vector = XYZ.BasisX
-                        y_vector = XYZ.BasisZ  # Ensure the plane is vertical
-                    elif abs(line_vector.Y) > abs(line_vector.X):  # Y-aligned pipe
-                        x_vector = XYZ.BasisY
-                        y_vector = XYZ.BasisZ  # Ensure the plane is vertical
-                    else:
-                        x_vector = XYZ.BasisX
-                        y_vector = XYZ.BasisY
-
+                    plane_origin = (connector_1 + connector_2) / 2
                 elif result == TaskDialogResult.CommandLink2:
                     # Align with Y-axis
                     x_vector = line_vector.Normalize()  # Use the line vector as X
                     y_vector = XYZ.BasisY
-                    bounding_box = pipe.get_BoundingBox(doc.ActiveView)
-                    if bounding_box:
-                        plane_origin = (bounding_box.Min + bounding_box.Max) / 2  # Center of the bounding box
-                    else:
-                        plane_origin = (connector_1 + connector_2) / 2  # Fallback to midpoint
-
-                    # Adjust alignment vectors based on the pipe's direction
-                    if abs(line_vector.X) > abs(line_vector.Y):  # X-aligned pipe
-                        x_vector = XYZ.BasisX
-                        y_vector = XYZ.BasisZ  # Ensure the plane is vertical
-                    elif abs(line_vector.Y) > abs(line_vector.X):  # Y-aligned pipe
-                        x_vector = XYZ.BasisY
-                        y_vector = XYZ.BasisZ  # Ensure the plane is vertical
-                    else:
-                        x_vector = XYZ.BasisX
-                        y_vector = XYZ.BasisY
-
+                    plane_origin = (connector_1 + connector_2) / 2
                 else:
                     print("Operation cancelled by the user.")
                     return
@@ -154,6 +122,7 @@ def select_fabrication_pipe_and_create_plane():
             # Set the newly created sketch plane as the active work plane
             curview = doc.ActiveView
             curview.SketchPlane = sketch_plane
+            curview.ShowActiveWorkPlane()
             t.Commit()
 
             # Notify the user

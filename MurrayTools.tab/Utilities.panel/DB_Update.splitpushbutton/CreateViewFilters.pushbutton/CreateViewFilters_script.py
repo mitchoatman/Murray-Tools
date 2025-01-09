@@ -1,15 +1,14 @@
 import clr
 clr.AddReference('RevitAPI')
 clr.AddReference('RevitAPIUI')
-from random import randint
-from Autodesk.Revit.DB import *
-from Autodesk.Revit.UI import *
-from Autodesk.Revit.Attributes import *
+from Autodesk.Revit.DB import FabricationPart, FilteredElementCollector, ParameterFilterRuleFactory, Transaction, Color, LinePatternElement, BuiltInParameter, BuiltInCategory, ElementId, ParameterFilterElement \
+                                , FilterInverseRule, ElementParameterFilter, OverrideGraphicSettings
+from Autodesk.Revit.UI import UIApplication
 from System.Collections.Generic import List
 from collections import OrderedDict
+from random import randint
 from SharedParam.Add_Parameters import Shared_Params
-import System
-from Parameters.Get_Set_Params import get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsInteger
+from Parameters.Get_Set_Params import get_parameter_value_by_name_AsString
 
 Shared_Params()
 

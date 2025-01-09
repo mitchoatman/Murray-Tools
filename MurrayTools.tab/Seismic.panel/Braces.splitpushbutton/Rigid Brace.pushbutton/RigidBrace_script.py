@@ -91,9 +91,10 @@ t.Commit()
 # Retrieve the specific family symbol by family and type name
 familyTypes = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_StructuralStiffener).OfClass(FamilySymbol).ToElements()
 target_famtype = None
+
 for famtype in familyTypes:
     typeName = famtype.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
-    if famtype.Family.Id == target_family.Id and typeName == FamilyType:
+    if famtype.Family.Name == FamilyName and typeName == FamilyType:
         target_famtype = famtype
         break
 

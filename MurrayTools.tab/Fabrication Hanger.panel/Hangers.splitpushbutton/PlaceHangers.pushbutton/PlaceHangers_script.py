@@ -1,4 +1,3 @@
-
 #Imports
 import Autodesk
 from Autodesk.Revit.DB import Transaction, FabricationConfiguration, BuiltInParameter, FabricationPart, FabricationServiceButton, FabricationService, XYZ
@@ -12,12 +11,11 @@ uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 app = doc.Application
 RevitVersion = app.VersionNumber
-RevitINT = float (RevitVersion)
+RevitINT = float(RevitVersion)
 
 try:
     # selection
     selected_element = uidoc.Selection.PickObject(ObjectType.Element, 'Select a Fabrication Part')
-
     element = doc.GetElement(selected_element.ElementId)
 
     # Gets servicename of selection
@@ -37,77 +35,32 @@ try:
     # Gets matching index of selected element service from the servicenamelist
     Servicenum = servicenamelist.index(parameters)
 
-
     servicelist = []    
     servicelist.append(LoadedServices)
     FabricationService = servicelist[0]
 
-    groupindexlist = []
-    groupnamelist = []
-
-    # Checks revit version and uses different code for versions newer than 2022
-    if RevitINT > 2022:
-        try:
-            groupindexlist.append(LoadedServices[Servicenum].PaletteCount)
-            numrange = range(LoadedServices[Servicenum].PaletteCount)
-            for Item3 in numrange:
-                try:
-                    groupnamelist.append(FabricationService[Servicenum].GetPaletteName(Item3))
-                except:
-                    groupnamelist.append(FabricationService[Servicenum].GetPaletteName(Item3))
-        except:
-            groupindexlist.append(LoadedServices[Servicenum].PaletteCount)
-            numrange = range(LoadedServices[Servicenum].PaletteCount)
-            for Item3 in numrange:
-                try:
-                    groupnamelist.append(FabricationService[Servicenum].GetPaletteName(Item3))
-                except:
-                    groupnamelist.append(FabricationService[Servicenum].GetPaletteName(Item3))
-    else:
-        try:
-            groupindexlist.append(LoadedServices[Servicenum].GroupCount)
-            numrange = range(LoadedServices[Servicenum].GroupCount)
-            for Item3 in numrange:
-                try:
-                    groupnamelist.append(FabricationService[Servicenum].GetGroupName(Item3))
-                except:
-                    groupnamelist.append(FabricationService[Servicenum].GetGroupName(Item3))
-        except:
-            groupindexlist.append(LoadedServices[Servicenum].GroupCount)
-            numrange = range(LoadedServices[Servicenum].GroupCount)
-            for Item3 in numrange:
-                try:
-                    groupnamelist.append(FabricationService[Servicenum].GetGroupName(Item3))
-                except:
-                    groupnamelist.append(FabricationService[Servicenum].GetGroupName(Item3))
-
-    if 'SUPPORTS' in groupnamelist:
-        SelectedServicegroupname = 'SUPPORTS'
-        Servicegroupnum = groupnamelist.index(SelectedServicegroupname)
-    else:
-        # Display dialog
-        components = [
-            Label('Choose Service Palette:'),
-            ComboBox('Servicegroupnum', groupnamelist, sort=False),
-            Button('Ok')
-            ]
-        form = FlexForm('Group', components)
-        form.show()
-
-        # Convert else dialog input into variable
-        SelectedServicegroupname = (form.values['Servicegroupnum'])
-        Servicegroupnum = groupnamelist.index(SelectedServicegroupname)
-
-    buttoncount = LoadedServices[Servicenum].GetButtonCount(Servicegroupnum)
-
+    # Find all hanger buttons across all palettes/groups
     buttonnames = []
+    button_data = []  # Store tuple of (palette_idx, button_idx, button_name)
 
-    count = 0
-    while count < buttoncount :
-        bt = LoadedServices[Servicenum].GetButton(Servicegroupnum, count)
-        count = count + 1
-        if bt.IsAHanger:
-            buttonnames.append(bt.Name)	
+    if RevitINT > 2022:
+        palette_count = LoadedServices[Servicenum].PaletteCount
+        for palette_idx in range(palette_count):
+            buttoncount = LoadedServices[Servicenum].GetButtonCount(palette_idx)
+            for btn_idx in range(buttoncount):
+                bt = LoadedServices[Servicenum].GetButton(palette_idx, btn_idx)
+                if bt.IsAHanger:
+                    buttonnames.append(bt.Name)
+                    button_data.append((palette_idx, btn_idx, bt.Name))
+    else:
+        group_count = LoadedServices[Servicenum].GroupCount
+        for group_idx in range(group_count):
+            buttoncount = LoadedServices[Servicenum].GetButtonCount(group_idx)
+            for btn_idx in range(buttoncount):
+                bt = LoadedServices[Servicenum].GetButton(group_idx, btn_idx)
+                if bt.IsAHanger:
+                    buttonnames.append(bt.Name)
+                    button_data.append((group_idx, btn_idx, bt.Name))
 
     folder_name = "c:\\Temp"
     filepath = os.path.join(folder_name, 'Ribbon_PlaceHangers.txt')
@@ -150,7 +103,7 @@ try:
             CheckBox('checkboxvalue', 'Attach to Structure', default=True),
             CheckBox('checkboxjointvalue', 'Support Joints (cannot disable yet...)', default=True),
             Button('Ok')
-            ]
+        ]
         form = FlexForm('Hanger and Spacing', components)
         form.show()
     else:
@@ -164,13 +117,19 @@ try:
             CheckBox('checkboxvalue', 'Attach to Structure', default=True),
             CheckBox('checkboxjointvalue', 'Support Joints (cannot disable yet...)', default=True),
             Button('Ok')
-            ]
+        ]
         form = FlexForm('Hanger and Spacing', components)
         form.show()
 
     # Convert dialog input into variable
     Selectedbutton = (form.values['Buttonnum'])
-    Buttonnum = buttonnames.index(Selectedbutton)
+    # Find the palette_idx and button_idx for the selected button
+    for palette_idx, btn_idx, btn_name in button_data:
+        if btn_name == Selectedbutton:
+            Servicegroupnum = palette_idx
+            Buttonnum = btn_idx
+            break
+
     distancefromend = float(form.values['EndDist'])
     Spacing = float(form.values['Spacing'])
     AtoS = (form.values['checkboxvalue'])
@@ -197,7 +156,7 @@ try:
             else:
                 return False
         def AllowReference(self, ref, point):
-            return true
+            return True
 
     pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
     CustomISelectionFilter(parameters), "Select pipes to place hangers on")            
@@ -222,7 +181,6 @@ try:
                     # block of code to get connectors on both ends of pipe
                     try:
                         for connector in pipe_connector:
-                            #print connector.Origin.Z
                             # adding hangers to each end of pipe by end distance specified
                             FabricationPart.CreateHanger(doc, FabricationServiceButton, e.Id, connector, distancefromend, AtoS)
                         # testing if pipe is long enough for hangers and spacing
@@ -239,40 +197,57 @@ try:
                         pass
 
     if SupportJoint == False:
-        IncrementSpacing = distancefromend  # Initial offset from the start of the run
-
+        # Get total run length and create ordered list of pipe segments
+        total_run_length = 0
+        pipe_segments = []
+        
         for pipe in Pipe:
-            # Filter only valid pipe elements
-            if pipe.LookupParameter('Part Pattern Number').AsInteger() not in (2041, 866, 40):
-                print "Skipping non-pipe element:", pipe.Id
-                continue
+            if pipe.LookupParameter('Part Pattern Number').AsInteger() in (2041, 866, 40):
+                # Create tuple of (pipe, start_position)
+                pipe_segments.append((pipe, total_run_length))
+                total_run_length += pipe.CenterlineLength
 
-            pipelen = pipe.CenterlineLength
-            pipe_connector = pipe.ConnectorManager.Connectors
-            first_connector = next(iter(pipe_connector))  # Starting connector for this segment
-
-            print "Processing pipe segment with length:", pipelen
-            print "Starting IncrementSpacing:", IncrementSpacing
-
-            # Place hangers within the current segment based on last hanger location
-            while IncrementSpacing < pipelen:
-                try:
-                    # Place a hanger at this exact local position on the current pipe segment
-                    FabricationPart.CreateHanger(doc, FabricationServiceButton, pipe.Id, first_connector, IncrementSpacing, AtoS)
-                    print "Placed hanger at:", IncrementSpacing, "on pipe:", pipe.Id
-                except Exception as e:
-                    print "Failed to place hanger at", IncrementSpacing, "on pipe", pipe.Id, "Error:", e
-
-                # Calculate the next position based on the last hanger placement
-                IncrementSpacing += Spacing
-                print "Next IncrementSpacing:", IncrementSpacing
-
-            # Update IncrementSpacing for the next segment by adjusting it to only the overflow beyond the current segment
-            IncrementSpacing -= pipelen  # Carry over the spacing remainder to the next segment
-            print "Adjusted IncrementSpacing for next segment:", IncrementSpacing
+        # Calculate number of hangers needed for entire run
+        first_hanger_pos = distancefromend
+        last_hanger_pos = total_run_length - distancefromend
+        
+        if last_hanger_pos > first_hanger_pos:
+            current_position = first_hanger_pos
+            
+            while current_position <= last_hanger_pos:
+                # Find which pipe segment this position falls on
+                current_segment = None
+                local_position = current_position
+                
+                for pipe, start_pos in pipe_segments:
+                    pipe_end = start_pos + pipe.CenterlineLength
+                    if start_pos <= current_position < pipe_end:
+                        current_segment = pipe
+                        local_position = current_position - start_pos
+                        break
+                
+                if current_segment:
+                    try:
+                        # Get first connector of current pipe segment
+                        pipe_connector = current_segment.ConnectorManager.Connectors
+                        first_connector = next(iter(pipe_connector))
+                        
+                        # Place hanger at calculated position
+                        FabricationPart.CreateHanger(
+                            doc, 
+                            FabricationServiceButton, 
+                            current_segment.Id, 
+                            first_connector, 
+                            local_position,
+                            AtoS
+                        )
+                    except Exception as e:
+                        print("Failed to place hanger")
+                
+                # Move to next hanger position
+                current_position += Spacing
 
     # end transaction
     t.Commit()
 except:
     pass
-

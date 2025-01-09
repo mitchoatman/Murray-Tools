@@ -3,17 +3,10 @@ import Autodesk
 from Autodesk.Revit.DB import Transaction, FabricationConfiguration, BuiltInParameter, FabricationPart, FabricationServiceButton, \
                                 FabricationService, XYZ, ElementTransformUtils, BoundingBoxXYZ, Transform, Line
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+from rpw.ui.forms import FlexForm, Label, ComboBox, TextBox, Separator, Button, CheckBox
 import math
 import os
 
-import clr
-clr.AddReference("System.Windows.Forms")
-clr.AddReference("System.Drawing")
-clr.AddReference("System")
-
-from System.Windows.Forms import *
-from System.Drawing import Point, Size, Font
-from System import Array
 #------------------------------------------------------------------------------------DEFINE SOME VARIABLES EASY USE
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -132,143 +125,59 @@ try:
         else:
             checkboxdefBOI = True
 
-    #-----------------------------------------------------------
+        # Display dialog
+        if lines[0] in buttonnames:
+            components = [
+                Label('Choose Hanger:'),
+                ComboBox('Buttonnum', buttonnames, sort=False, default=lines[0]),
+                Label('Distance from End (Ft):'),
+                TextBox('EndDist', lines[1]),
+                Label('Hanger Spacing (Ft):'),
+                TextBox('Spacing', lines[2]),
+                CheckBox('checkboxBOI', 'Align Trapeze to Bottom of Insulation', default=checkboxdefBOI),
+                CheckBox('checkboxvalue', 'Attach to Structure', default=checkboxdef),
+                Button('Ok')
+            ]
+            form = FlexForm('Hanger and Spacing', components)
+            form.show()
+        else:
+            components = [
+                Label('Choose Hanger:'),
+                ComboBox('Buttonnum', buttonnames, sort=False),
+                Label('Distance from End (Ft):'),
+                TextBox('EndDist', lines[1]),
+                Label('Hanger Spacing (Ft):'),
+                TextBox('Spacing', lines[2]),
+                CheckBox('checkboxBOI', 'Align Trapeze to BOI', default=checkboxdefBOI),
+                CheckBox('checkboxvalue', 'Attach to Structure', default=checkboxdef),
+                Button('Ok')
+            ]
+            form = FlexForm('Hanger and Spacing', components)
+            form.show()
 
-        class HangerSpacingDialog(Form):
-            def __init__(self, buttonnames, lines, checkboxdefBOI, checkboxdef):
-                self.Text = "Hanger and Spacing"
-                self.Size = Size(350, 360)
-                self.StartPosition = FormStartPosition.CenterScreen
-                self.FormBorderStyle = FormBorderStyle.FixedDialog
+        # Convert dialog input into variable
+        Selectedbutton = (form.values['Buttonnum'])
+        # Find the palette_idx and button_idx for the selected button
+        for palette_idx, btn_idx, btn_name in button_data:
+            if btn_name == Selectedbutton:
+                Servicegroupnum = palette_idx
+                Buttonnum = btn_idx
+                break
 
-                # Choose Hanger Label
-                label_hanger = Label()
-                label_hanger.Text = "Choose Hanger:"
-                label_hanger.Location = Point(10, 10)
-                label_hanger.Size = Size(300, 20)
-                label_hanger.Font = Font("Arial", 10)
-                self.Controls.Add(label_hanger)
+        distancefromend = float(form.values['EndDist'])
+        Spacing = float(form.values['Spacing'])
+        BOITrap = (form.values['checkboxBOI'])
+        AtoS = (form.values['checkboxvalue'])
 
-                # Hanger ComboBox
-                self.combobox_hanger = ComboBox()
-                self.combobox_hanger.Location = Point(10, 31)
-                self.combobox_hanger.Size = Size(300, 20)
-                self.combobox_hanger.DropDownStyle = ComboBoxStyle.DropDownList
-                # Directly pass the list as an array
-                self.combobox_hanger.Items.AddRange(Array[object](buttonnames))
-                if lines[0] in buttonnames:
-                    self.combobox_hanger.SelectedItem = lines[0]
-                self.Controls.Add(self.combobox_hanger)
-
-                # Distance from End Label
-                label_end_dist = Label()
-                label_end_dist.Text = "Distance from End (Ft):"
-                label_end_dist.Font = Font("Arial", 10)
-                label_end_dist.Location = Point(10, 60)
-                label_end_dist.Size = Size(300, 20)
-                self.Controls.Add(label_end_dist)
-
-                # Distance from End TextBox
-                self.textbox_end_dist = TextBox()
-                self.textbox_end_dist.Location = Point(10, 80)
-                self.textbox_end_dist.Text = lines[1]
-                self.Controls.Add(self.textbox_end_dist)
-
-                # Hanger Spacing Label
-                label_spacing = Label()
-                label_spacing.Text = "Hanger Spacing (Ft):"
-                label_spacing.Font = Font("Arial", 10)
-                label_spacing.Location = Point(10, 110)
-                label_spacing.Size = Size(300, 20)
-                self.Controls.Add(label_spacing)
-
-                # Hanger Spacing TextBox
-                self.textbox_spacing = TextBox()
-                self.textbox_spacing.Location = Point(10, 130)
-                self.textbox_spacing.Text = lines[2]
-                self.Controls.Add(self.textbox_spacing)
-
-                # Align Trapeze CheckBox
-                self.checkbox_boi = CheckBox()
-                self.checkbox_boi.Text = "Align Trapeze to Bottom of Insulation"
-                self.checkbox_boi.Font = Font("Arial", 10)
-                self.checkbox_boi.Location = Point(10, 160)
-                self.checkbox_boi.Size = Size(300, 20)
-                self.checkbox_boi.Checked = checkboxdefBOI
-                self.Controls.Add(self.checkbox_boi)
-
-                # Attach to Structure CheckBox
-                self.checkbox_attach = CheckBox()
-                self.checkbox_attach.Text = "Attach to Structure"
-                self.checkbox_attach.Font = Font("Arial", 10)
-                self.checkbox_attach.Location = Point(10, 190)
-                self.checkbox_attach.Size = Size(300, 20)
-                self.checkbox_attach.Checked = checkboxdef
-                self.Controls.Add(self.checkbox_attach)
-
-                # Choose Service Label
-                label_service = Label()
-                label_service.Text = "Choose Service to Draw Hanger on:"
-                label_service.Location = Point(10, 220)
-                label_service.Size = Size(300, 20)
-                label_service.Font = Font("Arial", 10)
-                self.Controls.Add(label_service)
-
-                # Service ComboBox
-                self.combobox_service = ComboBox()
-                self.combobox_service.Location = Point(10, 240)
-                self.combobox_service.Size = Size(300, 20)
-                self.combobox_service.DropDownStyle = ComboBoxStyle.DropDownList
-                # Directly pass the list as an array
-                self.combobox_service.Items.AddRange(Array[object](servicenamelist))
-                if lines[3] in servicenamelist:
-                    self.combobox_service.SelectedItem = lines[3]
-                self.Controls.Add(self.combobox_service)
-
-                # OK Button
-                self.button_ok = Button()
-                self.button_ok.Text = "OK"
-                self.button_ok.Font = Font("Arial", 10)
-                self.button_ok.Location = Point(10, 280)
-                self.button_ok.Click += self.ok_button_clicked
-                self.Controls.Add(self.button_ok)
-
-            def ok_button_clicked(self, sender, event):
-                self.DialogResult = DialogResult.OK
-                self.Close()
-
-
-        form = HangerSpacingDialog(buttonnames, lines, checkboxdefBOI, checkboxdef)
-        if form.ShowDialog() == DialogResult.OK:
-            Selectedbutton = form.combobox_hanger.Text
-            distancefromend = form.textbox_end_dist.Text
-            Spacing = form.textbox_spacing.Text
-            BOITrap = form.checkbox_boi.Checked
-            AtoS = form.checkbox_attach.Checked
-            SelectedServiceName = form.combobox_service.Text
-            
-            # Gets matching index of selected element service from the servicenamelist
-            Servicenum = servicenamelist.index(SelectedServiceName)
-
-        #---------------------------------------------------------------------
-            # Convert dialog input into variable
-            Selectedbutton = form.combobox_hanger.Text
-            # Find the palette_idx and button_idx for the selected button
-            for palette_idx, btn_idx, btn_name in button_data:
-                if btn_name == Selectedbutton:
-                    Servicegroupnum = palette_idx
-                    Buttonnum = btn_idx
-                    break
-
-            # write values to text file for future retrieval
-            with open((filepath), 'w') as the_file:
-                line1 = (str(Selectedbutton) + '\n')
-                line2 = (str(distancefromend) + '\n')
-                line3 = (str(Spacing) + '\n')
-                line4 = (SelectedServiceName + '\n')
-                line5 = (str(AtoS) + '\n')
-                line6 = str(BOITrap)
-                the_file.writelines([line1, line2, line3, line4, line5, line6])
+        # write values to text file for future retrieval
+        with open((filepath), 'w') as the_file:
+            line1 = (Selectedbutton + '\n')
+            line2 = (str(distancefromend) + '\n')
+            line3 = (str(Spacing) + '\n')
+            line4 = (parameters + '\n')
+            line5 = (str(AtoS) + '\n')
+            line6 = str(BOITrap)
+            the_file.writelines([line1, line2, line3, line4, line5, line6])
             
         # Check if the button selected is valid   
         validbutton = FabricationService[Servicenum].IsValidButtonIndex(Servicegroupnum,Buttonnum)
@@ -361,18 +270,18 @@ try:
         combined_bounding_box.Max = combined_max
         combined_bounding_box_Center = (combined_bounding_box.Max + combined_bounding_box.Min) / 2
 
-        X_side_xyz = XYZ(combined_bounding_box.Min.X + float(distancefromend), 
+        X_side_xyz = XYZ(combined_bounding_box.Min.X + distancefromend, 
                             combined_bounding_box_Center.Y, 
                             combined_bounding_box_Center.Z)
         Y_side_xyz = XYZ(combined_bounding_box_Center.X, 
-                            combined_bounding_box.Min.Y + float(distancefromend), 
+                            combined_bounding_box.Min.Y + distancefromend, 
                             combined_bounding_box_Center.Z)
 
-        X_side_xyz_opp = XYZ(combined_bounding_box.Max.X - float(distancefromend), 
+        X_side_xyz_opp = XYZ(combined_bounding_box.Max.X - distancefromend, 
                             combined_bounding_box_Center.Y, 
                             combined_bounding_box_Center.Z)
         Y_side_xyz_opp = XYZ(combined_bounding_box_Center.X, 
-                            combined_bounding_box.Max.Y - float(distancefromend), 
+                            combined_bounding_box.Max.Y - distancefromend, 
                             combined_bounding_box_Center.Z)
 
         delta_x = abs(combined_bounding_box.Max.X - combined_bounding_box.Min.X)
@@ -383,11 +292,11 @@ try:
 
         # Calculate how many hangers in the run
         if (delta_x) > (delta_y):
-            qtyofhgrs = int(math.ceil(delta_x / float(Spacing)))
+            qtyofhgrs = int(math.ceil(delta_x / Spacing))
         if (delta_y) > (delta_x):
-            qtyofhgrs = int(math.ceil(delta_y / float(Spacing)))
+            qtyofhgrs = int(math.ceil(delta_y / Spacing))
         
-        IncrementSpacing = float(distancefromend)
+        IncrementSpacing = distancefromend
         #-----------------------------------------------------------------------------------PLACING TRAPS
         
         hangers = []
@@ -413,7 +322,7 @@ try:
             Y_side_xyz = XYZ(combined_bounding_box_Center.X, 
                                 combined_bounding_box.Min.Y + IncrementSpacing, 
                                 combined_bounding_box_Center.Z)
-            IncrementSpacing = IncrementSpacing + float(Spacing)
+            IncrementSpacing = IncrementSpacing + Spacing
 
         #-----------------------------------------------------------------------------------TRAPS IN X DIRECTION, MOVES AND MODIFIES PLACED TRAPS ABOVE
             if (delta_x) > (delta_y):

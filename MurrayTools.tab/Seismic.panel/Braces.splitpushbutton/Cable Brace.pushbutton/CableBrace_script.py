@@ -1,6 +1,7 @@
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family, Structure, XYZ, FabricationPart, FabricationConfiguration, TransactionGroup, BuiltInParameter
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+import math
 
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
@@ -20,6 +21,29 @@ for f in families:
         break
 
 Fam_is_in_project = target_family is not None
+
+def stretch_brace():
+    #This section extends the brace fam to top of hanger rod elevation after its placed.
+    #writes data to TOS Parameter
+    set_parameter_by_name(new_family_instance,"Top of Steel", valuenum)
+    #reads brace angle
+    BraceAngle = get_parameter_value_by_name(new_family_instance, "BraceMainAngle")
+    sinofangle = math.sin(BraceAngle)
+    #reads brace elevation
+    BraceElevation = get_parameter_value_by_name(new_family_instance, 'Offset from Host')
+    #Equation to get the new hypotenus
+    Height = ((valuenum - BraceElevation) - 0.2330)
+    newhypotenus = ((Height / sinofangle) - 0.2290)
+    if newhypotenus < 0:
+        newhypotenus = 1
+    #writes new Brace length to parameter
+    set_parameter_by_name(new_family_instance,"BraceLength", (newhypotenus + 0.083333))
+
+def set_parameter_by_name(element, parameterName, value):
+    element.LookupParameter(parameterName).Set(value)
+
+def get_parameter_value_by_name(element, parameterName):
+    return element.LookupParameter(parameterName).AsDouble()
 
 def get_parameter_value_by_name_AsDouble(element, parameterName):
     return element.LookupParameter(parameterName).AsDouble()
@@ -67,7 +91,7 @@ familyTypes = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Struc
 target_famtype = None
 for famtype in familyTypes:
     typeName = famtype.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
-    if famtype.Family.Id == target_family.Id and typeName == FamilyType:
+    if famtype.Family.Name == FamilyName and typeName == FamilyType:
         target_famtype = famtype
         break
 
@@ -78,23 +102,33 @@ if target_famtype:
     doc.Regenerate()
 
     for hanger in Fhangers:
-        if hanger.GetRodInfo().RodCount == 1:
+        STName = hanger.GetRodInfo().RodCount
+        STName1 = hanger.GetRodInfo()
+        if STName == 1:
             ItmDims = hanger.GetDimensions()
             for dta in ItmDims:
                 if dta.Name == 'Total Height':
                     HangerHeight = hanger.GetDimensionValue(dta)
-            BraceOffsetZ = HangerHeight + 0.01041666
+                    BraceOffsetZ = HangerHeight + 0.036
+                if dta.Name == 'Weld Lug Height':
+                    HangerHeight = hanger.GetDimensionValue(dta)
+                    BraceOffsetZ = HangerHeight + 0.1197916          
             bounding_box = hanger.get_BoundingBox(None)
             if bounding_box is not None:
                 middle_bottom_point = XYZ((bounding_box.Min.X + bounding_box.Max.X) / 2,
                                           (bounding_box.Min.Y + bounding_box.Max.Y) / 2,
                                           bounding_box.Min.Z)
-            new_insertion_point = XYZ(middle_bottom_point.X, middle_bottom_point.Y, middle_bottom_point.Z + BraceOffsetZ)
-            doc.Create.NewFamilyInstance(new_insertion_point, target_famtype, DB.Structure.StructuralType.NonStructural)
 
-        if hanger.GetRodInfo().RodCount > 1:
-            STName = hanger.GetRodInfo().RodCount
-            STName1 = hanger.GetRodInfo()
+            rodloc = STName1.GetRodEndPosition(0)
+            valuenum = rodloc.Z
+ 
+            new_insertion_point = XYZ(middle_bottom_point.X, middle_bottom_point.Y, middle_bottom_point.Z + BraceOffsetZ)
+            new_family_instance = doc.Create.NewFamilyInstance(new_insertion_point, target_famtype, DB.Structure.StructuralType.NonStructural)
+
+            stretch_brace()
+
+
+        if STName > 1:
             bounding_box = hanger.get_BoundingBox(None)
             if bounding_box is not None:
                 middle_bottom_point = XYZ((bounding_box.Min.X + bounding_box.Max.X) / 2,
@@ -102,8 +136,12 @@ if target_famtype:
                                           bounding_box.Min.Z)
             for n in range(STName):
                 rodloc = STName1.GetRodEndPosition(n)
+                valuenum = rodloc.Z
+
                 combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_bottom_point.Z + 0.229166666))
-                doc.Create.NewFamilyInstance(combined_xyz, target_famtype, DB.Structure.StructuralType.NonStructural)
+                new_family_instance = doc.Create.NewFamilyInstance(combined_xyz, target_famtype, DB.Structure.StructuralType.NonStructural)
+                
+                stretch_brace()
 
     t.Commit()
 tg.Assimilate()

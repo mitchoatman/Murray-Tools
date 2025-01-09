@@ -22,25 +22,15 @@ def schedule_exists(schedule_name, category_id):
 # Define the fields for the schedule and their desired order
 fieldNames = [
     ("TS_Point_Number", "ITEM NO"),
-    ("FP_Product Entry", "SIZE (OD of Pipe Including Insulation)"),
-    ("Diameter", "SIZE (With Annular Space)"),
-    ("Elevation from Level", "CL Elevation"),
-    ("Family", "SLEEVE TYPE DR-WS=DROP WS=THRU"),
-    ("FP_Service Abbreviation", "SYSTEM ABBR."),
-    ("FP_Service Name", "SERVICE NAME")
+    ("Pipe Nominal Diameter", "SIZE"),
+    ("Sleeve Length", "LENGTH"),
+    ("Family", "NAME")
 ]
 
-if __shiftclick__:
-    file_name = doc.Title
-    # Get the category id for the elements you want in the schedule
-    categoryId = ElementId(BuiltInCategory.OST_DuctAccessory)
-    # Check if the schedule already exists
-    schedule_name = "WALL SLEEVE SCHEDULE"
-else:
-    # Get the category id for the elements you want in the schedule
-    categoryId = ElementId(BuiltInCategory.OST_PipeAccessory)
-    # Check if the schedule already exists
-    schedule_name = "WALL SLEEVE SCHEDULE"
+# Get the category id for the elements you want in the schedule
+categoryId = ElementId(BuiltInCategory.OST_PipeAccessory)
+# Check if the schedule already exists
+schedule_name = "DECK SLEEVE SCHEDULE"
 
 if not schedule_exists(schedule_name, categoryId):
     # Start a new transaction
