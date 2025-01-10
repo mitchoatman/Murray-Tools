@@ -51,8 +51,72 @@ try:
             except:
                 servicenamelist.append([])
 
+        folder_name = "c:\\Temp"
+        filepath = os.path.join(folder_name, 'Ribbon_PlaceTrapeze.txt')
+        if not os.path.exists(folder_name):
+            os.makedirs(folder_name)
+        if not os.path.exists(filepath):
+            with open((filepath), 'w') as the_file:
+                line1 = ('1.625 Single Strut Trapeze' + '\n')
+                line2 = ('1.0' + '\n')
+                line3 = ('8.0' + '\n')
+                line4 = ('PLUMBING: DOMESTIC COLD WATER' + '\n')
+                line5 = ('True'+ '\n')
+                line6 = 'True'
+                the_file.writelines([line1, line2, line3, line4, line5, line6])
+
+        # read text file for stored values and show them in dialog
+        with open((filepath), 'r') as file:
+            lines = file.readlines()
+            lines = [line.rstrip() for line in lines]
+
+        if len(lines) < 6:
+            with open((filepath), 'w') as the_file:
+                line1 = ('1.625 Single Strut Trapeze' + '\n')
+                line2 = ('1.0' + '\n')
+                line3 = ('8.0' + '\n')
+                line4 = ('PLUMBING: DOMESTIC COLD WATER' + '\n')
+                line5 = ('True'+ '\n')
+                line6 = 'True'
+                the_file.writelines([line1, line2, line3, line4, line5, line6])
+
+        # read text file for stored values and show them in dialog
+        with open((filepath), 'r') as file:
+            lines = file.readlines()
+            lines = [line.rstrip() for line in lines]
+
+        if lines[4] == 'False':
+            checkboxdef = False
+        else:
+            checkboxdef = True
+
+        if lines[5] == 'False':
+            checkboxdefBOI = False
+        else:
+            checkboxdefBOI = True
+
+        # Display dialog
+        if lines[3] in servicenamelist:
+            components = [
+                Label('Choose Service to Place Trapeze on:'),
+                ComboBox('ServiceName', servicenamelist, sort=False, default= lines[3]),
+                Button('Ok')
+                ]
+            form = FlexForm('Fabrication Service', components)
+            form.show()
+        else:
+            components = [
+                Label('Choose Service to Place Trapeze on:'),
+                ComboBox('ServiceName', servicenamelist, sort=False),
+                Button('Ok')
+                ]
+            form = FlexForm('Fabrication Service', components)
+            form.show()
+        # Convert dialog input into variable
+        SelectedServiceName = (form.values['ServiceName'])
+
         # Gets matching index of selected element service from the servicenamelist
-        Servicenum = servicenamelist.index(parameters)
+        Servicenum = servicenamelist.index(SelectedServiceName)
 
         servicelist = []    
         servicelist.append(LoadedServices)
@@ -174,7 +238,7 @@ try:
             line1 = (Selectedbutton + '\n')
             line2 = (str(distancefromend) + '\n')
             line3 = (str(Spacing) + '\n')
-            line4 = (parameters + '\n')
+            line4 = (SelectedServiceName + '\n')
             line5 = (str(AtoS) + '\n')
             line6 = str(BOITrap)
             the_file.writelines([line1, line2, line3, line4, line5, line6])

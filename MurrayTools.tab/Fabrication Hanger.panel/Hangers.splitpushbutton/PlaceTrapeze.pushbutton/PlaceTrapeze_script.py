@@ -50,7 +50,6 @@ try:
         servicenamelist = []
         Config = FabricationConfiguration.GetFabricationConfiguration(doc)
         LoadedServices = Config.GetAllLoadedServices()
-        ServiceBtns = Config.GetAllLoadedItemFiles()
 
         for Item1 in LoadedServices:
             try:
@@ -61,32 +60,21 @@ try:
         # Gets matching index of selected element service from the servicenamelist
         Servicenum = servicenamelist.index(parameters)
 
-        servicelist = []    
-        servicelist.append(LoadedServices)
-        FabricationService = servicelist[0]
-
         # Find all hanger buttons across all palettes/groups
         buttonnames = []
         button_data = []  # Store tuple of (palette_idx, button_idx, button_name)
 
         if RevitINT > 2022:
             palette_count = LoadedServices[Servicenum].PaletteCount
-            for palette_idx in range(palette_count):
-                buttoncount = LoadedServices[Servicenum].GetButtonCount(palette_idx)
-                for btn_idx in range(buttoncount):
-                    bt = LoadedServices[Servicenum].GetButton(palette_idx, btn_idx)
-                    if bt.IsAHanger:
-                        buttonnames.append(bt.Name)
-                        button_data.append((palette_idx, btn_idx, bt.Name))
         else:
-            group_count = LoadedServices[Servicenum].GroupCount
-            for group_idx in range(group_count):
-                buttoncount = LoadedServices[Servicenum].GetButtonCount(group_idx)
-                for btn_idx in range(buttoncount):
-                    bt = LoadedServices[Servicenum].GetButton(group_idx, btn_idx)
-                    if bt.IsAHanger:
-                        buttonnames.append(bt.Name)
-                        button_data.append((group_idx, btn_idx, bt.Name))
+            palette_count = LoadedServices[Servicenum].GroupCount
+        for palette_idx in range(palette_count):
+            buttoncount = LoadedServices[Servicenum].GetButtonCount(palette_idx)
+            for btn_idx in range(buttoncount):
+                bt = LoadedServices[Servicenum].GetButton(palette_idx, btn_idx)
+                if bt.IsAHanger:
+                    buttonnames.append(bt.Name)
+                    button_data.append((palette_idx, btn_idx, bt.Name))
 
         folder_name = "c:\\Temp"
         filepath = os.path.join(folder_name, 'Ribbon_PlaceTrapeze.txt')
@@ -229,7 +217,7 @@ try:
                 self.button_ok = Button()
                 self.button_ok.Text = "OK"
                 self.button_ok.Font = Font("Arial", 10)
-                self.button_ok.Location = Point(10, 280)
+                self.button_ok.Location = Point(((self.Width // 2) - 50), 280)
                 self.button_ok.Click += self.ok_button_clicked
                 self.Controls.Add(self.button_ok)
 
@@ -247,230 +235,244 @@ try:
             AtoS = form.checkbox_attach.Checked
             SelectedServiceName = form.combobox_service.Text
             
-            # Gets matching index of selected element service from the servicenamelist
+            # Gets matching index of selected service from the servicenamelist
             Servicenum = servicenamelist.index(SelectedServiceName)
+            
+            # Initialize a flag to track if the button is found
+            button_found = False
 
-        #---------------------------------------------------------------------
-            # Convert dialog input into variable
-            Selectedbutton = form.combobox_hanger.Text
-            # Find the palette_idx and button_idx for the selected button
-            for palette_idx, btn_idx, btn_name in button_data:
-                if btn_name == Selectedbutton:
-                    Servicegroupnum = palette_idx
-                    Buttonnum = btn_idx
+            # Loop through all services to find the selected button
+            for servicenum, service in enumerate(LoadedServices):
+                if service.Name == SelectedServiceName:
+                    palette_count = service.PaletteCount if RevitINT > 2022 else service.GroupCount
+                    for palette_idx in range(palette_count):
+                        button_count = service.GetButtonCount(palette_idx)
+                        for btn_idx in range(button_count):
+                            bt = service.GetButton(palette_idx, btn_idx)
+                            if bt.Name == Selectedbutton:  # Match selected button name
+                                fab_btn = bt  # Optional: Store the button object for later use
+                                button_found = True  # Mark button as found
+                                break
+                        else:
+                            continue  # Continue outer loop if inner loop was not broken
+                        break
+                    else:
+                        continue  # Continue outer loop if inner loop was not broken
                     break
 
-            # write values to text file for future retrieval
-            with open((filepath), 'w') as the_file:
-                line1 = (str(Selectedbutton) + '\n')
-                line2 = (str(distancefromend) + '\n')
-                line3 = (str(Spacing) + '\n')
-                line4 = (SelectedServiceName + '\n')
-                line5 = (str(AtoS) + '\n')
-                line6 = str(BOITrap)
-                the_file.writelines([line1, line2, line3, line4, line5, line6])
-            
-        # Check if the button selected is valid   
-        validbutton = FabricationService[Servicenum].IsValidButtonIndex(Servicegroupnum,Buttonnum)
-        FabricationServiceButton = FabricationService[Servicenum].GetButton(Servicegroupnum,Buttonnum)
-
-        def GetCenterPoint(ele):
-            bBox = doc.GetElement(ele).get_BoundingBox(None)
-            center = (bBox.Max + bBox.Min) / 2
-            return center
-
-        def myround(x, multiple):
-            return multiple * math.ceil(x/multiple)
-
-        first_pipe_bounding_box = element.get_BoundingBox(curview)
-
-        # Determine Rack Direction
-        # Calculate the differences (deltas) in X, Y, and Z coordinates
-        delta_x = abs(first_pipe_bounding_box.Max.X - first_pipe_bounding_box.Min.X)
-        delta_y = abs(first_pipe_bounding_box.Max.Y - first_pipe_bounding_box.Min.Y)
-
-        #-----------------------------------------------------------------------------------WITH INSULATION
-        # Initialize variables for the combined bounding box with the coordinates of the first bounding box
-        combined_min = first_pipe_bounding_box.Min
-        combined_max = first_pipe_bounding_box.Max
-
-        if (delta_x) > (delta_y):
-            # Iterate through the selected pipes to calculate individual bounding boxes
-            for pipe in selected_elements:
-                pipe_bounding_box = pipe.get_BoundingBox(curview)
-
-                if pipe.HasInsulation:
-                    # Update the combined_min and combined_max coordinates
-                    pipe_bounding_box.Min = XYZ(pipe_bounding_box.Min.X,
-                                                pipe_bounding_box.Min.Y - pipe.InsulationThickness,
-                                                pipe_bounding_box.Min.Z)
+            # Check if the button was found
+            if button_found:
+                
+                # write values to text file for future retrieval
+                with open((filepath), 'w') as the_file:
+                    line1 = (str(Selectedbutton) + '\n')
+                    line2 = (str(distancefromend) + '\n')
+                    line3 = (str(Spacing) + '\n')
+                    line4 = (SelectedServiceName + '\n')
+                    line5 = (str(AtoS) + '\n')
+                    line6 = str(BOITrap)
+                    the_file.writelines([line1, line2, line3, line4, line5, line6])
                     
-                    pipe_bounding_box.Max = XYZ(pipe_bounding_box.Max.X,
-                                                pipe_bounding_box.Max.Y + pipe.InsulationThickness,
-                                                pipe_bounding_box.Max.Z)
+                def GetCenterPoint(ele):
+                    bBox = doc.GetElement(ele).get_BoundingBox(None)
+                    center = (bBox.Max + bBox.Min) / 2
+                    return center
 
-                # Update the combined_min and combined_max coordinates
-                combined_min = XYZ(min(combined_min.X, pipe_bounding_box.Min.X),
-                                    min(combined_min.Y, pipe_bounding_box.Min.Y),
-                                    min(combined_min.Z, pipe_bounding_box.Min.Z))
+                def myround(x, multiple):
+                    return multiple * math.ceil(x/multiple)
 
-                combined_max = XYZ(max(combined_max.X, pipe_bounding_box.Max.X),
-                                    max(combined_max.Y, pipe_bounding_box.Max.Y),
-                                    max(combined_max.Z, pipe_bounding_box.Max.Z))
+                first_pipe_bounding_box = element.get_BoundingBox(curview)
 
-        if (delta_y) > (delta_x):
-            # Iterate through the selected pipes to calculate individual bounding boxes
-            for pipe in selected_elements:
-                pipe_bounding_box = pipe.get_BoundingBox(curview)
+                # Determine Rack Direction
+                # Calculate the differences (deltas) in X, Y, and Z coordinates
+                delta_x = abs(first_pipe_bounding_box.Max.X - first_pipe_bounding_box.Min.X)
+                delta_y = abs(first_pipe_bounding_box.Max.Y - first_pipe_bounding_box.Min.Y)
 
-                if pipe.HasInsulation:
-                    # Update the combined_min and combined_max coordinates
-                    pipe_bounding_box.Min = XYZ(pipe_bounding_box.Min.X - pipe.InsulationThickness,
-                                                pipe_bounding_box.Min.Y,
-                                                pipe_bounding_box.Min.Z)
-                    
-                    pipe_bounding_box.Max = XYZ(pipe_bounding_box.Max.X + pipe.InsulationThickness,
-                                                pipe_bounding_box.Max.Y,
-                                                pipe_bounding_box.Max.Z)
+                #-----------------------------------------------------------------------------------WITH INSULATION
+                # Initialize variables for the combined bounding box with the coordinates of the first bounding box
+                combined_min = first_pipe_bounding_box.Min
+                combined_max = first_pipe_bounding_box.Max
 
-                # Update the combined_min and combined_max coordinates
-                combined_min = XYZ(min(combined_min.X, pipe_bounding_box.Min.X),
-                                    min(combined_min.Y, pipe_bounding_box.Min.Y),
-                                    min(combined_min.Z, pipe_bounding_box.Min.Z))
+                if (delta_x) > (delta_y):
+                    # Iterate through the selected pipes to calculate individual bounding boxes
+                    for pipe in selected_elements:
+                        pipe_bounding_box = pipe.get_BoundingBox(curview)
 
-                combined_max = XYZ(max(combined_max.X, pipe_bounding_box.Max.X),
-                                    max(combined_max.Y, pipe_bounding_box.Max.Y),
-                                    max(combined_max.Z, pipe_bounding_box.Max.Z))
+                        if pipe.HasInsulation:
+                            # Update the combined_min and combined_max coordinates
+                            pipe_bounding_box.Min = XYZ(pipe_bounding_box.Min.X,
+                                                        pipe_bounding_box.Min.Y - pipe.InsulationThickness,
+                                                        pipe_bounding_box.Min.Z)
+                            
+                            pipe_bounding_box.Max = XYZ(pipe_bounding_box.Max.X,
+                                                        pipe_bounding_box.Max.Y + pipe.InsulationThickness,
+                                                        pipe_bounding_box.Max.Z)
 
-        # Function to get the reference level of a hanger
-        def get_reference_level(hanger):
-            level_id = hanger.LevelId
-            level = doc.GetElement(level_id)
-            return level
+                        # Update the combined_min and combined_max coordinates
+                        combined_min = XYZ(min(combined_min.X, pipe_bounding_box.Min.X),
+                                            min(combined_min.Y, pipe_bounding_box.Min.Y),
+                                            min(combined_min.Z, pipe_bounding_box.Min.Z))
 
-        # Function to get the elevation of the reference level
-        def get_level_elevation(level):
-            if level:
-                return level.Elevation
+                        combined_max = XYZ(max(combined_max.X, pipe_bounding_box.Max.X),
+                                            max(combined_max.Y, pipe_bounding_box.Max.Y),
+                                            max(combined_max.Z, pipe_bounding_box.Max.Z))
+
+                if (delta_y) > (delta_x):
+                    # Iterate through the selected pipes to calculate individual bounding boxes
+                    for pipe in selected_elements:
+                        pipe_bounding_box = pipe.get_BoundingBox(curview)
+
+                        if pipe.HasInsulation:
+                            # Update the combined_min and combined_max coordinates
+                            pipe_bounding_box.Min = XYZ(pipe_bounding_box.Min.X - pipe.InsulationThickness,
+                                                        pipe_bounding_box.Min.Y,
+                                                        pipe_bounding_box.Min.Z)
+                            
+                            pipe_bounding_box.Max = XYZ(pipe_bounding_box.Max.X + pipe.InsulationThickness,
+                                                        pipe_bounding_box.Max.Y,
+                                                        pipe_bounding_box.Max.Z)
+
+                        # Update the combined_min and combined_max coordinates
+                        combined_min = XYZ(min(combined_min.X, pipe_bounding_box.Min.X),
+                                            min(combined_min.Y, pipe_bounding_box.Min.Y),
+                                            min(combined_min.Z, pipe_bounding_box.Min.Z))
+
+                        combined_max = XYZ(max(combined_max.X, pipe_bounding_box.Max.X),
+                                            max(combined_max.Y, pipe_bounding_box.Max.Y),
+                                            max(combined_max.Z, pipe_bounding_box.Max.Z))
+
+                # Function to get the reference level of a hanger
+                def get_reference_level(hanger):
+                    level_id = hanger.LevelId
+                    level = doc.GetElement(level_id)
+                    return level
+
+                # Function to get the elevation of the reference level
+                def get_level_elevation(level):
+                    if level:
+                        return level.Elevation
+                    else:
+                        return None
+
+                # Create a new combined bounding box using the calculated coordinates
+                combined_bounding_box = BoundingBoxXYZ()
+                combined_bounding_box.Min = combined_min
+                combined_bounding_box.Max = combined_max
+                combined_bounding_box_Center = (combined_bounding_box.Max + combined_bounding_box.Min) / 2
+
+                X_side_xyz = XYZ(combined_bounding_box.Min.X + float(distancefromend), 
+                                    combined_bounding_box_Center.Y, 
+                                    combined_bounding_box_Center.Z)
+                Y_side_xyz = XYZ(combined_bounding_box_Center.X, 
+                                    combined_bounding_box.Min.Y + float(distancefromend), 
+                                    combined_bounding_box_Center.Z)
+
+                X_side_xyz_opp = XYZ(combined_bounding_box.Max.X - float(distancefromend), 
+                                    combined_bounding_box_Center.Y, 
+                                    combined_bounding_box_Center.Z)
+                Y_side_xyz_opp = XYZ(combined_bounding_box_Center.X, 
+                                    combined_bounding_box.Max.Y - float(distancefromend), 
+                                    combined_bounding_box_Center.Z)
+
+                delta_x = abs(combined_bounding_box.Max.X - combined_bounding_box.Min.X)
+                delta_y = abs(combined_bounding_box.Max.Y - combined_bounding_box.Min.Y)
+
+                #-----------------------------------------------------------------------------------SETUP SPACING
+                Dimensions = []
+
+                # Calculate how many hangers in the run
+                if (delta_x) > (delta_y):
+                    qtyofhgrs = int(math.ceil(delta_x / float(Spacing)))
+                if (delta_y) > (delta_x):
+                    qtyofhgrs = int(math.ceil(delta_y / float(Spacing)))
+                
+                IncrementSpacing = float(distancefromend)
+                #-----------------------------------------------------------------------------------PLACING TRAPS
+                
+                hangers = []
+                
+                t = Transaction(doc, 'Place Trapeze Hanger')
+                t.Start()
+                for hgr in range(qtyofhgrs):
+                    #--------------DRAWS TRAP AT 0,0,0--------------#
+                    hanger = FabricationPart.CreateHanger(doc, fab_btn, 0, level_id)
+                    #--------------DRAWS TRAP AT 0,0,0--------------#
+
+                    # Append each instance to the list
+                    hangers.append(hanger)
+                t.Commit()
+
+                t = Transaction(doc, 'Modify Trapeze Hanger')
+                t.Start()
+
+                for hanger in hangers:
+                    X_side_xyz = XYZ(combined_bounding_box.Min.X + IncrementSpacing, 
+                                        combined_bounding_box_Center.Y, 
+                                        combined_bounding_box_Center.Z)
+                    Y_side_xyz = XYZ(combined_bounding_box_Center.X, 
+                                        combined_bounding_box.Min.Y + IncrementSpacing, 
+                                        combined_bounding_box_Center.Z)
+                    IncrementSpacing = IncrementSpacing + float(Spacing)
+
+                #-----------------------------------------------------------------------------------TRAPS IN X DIRECTION, MOVES AND MODIFIES PLACED TRAPS ABOVE
+                    if (delta_x) > (delta_y):
+                        newwidth = (myround((delta_y * 12), 2) / 12)
+                        for dim in hanger.GetDimensions():
+                            Dimensions.append(dim.Name)
+                            if dim.Name == "Width":
+                                width_value = hanger.GetDimensionValue(dim)
+                                hanger.SetDimensionValue(dim, delta_y)
+                            if dim.Name == "Bearer Extn":
+                                bearer_value = hanger.GetDimensionValue(dim)
+                                hanger.SetDimensionValue(dim, 0.25)
+                            translation = X_side_xyz - GetCenterPoint(hanger.Id)
+                            ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
+                            reference_level = get_reference_level(hanger)
+                            if reference_level:
+                                elevation = get_level_elevation(reference_level)
+                            if BOITrap:
+                                hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(PRTElevation)
+                            else:
+                                hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(combined_bounding_box.Min.Z - elevation)
+
+                #-----------------------------------------------------------------------------------TRAPS IN Y DIRECTION, MOVES AND MODIFIES PLACED TRAPS ABOVE
+                    if (delta_y) > (delta_x):
+                        #---------------ROTATION OF TRAP---------------#
+                        # Specify the Z-axis direction (adjust as needed)
+                        z_axis_direction = XYZ(0, 0, 1)  # Assuming positive Z direction
+
+                        # Create a list of points for the curve
+                        curve_points = [GetCenterPoint(hanger.Id), GetCenterPoint(hanger.Id) + z_axis_direction * 2]  # Adjust the length as needed
+
+                        # Create a curve using the points
+                        curve = Autodesk.Revit.DB.Line.CreateBound(curve_points[0], curve_points[1])
+                        ElementTransformUtils.RotateElement(doc, hanger.Id, curve, (90.0 * (math.pi / 180.0)))
+                        #---------------ROTATION OF TRAP---------------#
+
+                        newwidth = (myround((delta_x * 12), 2) / 12)
+                        for dim in hanger.GetDimensions():
+                            Dimensions.append(dim.Name)
+                            if dim.Name == "Width":
+                                width_value = hanger.GetDimensionValue(dim)
+                                hanger.SetDimensionValue(dim, delta_x)
+                            if dim.Name == "Bearer Extn":
+                                bearer_value = hanger.GetDimensionValue(dim)
+                                hanger.SetDimensionValue(dim, 0.25)
+                            translation = Y_side_xyz - GetCenterPoint(hanger.Id)
+                            ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
+                            reference_level = get_reference_level(hanger)
+                            if reference_level:
+                                elevation = get_level_elevation(reference_level)
+                            if BOITrap:
+                                hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(PRTElevation)
+                            else:
+                                hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(combined_bounding_box.Min.Z - elevation)
+                    if AtoS:
+                        hanger.GetRodInfo().AttachToStructure()
+                t.Commit()
             else:
-                return None
-
-        # Create a new combined bounding box using the calculated coordinates
-        combined_bounding_box = BoundingBoxXYZ()
-        combined_bounding_box.Min = combined_min
-        combined_bounding_box.Max = combined_max
-        combined_bounding_box_Center = (combined_bounding_box.Max + combined_bounding_box.Min) / 2
-
-        X_side_xyz = XYZ(combined_bounding_box.Min.X + float(distancefromend), 
-                            combined_bounding_box_Center.Y, 
-                            combined_bounding_box_Center.Z)
-        Y_side_xyz = XYZ(combined_bounding_box_Center.X, 
-                            combined_bounding_box.Min.Y + float(distancefromend), 
-                            combined_bounding_box_Center.Z)
-
-        X_side_xyz_opp = XYZ(combined_bounding_box.Max.X - float(distancefromend), 
-                            combined_bounding_box_Center.Y, 
-                            combined_bounding_box_Center.Z)
-        Y_side_xyz_opp = XYZ(combined_bounding_box_Center.X, 
-                            combined_bounding_box.Max.Y - float(distancefromend), 
-                            combined_bounding_box_Center.Z)
-
-        delta_x = abs(combined_bounding_box.Max.X - combined_bounding_box.Min.X)
-        delta_y = abs(combined_bounding_box.Max.Y - combined_bounding_box.Min.Y)
-
-        #-----------------------------------------------------------------------------------SETUP SPACING
-        Dimensions = []
-
-        # Calculate how many hangers in the run
-        if (delta_x) > (delta_y):
-            qtyofhgrs = int(math.ceil(delta_x / float(Spacing)))
-        if (delta_y) > (delta_x):
-            qtyofhgrs = int(math.ceil(delta_y / float(Spacing)))
-        
-        IncrementSpacing = float(distancefromend)
-        #-----------------------------------------------------------------------------------PLACING TRAPS
-        
-        hangers = []
-        
-        t = Transaction(doc, 'Place Trapeze Hanger')
-        t.Start()
-        for hgr in range(qtyofhgrs):
-            #--------------DRAWS TRAP AT 0,0,0--------------#
-            hanger = FabricationPart.CreateHanger(doc, FabricationServiceButton, 0, level_id)
-            #--------------DRAWS TRAP AT 0,0,0--------------#
-
-            # Append each instance to the list
-            hangers.append(hanger)
-        t.Commit()
-
-        t = Transaction(doc, 'Modify Trapeze Hanger')
-        t.Start()
-
-        for hanger in hangers:
-            X_side_xyz = XYZ(combined_bounding_box.Min.X + IncrementSpacing, 
-                                combined_bounding_box_Center.Y, 
-                                combined_bounding_box_Center.Z)
-            Y_side_xyz = XYZ(combined_bounding_box_Center.X, 
-                                combined_bounding_box.Min.Y + IncrementSpacing, 
-                                combined_bounding_box_Center.Z)
-            IncrementSpacing = IncrementSpacing + float(Spacing)
-
-        #-----------------------------------------------------------------------------------TRAPS IN X DIRECTION, MOVES AND MODIFIES PLACED TRAPS ABOVE
-            if (delta_x) > (delta_y):
-                newwidth = (myround((delta_y * 12), 2) / 12)
-                for dim in hanger.GetDimensions():
-                    Dimensions.append(dim.Name)
-                    if dim.Name == "Width":
-                        width_value = hanger.GetDimensionValue(dim)
-                        hanger.SetDimensionValue(dim, delta_y)
-                    if dim.Name == "Bearer Extn":
-                        bearer_value = hanger.GetDimensionValue(dim)
-                        hanger.SetDimensionValue(dim, 0.25)
-                    translation = X_side_xyz - GetCenterPoint(hanger.Id)
-                    ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
-                    reference_level = get_reference_level(hanger)
-                    if reference_level:
-                        elevation = get_level_elevation(reference_level)
-                    if BOITrap:
-                        hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(PRTElevation)
-                    else:
-                        hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(combined_bounding_box.Min.Z - elevation)
-
-        #-----------------------------------------------------------------------------------TRAPS IN Y DIRECTION, MOVES AND MODIFIES PLACED TRAPS ABOVE
-            if (delta_y) > (delta_x):
-                #---------------ROTATION OF TRAP---------------#
-                # Specify the Z-axis direction (adjust as needed)
-                z_axis_direction = XYZ(0, 0, 1)  # Assuming positive Z direction
-
-                # Create a list of points for the curve
-                curve_points = [GetCenterPoint(hanger.Id), GetCenterPoint(hanger.Id) + z_axis_direction * 2]  # Adjust the length as needed
-
-                # Create a curve using the points
-                curve = Autodesk.Revit.DB.Line.CreateBound(curve_points[0], curve_points[1])
-                ElementTransformUtils.RotateElement(doc, hanger.Id, curve, (90.0 * (math.pi / 180.0)))
-                #---------------ROTATION OF TRAP---------------#
-
-                newwidth = (myround((delta_x * 12), 2) / 12)
-                for dim in hanger.GetDimensions():
-                    Dimensions.append(dim.Name)
-                    if dim.Name == "Width":
-                        width_value = hanger.GetDimensionValue(dim)
-                        hanger.SetDimensionValue(dim, delta_x)
-                    if dim.Name == "Bearer Extn":
-                        bearer_value = hanger.GetDimensionValue(dim)
-                        hanger.SetDimensionValue(dim, 0.25)
-                    translation = Y_side_xyz - GetCenterPoint(hanger.Id)
-                    ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
-                    reference_level = get_reference_level(hanger)
-                    if reference_level:
-                        elevation = get_level_elevation(reference_level)
-                    if BOITrap:
-                        hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(PRTElevation)
-                    else:
-                        hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM).Set(combined_bounding_box.Min.Z - elevation)
-            if AtoS:
-                hanger.GetRodInfo().AttachToStructure()
-        t.Commit()
+                # If the button was not found, print the error message
+                print "'{}' not found in '{}'".format(Selectedbutton, SelectedServiceName)
     else:
         print 'Coming Soon... \nYou will be able to place a trapeze on a ptrap'
 except:
