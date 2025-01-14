@@ -44,10 +44,9 @@ t.Start()
 
 for view in selected_views:
     # Set the crop box properties for the active view
+    view.CropBox = bbox
     view.CropBoxActive = True
     view.CropBoxVisible = True
-    view.CropBox = bbox
-
 t.Commit()
 # else:
     # print("Active view is not a Floor Plan view.")

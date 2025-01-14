@@ -4,8 +4,6 @@ from Autodesk.Revit.DB import Line, InsulationLiningBase, Transaction, Element, 
 from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
 from Autodesk.Revit import Exceptions
 from pyrevit import forms, script
-import rpw
-from rpw import logger
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -114,7 +112,7 @@ def connect_to():
                 moved_element.Location.Rotate(line, angle - pi)
             # Revit don't like angle and distance too close to 0
             except Exceptions.ArgumentsInconsistentException:
-                logger.debug("Vector : {} ; Angle : {}".format(vector, angle))
+                print ("Vector : {} ; Angle : {}".format(vector, angle))
         # Move element in order match connector position
         moved_element.Location.Move(target_connector.Origin - moved_connector.Origin)
         # Connect connectors

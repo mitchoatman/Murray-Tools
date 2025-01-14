@@ -64,17 +64,27 @@ try:
         buttonnames = []
         button_data = []  # Store tuple of (palette_idx, button_idx, button_name)
 
-        if RevitINT > 2022:
-            palette_count = LoadedServices[Servicenum].PaletteCount
-        else:
-            palette_count = LoadedServices[Servicenum].GroupCount
-        for palette_idx in range(palette_count):
-            buttoncount = LoadedServices[Servicenum].GetButtonCount(palette_idx)
-            for btn_idx in range(buttoncount):
-                bt = LoadedServices[Servicenum].GetButton(palette_idx, btn_idx)
-                if bt.IsAHanger:
-                    buttonnames.append(bt.Name)
-                    button_data.append((palette_idx, btn_idx, bt.Name))
+        buttonnames = []
+        button_data = []
+
+        buttonnames = []
+        unique_hangers = set()  # To track unique hanger button names
+
+        for service_idx, service in enumerate(LoadedServices):  # Loop through all loaded services
+            if RevitINT > 2022:
+                palette_count = service.PaletteCount  # Get palette count for Revit 2023 and newer
+            else:
+                palette_count = service.GroupCount  # Get group count for older Revit versions
+
+            for palette_idx in range(palette_count):  # Loop through each palette/group in the service
+                buttoncount = service.GetButtonCount(palette_idx)  # Get button count for the current palette/group
+
+                for btn_idx in range(buttoncount):  # Loop through each button in the palette/group
+                    bt = service.GetButton(palette_idx, btn_idx)  # Get the button
+
+                    if bt.IsAHanger and bt.Name not in unique_hangers:  # Check if the button is a hanger and is unique
+                        unique_hangers.add(bt.Name)  # Add to the set of unique hangers
+                        buttonnames.append(bt.Name)  # Add to the final list of button names
 
         folder_name = "c:\\Temp"
         filepath = os.path.join(folder_name, 'Ribbon_PlaceTrapeze.txt')

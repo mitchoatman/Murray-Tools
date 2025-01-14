@@ -13,7 +13,7 @@ tooltip: |-
     4. You must use a window to select.
        (even when selecting one hanger)
        
-    Hold [SHIFT] to apply a rod size scheme to selected hangers.
+    [Shift]+Click:] to apply a rod size scheme to selected hangers.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

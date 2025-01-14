@@ -125,6 +125,7 @@ actions = [
     lambda x: set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') \
     else set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Size')) if x.Alias != 'TRM' \
     else set_parameter_by_name(x, 'FP_Product Entry', (get_parameter_value_by_name_AsString(x, 'Size') or '') + ' x ' + (get_parameter_value_by_name_AsValueString(x, 'Angle') or '')),
+    lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength),
     ]
 
 # Apply the actions to the respective element collections
@@ -138,6 +139,7 @@ safely_set_parameter(actions[6], hanger_collector)
 safely_set_parameter(actions[7], hanger_collector)
 safely_set_parameter(actions[8], AllElements)
 safely_set_parameter(actions[9], pipe_collector)
+safely_set_parameter(actions[10], duct_collector)
 
 try:
     for x in AllElements:

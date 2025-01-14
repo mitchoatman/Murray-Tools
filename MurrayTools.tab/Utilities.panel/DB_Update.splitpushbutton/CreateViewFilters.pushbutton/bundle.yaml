@@ -17,6 +17,9 @@ tooltip: |-
 
   Use the separate "Copy VG Filters" button for that.
 
+  [Shift]+Click:    
+  Removes all view filters in the project. USE WITH CAUTION!
+
 # context directives are listed under `context` key, the order does not matter
 
 # context:

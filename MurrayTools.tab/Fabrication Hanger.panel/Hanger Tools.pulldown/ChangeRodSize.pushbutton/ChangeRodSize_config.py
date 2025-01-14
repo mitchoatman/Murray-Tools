@@ -1,6 +1,6 @@
 
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FabricationPart, FabricationAncillaryUsage, Transaction, TransactionGroup
+from Autodesk.Revit.DB import FabricationPart, FabricationAncillaryUsage, Transaction, TransactionGroup, FilteredElementCollector, ElementCategoryFilter, BuiltInCategory
 from Autodesk.Revit.UI.Selection import *
 from rpw.ui.forms import FlexForm, Label, TextBox, Separator, Button
 from pyrevit import script
@@ -11,6 +11,7 @@ Shared_Params()
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+curview = doc.ActiveView
 
 def convert_fractions(string):
     # Remove double quotes (") from the input string.
@@ -143,32 +144,17 @@ try:
     if rod375 == 0.0 or '':
         rod375 = 0
 
-    #-----left this info for reference-----
-    # if value == 'G - 1-1/4':
-        # newrodkit = 70
-    # if value == 'F - 1':
-        # newrodkit = 67
-    # if rod875:
-        # newrodkit = 64
-    # if rod075:
-        # newrodkit = 62
-    # if rod625:
-        # newrodkit = 31
-    # if rod050:
-        # newrodkit = 42
-    # if rod375:
-        # newrodkit = 58
-    #-----left this info for reference-----
-
-    pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
-    CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers")            
-    hangers = [doc.GetElement( elId ) for elId in pipesel]
+    # Creating collector instance and collecting all the fabrication hangers from the model
+    hangers = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers) \
+                       .WhereElementIsNotElementType() \
+                       .ToElements()
 
     tg = TransactionGroup(doc, "Change Hanger Rod")
     tg.Start()
 
     t = Transaction(doc, "Set Hanger Rod")
     t.Start()
+    hangers_without_host_printed = False  # Flag to ensure the message is printed only once
     for hanger in hangers:
         hosted_info = hanger.GetHostedInfo().HostId
         try:
@@ -187,19 +173,21 @@ try:
             # Set rod size.
             hanger.HangerRodKit = newrodkit
         except:
+            if not hangers_without_host_printed:
+                print("HANGERS WITHOUT A HOST")  # Print the message only once
+                hangers_without_host_printed = True
             output = script.get_output()
             print('{}: {}'.format((get_parameter_value_by_name_AsValueString(hanger, 'Family')), output.linkify(hanger.Id)))
     t.Commit()
-    
+
     t = Transaction(doc, "Update FP Parameter")
     t.Start()
     for x in hangers:
         [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
     t.Commit()
-    
+
     #End Transaction Group
     tg.Assimilate()
-    
 except:
     pass
 

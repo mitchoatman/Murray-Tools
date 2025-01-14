@@ -32,10 +32,9 @@ if str(curview.ViewType) == 'FloorPlan':
     t.Start()
     
     # Set the crop box properties for the active view
+    curview.CropBox = bbox
     curview.CropBoxActive = True
     curview.CropBoxVisible = True
-    curview.CropBox = bbox
-
     t.Commit()
 else:
     print("Active view is not a Floor Plan view.")
