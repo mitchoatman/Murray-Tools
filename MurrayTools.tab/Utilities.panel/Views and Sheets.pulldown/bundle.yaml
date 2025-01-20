@@ -2,6 +2,7 @@ layout:
   - Create Sketch View
   - CreateSheetFromView
   - DuplicateView
+  - Create3DViews
   - Rename_Sheets_Views
   - SetCropRegion
 

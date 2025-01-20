@@ -1,20 +1,20 @@
-File: "www.msn.com"
-#highlight: new
+highlight: new
+#highlight: updated
 
 # bundle title
 title:
-  "Select\nALL Hangers"
+  "Create 3D \nView(s)"
 
 # bundle tooltip
-tooltip: |-
-  Selects all Fabrication hangers in active view.
-  1. Execute command.
-  2. All hangers in the view will be selected.
-  3. Do what you will with the selected elements. Isolate etc...
+tooltip: >-
+  Creates a 3D View for every level in the project.
+      1. Run command.
+      2. Views will be created
 
 # context directives are listed under `context` key, the order does not matter
 #context:
-#  - Selection
+#  - Walls
+#  - Text Notes
 
 # bundle help url
 #help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"

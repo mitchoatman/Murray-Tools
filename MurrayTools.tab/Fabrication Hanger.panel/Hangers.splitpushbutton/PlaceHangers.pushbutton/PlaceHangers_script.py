@@ -158,6 +158,32 @@ try:
         def AllowReference(self, ref, point):
             return True
 
+    from Autodesk.Revit.DB import XYZ
+
+    def vertical_fab(pipe):
+        """
+        Determines if a fabrication pipe is vertical by comparing connector coordinates.
+        :param pipe: The fabrication pipe element.
+        :return: True if the pipe is vertical, False otherwise.
+        """
+        # Get the connectors of the pipe
+        connectors = pipe.ConnectorManager.Connectors
+        connector_points = [connector.Origin for connector in connectors]
+
+        # Ensure there are at least two connectors to compare
+        if len(connector_points) >= 2:
+            # Extract the first two connector points
+            point1 = connector_points[0]
+            point2 = connector_points[1]
+
+            # Compare X and Y coordinates of the two points
+            if abs(point1.X - point2.X) < 0.001 and abs(point1.Y - point2.Y) < 0.001:
+                # X and Y coordinates are the same (or very close), so the pipe is vertical
+                return True
+
+        # If connectors differ in X or Y, the pipe is not vertical
+        return False
+
     pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
     CustomISelectionFilter(parameters), "Select pipes to place hangers on")            
     Pipe = [doc.GetElement( elId ) for elId in pipesel]
@@ -168,33 +194,35 @@ try:
 
     for e in Pipe:
         if e.LookupParameter('Part Pattern Number').AsInteger() in (2041, 866, 40):
-            # get length of pipe
-            pipelen = e.CenterlineLength
-            # test if pipe is long enough for hanger
-            if pipelen > distancefromend:
-                # block of code to get connectors on both ends of pipe
-                pipe_connector = e.ConnectorManager.Connectors
-                # checking if support joint option was selected in dialog
-                if SupportJoint == True:
-                    # setting up and increment addition loop
-                    IncrementSpacing = distancefromend
+            if not vertical_fab(e):
+                # get length of pipe
+                pipelen = e.CenterlineLength
+                # test if pipe is long enough for hanger
+                if pipelen > distancefromend:
                     # block of code to get connectors on both ends of pipe
-                    try:
-                        for connector in pipe_connector:
-                            # adding hangers to each end of pipe by end distance specified
-                            FabricationPart.CreateHanger(doc, FabricationServiceButton, e.Id, connector, distancefromend, AtoS)
-                        # testing if pipe is long enough for hangers and spacing
-                        if pipelen > (int(Spacing) + (distancefromend * 2)):
-                            
-                            # calculating how many hangers spaced on pipe are required
-                            qtyofhgrs = range(int((math.floor(pipelen) - (distancefromend * 3)) / Spacing))
-                            
-                            # looping thru qty of hangers and placing them
-                            for hgr in qtyofhgrs:
-                                IncrementSpacing = IncrementSpacing + Spacing
-                                FabricationPart.CreateHanger(doc, FabricationServiceButton, e.Id, connector, IncrementSpacing, AtoS)
-                    except:
-                        pass
+                    pipe_connector = e.ConnectorManager.Connectors
+
+                    # checking if support joint option was selected in dialog
+                    if SupportJoint == True:
+                        # setting up and increment addition loop
+                        IncrementSpacing = distancefromend
+                        # block of code to get connectors on both ends of pipe
+                        try:
+                            for connector in pipe_connector:
+                                # adding hangers to each end of pipe by end distance specified
+                                FabricationPart.CreateHanger(doc, FabricationServiceButton, e.Id, connector, distancefromend, AtoS)
+                            # testing if pipe is long enough for hangers and spacing
+                            if pipelen > (int(Spacing) + (distancefromend * 2)):
+                                
+                                # calculating how many hangers spaced on pipe are required
+                                qtyofhgrs = range(int((math.floor(pipelen) - (distancefromend * 3)) / Spacing))
+                                
+                                # looping thru qty of hangers and placing them
+                                for hgr in qtyofhgrs:
+                                    IncrementSpacing = IncrementSpacing + Spacing
+                                    FabricationPart.CreateHanger(doc, FabricationServiceButton, e.Id, connector, IncrementSpacing, AtoS)
+                        except:
+                            pass
 
     if SupportJoint == False:
         # Get total run length and create ordered list of pipe segments
@@ -203,49 +231,50 @@ try:
         
         for pipe in Pipe:
             if pipe.LookupParameter('Part Pattern Number').AsInteger() in (2041, 866, 40):
-                # Create tuple of (pipe, start_position)
-                pipe_segments.append((pipe, total_run_length))
-                total_run_length += pipe.CenterlineLength
+                if not vertical_fab(pipe):
+                    # Create tuple of (pipe, start_position)
+                    pipe_segments.append((pipe, total_run_length))
+                    total_run_length += pipe.CenterlineLength
 
-        # Calculate number of hangers needed for entire run
-        first_hanger_pos = distancefromend
-        last_hanger_pos = total_run_length - distancefromend
-        
-        if last_hanger_pos > first_hanger_pos:
-            current_position = first_hanger_pos
+            # Calculate number of hangers needed for entire run
+            first_hanger_pos = distancefromend
+            last_hanger_pos = total_run_length - distancefromend
             
-            while current_position <= last_hanger_pos:
-                # Find which pipe segment this position falls on
-                current_segment = None
-                local_position = current_position
+            if last_hanger_pos > first_hanger_pos:
+                current_position = first_hanger_pos
                 
-                for pipe, start_pos in pipe_segments:
-                    pipe_end = start_pos + pipe.CenterlineLength
-                    if start_pos <= current_position < pipe_end:
-                        current_segment = pipe
-                        local_position = current_position - start_pos
-                        break
-                
-                if current_segment:
-                    try:
-                        # Get first connector of current pipe segment
-                        pipe_connector = current_segment.ConnectorManager.Connectors
-                        first_connector = next(iter(pipe_connector))
-                        
-                        # Place hanger at calculated position
-                        FabricationPart.CreateHanger(
-                            doc, 
-                            FabricationServiceButton, 
-                            current_segment.Id, 
-                            first_connector, 
-                            local_position,
-                            AtoS
-                        )
-                    except Exception as e:
-                        print("Failed to place hanger")
-                
-                # Move to next hanger position
-                current_position += Spacing
+                while current_position <= last_hanger_pos:
+                    # Find which pipe segment this position falls on
+                    current_segment = None
+                    local_position = current_position
+                    
+                    for pipe, start_pos in pipe_segments:
+                        pipe_end = start_pos + pipe.CenterlineLength
+                        if start_pos <= current_position < pipe_end:
+                            current_segment = pipe
+                            local_position = current_position - start_pos
+                            break
+                    
+                    if current_segment:
+                        try:
+                            # Get first connector of current pipe segment
+                            pipe_connector = current_segment.ConnectorManager.Connectors
+                            first_connector = next(iter(pipe_connector))
+                            
+                            # Place hanger at calculated position
+                            FabricationPart.CreateHanger(
+                                doc, 
+                                FabricationServiceButton, 
+                                current_segment.Id, 
+                                first_connector, 
+                                local_position,
+                                AtoS
+                            )
+                        except Exception as e:
+                            print("Failed to place hanger")
+                    
+                    # Move to next hanger position
+                    current_position += Spacing
 
     # end transaction
     t.Commit()

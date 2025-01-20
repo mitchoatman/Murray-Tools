@@ -51,16 +51,6 @@ def get_parameter_value_by_name_AsValueString(element, parameterName):
 def set_parameter_by_name(element, parameterName, value):
     element.LookupParameter(parameterName).Set(value)
 
-class CustomISelectionFilter(ISelectionFilter):
-    def __init__(self, nom_categorie):
-        self.nom_categorie = nom_categorie
-    def AllowElement(self, e):
-        if e.Category.Name == self.nom_categorie:
-            return True
-        else:
-            return False
-    def AllowReference(self, ref, point):
-        return true
 try:
     folder_name = "c:\\Temp"
     filepath = os.path.join(folder_name, 'Ribbon_AutoRodSize.txt')

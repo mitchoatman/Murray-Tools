@@ -3,6 +3,7 @@ layout:
   - Pipe Wall Sleeve
   - Round_Duct_Wall_Sleeve
   - Rect_Duct_Wall_Sleeve
+  - PointLayoutConfig
   
 background:
 #  title: 'D5D5CD'

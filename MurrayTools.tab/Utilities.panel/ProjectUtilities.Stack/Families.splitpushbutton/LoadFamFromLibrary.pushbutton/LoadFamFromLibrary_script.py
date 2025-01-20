@@ -37,9 +37,9 @@ try:
     success = doc.LoadFamily(family_path, load_options, loaded_family)
     
     if success:
-        print "Family '{}' loaded successfully.".format(family_path)
+        forms.show_balloon('Load Family', "Family '{}' loaded successfully.".format(family_path))
         if loaded_family.Value:
-            print "Loaded Family Name: {}".format(loaded_family.Value.Name)
+                    forms.show_balloon('Load Family', "Loaded Family Name: {}".format(loaded_family.Value.Name))
     else:
         print "Failed to load family '{}'.".format(family_path)
     

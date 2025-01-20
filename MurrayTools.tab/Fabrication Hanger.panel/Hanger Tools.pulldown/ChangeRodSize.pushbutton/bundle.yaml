@@ -1,4 +1,4 @@
-#highlight: new
+highlight: updated
 
 # bundle title
 title:
@@ -14,7 +14,7 @@ tooltip: |-
        (even when selecting one hanger)
  
   [Shift]+Click:    
-   Apply a rod size scheme to selected hangers.
+   Apply a rod size schedule to hangers in active view.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

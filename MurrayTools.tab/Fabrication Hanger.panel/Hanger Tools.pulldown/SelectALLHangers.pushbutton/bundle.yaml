@@ -1,0 +1,25 @@
+File: "www.msn.com"
+#highlight: new
+
+# bundle title
+title:
+  "Select\nALL Hangers"
+
+# bundle tooltip
+tooltip: |-
+  Selects all Fabrication hangers in active view.
+  1. Execute command.
+  2. All hangers in the view will be selected.
+  3. Do what you will with the selected elements. Isolate etc...
+
+  [Shift]+Click:  
+  Check hangers in view for a host.
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman
