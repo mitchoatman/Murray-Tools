@@ -8,8 +8,12 @@ title:
 # bundle tooltip
 tooltip: >-
   Creates a 3D View for every level in the project.
+      1. Create a crop region in active view to set X-Y extents of 3D view.
       1. Run command.
-      2. Views will be created
+      2. Views will be created for each level element in project.
+      
+      Note: Active plan view must have Orrientation set to Project North
+            Levels may need to be set to Survey for this to work.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

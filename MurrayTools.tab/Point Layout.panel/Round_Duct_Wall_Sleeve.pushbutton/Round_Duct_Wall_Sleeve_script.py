@@ -73,9 +73,6 @@ t.Commit()
 
 symbName = 'RDS'
 
-def set_parameter_by_name(element, parameterName, value):
-    element.LookupParameter(parameterName).Set(value)
-
 def get_parameter_value_by_name(element, parameterName):
     return element.LookupParameter(parameterName).AsDouble()
 
@@ -151,7 +148,6 @@ def place_and_modify_family(duct, famsymb):
     
     # Set FP parameters on new family placed in model
     set_parameter_by_name(new_family_instance, 'FP_Service Name', get_parameter_value_by_name_AsString(duct, 'Fabrication Service Name'))
-    set_parameter_by_name(new_family_instance, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(duct, 'Fabrication Service Abbreviation'))
     schedule_level_param = new_family_instance.LookupParameter("Schedule Level")
     schedule_level_param.Set(level.Id)
 

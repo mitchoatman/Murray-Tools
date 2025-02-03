@@ -1,0 +1,24 @@
+#highlight: new
+highlight: updated
+
+# bundle title
+title:
+  "Set Revision\non Sheets"
+
+# bundle tooltip
+tooltip: >-
+  Renames selected sheets or views.
+      1. Run command.
+      2. Choose Revision to add from dialog.
+      3. Choose sheets from dialog to add Revision to.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Walls
+#  - Text Notes
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

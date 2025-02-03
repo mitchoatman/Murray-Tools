@@ -19,7 +19,7 @@ try:
 
     with open(filepath, 'r') as f:
         AnnularSpace = f.read()
-        AnnularSpace = float(AnnularSpace) * 12
+        AnnularSpace = round(float(AnnularSpace) * 12, 3)
 
     # Display dialog
     components = [

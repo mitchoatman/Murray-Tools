@@ -4,12 +4,14 @@ title:
 
 tooltip: |-
   Place wall sleeve family on duct centerline at wall locations for point layout purposes.
-  It will also append Fabrication service name and abbreviation to the sleeve.
-  Sleeve will read the "Overall Size" of element.
+  It will also append Fabrication service name to the sleeve.
+  Sleeve will read the "Overall Size" of element and annular space.
   
-  1.  Pick the pipe to place sleeve on.
-  2.  Pick the intersection of the pipe and wall.
+  1.  Pick the duct to place sleeve on.
+  2.  Pick the intersection of the duct and wall.
   3.  Repeat as necessary, ESC to end the command.
+  
+  If a sleeve is selected prior to executing button it will swap Width and Depth.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

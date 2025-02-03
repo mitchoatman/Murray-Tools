@@ -84,6 +84,12 @@ system_colors = {
     'HIGH PRESSURE CONDENSATE': (76, 153, 133),
     'LOW PRESSURE CONDENSATE': (255, 0, 255),
     'MEDIUM PRESSURE CONDENSATE': (255, 127, 127),
+    'UG HEATING HOT WATER RETURN': (255, 127, 0),
+    'UG HEATING HOT WATER SUPPLY': (255, 0, 127),
+    'UG CHILLED WATER RETURN': (127, 255, 191),
+    'UG CHILLED WATER SUPPLY': (255, 191, 0),
+    'UG CONDENSER WATER RETURN': (0, 191, 255),
+    'UG CONDENSER WATER SUPPLY': (0, 63, 255),
 
     # waters
     'IRRIGATION WATER': (170, 191, 255),
@@ -113,7 +119,7 @@ system_colors = {
     'LAB VENT': (83, 184, 123),
     'METHANE VENT': (255, 191, 0),
     'UG OVERFLOW DRAIN': (179, 16, 146),
-    'UG CONDENSATE DRAIN': (26, 112, 66),
+    'UG CONDENSATE DRAIN': (86, 129, 118),
     'UG SANITARY VENT': (21, 237, 50),
     'UG SANTIARY WASTE': (204, 0, 204),
     'UG GREY WASTE': (204, 153, 102),
@@ -122,6 +128,7 @@ system_colors = {
     'UG LAB VENT': (83, 184, 123),
     'UG TRAP PRIMER': (12, 38, 207),
     'UG GREASE WASTE': (189, 189, 126),
+    'FUEL OIL SUPPLY': (175, 175, 000),
 
     # gasses
     'CARBON DIOXIDE': (22, 107, 37),
@@ -132,7 +139,12 @@ system_colors = {
     'GAS': (0, 129, 0),
     'NITROGEN': (41, 5, 66),
     'OXYGEN': (6, 59, 2),
+    'UG NITROGEN': (41, 5, 66),
+    'UG OXYGEN': (6, 59, 2),
     'UG CARBON DIOXIDE': (22, 107, 37),
+    'UG COMPRESSED AIR': (105, 110, 13),
+    'UG MEDICAL AIR': (76, 153, 133),
+    'UG MEDICAL VACUUM': (255, 0, 191),
 
     # duct
     'GEN EXH (-2 WG)': (0, 191, 255),
@@ -241,9 +253,14 @@ custom_filters["SPOOL 0"] = {
     "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
     "color": (79, 0, 59)  # White color for visibility
 }
-
+custom_filters["BEAM HANGER"] = {
+    "parameter_name": "FP_Beam Hanger",
+    "condition": "Equals",
+    "value": "Yes",
+    "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
+    "color": (0, 255, 255)  # Cyan color for visibility
+}
 # Add more custom filters here if needed
-
 
 
 # Get filters already applied to the view
@@ -293,6 +310,8 @@ with Transaction(doc, "Create and Apply Filters") as t:
             elif condition == "Contains":
                 # Create a Contains rule first
                 contains_rule = ParameterFilterRuleFactory.CreateContainsRule(param_id, value, False)
+            elif condition == "Equals":
+                rule = ParameterFilterRuleFactory.CreateEqualsRule(param_id, value, False)
             else:
                 raise Exception('Condition not supported')
 
@@ -334,5 +353,4 @@ with Transaction(doc, "Create and Apply Filters") as t:
             view_to_modify.AddFilter(paramFilterId)
             view_to_modify.SetFilterVisibility(paramFilterId, True)
             view_to_modify.SetFilterOverrides(paramFilterId, overrides)
-
     t.Commit()

@@ -38,3 +38,14 @@ try:
 except:
     pass
 t.Commit()
+
+if doc.IsModelInCloud:
+    t = Transaction(doc)
+    t.Start('Create Worksets')
+    try:
+        # Enable worksharing
+        WorksharingUtils.EnableWorksharing(doc, "Workset1", "Workset1")
+        print("Worksharing enabled successfully.")
+    except:
+        pass
+    t.Commit()

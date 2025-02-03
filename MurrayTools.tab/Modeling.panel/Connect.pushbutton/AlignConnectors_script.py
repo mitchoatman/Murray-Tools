@@ -2,8 +2,7 @@
 from math import pi
 from Autodesk.Revit.DB import Line, InsulationLiningBase, Transaction, Element, ConnectorManager, ConnectorSet, Connector, XYZ
 from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
-from Autodesk.Revit import Exceptions
-from pyrevit import forms, script
+from pyrevit import forms, revit
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -56,7 +55,7 @@ def connect_to():
     try:
         with forms.WarningBar(title="Pick element to move and connect"):
             reference = uidoc.Selection.PickObject(ObjectType.Element, NoInsulation(), "Pick element to move")
-    except Exceptions.OperationCanceledException:
+    except:
         return False
 
     try:
@@ -67,9 +66,7 @@ def connect_to():
                                                    "Pick element to be connected to")
         target_element = doc.GetElement(reference)
         target_point = reference.GlobalPoint
-    except Exceptions.OperationCanceledException:
-        return True
-    except Exceptions.InvalidObjectException:
+    except:
         with forms.WarningBar(title="Oops, it looks like you chose an invalid object"):
             import time
             time.sleep(2)
@@ -81,10 +78,10 @@ def connect_to():
                                                 target_point)
     try:
         if moved_connector.Domain != target_connector.Domain:
-            rpw.ui.forms.Alert("You picked 2 connectors of different domain. Please retry.", header="Domain Error")
+            print "You picked 2 connectors of different domain. Please retry."
             return True
     except AttributeError:
-        rpw.ui.forms.Alert("It looks like one of the objects have no unused connector", header="AttributeError")
+        print "It looks like one of the objects have no unused connector"
         return True
 
     # Retrieves connectors direction and catch attribute error like when there is no unused connector available
@@ -92,14 +89,14 @@ def connect_to():
         moved_direction = moved_connector.CoordinateSystem.BasisZ
         target_direction = target_connector.CoordinateSystem.BasisZ
     except AttributeError:
-        rpw.ui.forms.Alert("It looks like one of the objects have no unused connector", header="AttributeError")
+        print "It looks like one of the objects have no unused connector"
         return True
 
     # Move and connect
     
         # Begin new transaction
        
-    with rpw.db.Transaction("Connect elements"):
+    with revit.Transaction("Connect elements"):
         # If connector direction is same, rotate it
         angle = moved_direction.AngleTo(target_direction)
         if angle != pi:
@@ -111,8 +108,8 @@ def connect_to():
                 line = Line.CreateBound(moved_point, moved_point+vector)
                 moved_element.Location.Rotate(line, angle - pi)
             # Revit don't like angle and distance too close to 0
-            except Exceptions.ArgumentsInconsistentException:
-                print ("Vector : {} ; Angle : {}".format(vector, angle))
+            except:
+                pass
         # Move element in order match connector position
         moved_element.Location.Move(target_connector.Origin - moved_connector.Origin)
         # Connect connectors

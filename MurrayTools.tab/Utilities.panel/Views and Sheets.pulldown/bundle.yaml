@@ -4,6 +4,7 @@ layout:
   - DuplicateView
   - Create3DViews
   - Rename_Sheets_Views
+  - Set Revision On Sheets
   - SetCropRegion
 
 

@@ -87,17 +87,20 @@ if selection:
                         if (x.GetRodInfo().RodCount) < 2:
                             # Get the host element's size
                             hosted_info = x.GetHostedInfo().HostId
-                            HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
-                            # Get the hanger's size
-                            HangerSize = get_parameter_value_by_name_AsString(x, 'Product Entry')
-                            set_parameter_by_name(x, 'FP_Product Entry', HangerSize)
-                            # Set the 'FP_Hanger Shield' parameter based on whether the host and hanger sizes match
-                            if HostSize == HangerSize:
-                                set_parameter_by_name(x, 'FP_Hanger Shield', 'No')
-                            else:
-                                set_parameter_by_name(x, 'FP_Hanger Shield', 'Yes')
-                                set_parameter_by_name(x, 'Comments', HostSize)
-                                set_parameter_by_name(x, 'FP_Hanger Host Diameter', HostSize)
+                            try:
+                                HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size').strip('"')
+                                # Get the hanger's size
+                                HangerSize = get_parameter_value_by_name_AsString(x, 'Product Entry')
+                                set_parameter_by_name(x, 'FP_Product Entry', HangerSize)
+                                # Set the 'FP_Hanger Shield' parameter based on whether the host and hanger sizes match
+                                if HostSize == HangerSize:
+                                    set_parameter_by_name(x, 'FP_Hanger Shield', 'No')
+                                else:
+                                    set_parameter_by_name(x, 'FP_Hanger Shield', 'Yes')
+                                    set_parameter_by_name(x, 'Comments', HostSize)
+                                    set_parameter_by_name(x, 'FP_Hanger Host Diameter', HostSize)
+                            except:
+                                pass
 
                             ItmDims = x.GetDimensions()
                             for dta in ItmDims:
@@ -182,32 +185,29 @@ else:
             pass
 
     for hanger in hanger_collector:
-        try:
-            if (hanger.GetRodInfo().RodCount) < 2:
-                # Get the host element's size
-                hosted_info = hanger.GetHostedInfo().HostId
-                HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
+        if (hanger.GetRodInfo().RodCount) < 2:
+            # Get the host element's size
+            hosted_info = hanger.GetHostedInfo().HostId
+            try:
+                HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size').strip('"')
                 # Get the hanger's size
                 HangerSize = get_parameter_value_by_name_AsString(hanger, 'Product Entry')
+                set_parameter_by_name(hanger, 'FP_Product Entry', HangerSize)
+                set_parameter_by_name(hanger, 'Comments', HostSize)
+                set_parameter_by_name(hanger, 'FP_Hanger Host Diameter', HostSize)
                 # Set the 'FP_Hanger Shield' parameter based on whether the host and hanger sizes match
                 if HostSize == HangerSize:
                     set_parameter_by_name(hanger, 'FP_Hanger Shield', 'No')
                 else:
                     set_parameter_by_name(hanger, 'FP_Hanger Shield', 'Yes')
-                    set_parameter_by_name(hanger, 'Comments', HostSize)
-                    set_parameter_by_name(hanger, 'FP_Hanger Host Diameter', HostSize)
-
-                ItmDims = hanger.GetDimensions()
-                for dta in ItmDims:
-                    if dta.Name == 'Rod Extn Below':
-                        RB = hanger.GetDimensionValue(dta)
-                    if dta.Name == 'Rod Length':
-                        RL = hanger.GetDimensionValue(dta)
-                TRL = RL + RB
-                set_parameter_by_name(hanger, 'FP_Rod Length', TRL)
-                set_parameter_by_name(hanger, 'FP_Rod Length A', TRL)
-        except:
-            pass
+            except:
+                pass
+            ItmDims = hanger.GetDimensions()
+            for dta in ItmDims:
+                if dta.Name == 'Length A':
+                    RLA = hanger.GetDimensionValue(dta)
+            set_parameter_by_name(hanger, 'FP_Rod Length', RLA)
+            set_parameter_by_name(hanger, 'FP_Rod Length A', RLA)
 
         try:
             if (hanger.GetRodInfo().RodCount) > 1:
