@@ -1,91 +1,76 @@
-#Imports
+# Imports
 import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.UI import Selection
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
-from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, FamilySymbol, Structure, Transaction, BuiltInParameter, \
-                                Family, TransactionGroup, FamilyInstance, ReferencePlane
+from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, Transaction, ReferencePlane
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 
-
+# Selection Filter for Fabrication Hangers
 class CustomISelectionFilter(ISelectionFilter):
-    def __init__(self, nom_categorie):
-        self.nom_categorie = nom_categorie
+    def __init__(self, category_name):
+        self.category_name = category_name
+
     def AllowElement(self, e):
-        if e.Category.Name == self.nom_categorie:
-            return True
-        else:
-            return False
+        return e.Category and e.Category.Name == self.category_name
+
     def AllowReference(self, ref, point):
-        return True
+        return False  # Only allow element selection
 
-try:
-    pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
-    CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers to Extend")
-    Hanger = [doc.GetElement(elId) for elId in pipesel]
-except:
-    Hanger = False
-    pass
+# Select Fabrication Hangers
+pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
+                                      CustomISelectionFilter("MEP Fabrication Hangers"),
+                                      "Select Fabrication Hangers to Extend")
+Hanger = [doc.GetElement(elId) for elId in pipesel]
 
-collector = FilteredElementCollector(doc)
-reference_planes = collector.OfCategory(BuiltInCategory.OST_CLines).WhereElementIsNotElementType().ToElements()
+# Select a Reference Plane
+class ReferencePlaneSelectionFilter(ISelectionFilter):
+    def AllowElement(self, elem):
+        return isinstance(elem, ReferencePlane)  # Only allow Reference Planes
 
-# Initialize a dictionary to store reference plane names
-reference_plane_names = {}
+    def AllowReference(self, ref, point):
+        return False
 
-# Iterate through the reference planes and get their names
-for ref_plane in reference_planes:
-    if isinstance(ref_plane, ReferencePlane):
-        name = ref_plane.Name
-        reference_plane_names[ref_plane.Id] = name
+ref_plane_ref = uidoc.Selection.PickObject(ObjectType.Element, ReferencePlaneSelectionFilter(),
+                                           "Select a reference plane")
+ref_plane = doc.GetElement(ref_plane_ref.ElementId)
 
-if Hanger:
-    if len(Hanger) > 0:
-        try:
-            ref_plane = uidoc.Selection.PickObject(ObjectType.Element, "Select a reference plane")
-            ref_plane = doc.GetElement(ref_plane.ElementId)
-            if not isinstance(ref_plane, DB.ReferencePlane):
-                ref_plane = None
+# Get the plane geometry
+plane = ref_plane.GetPlane()
+plane_normal = plane.Normal.Normalize()  # Ensure the normal is a unit vector
+plane_origin = plane.Origin
 
-            # Get the plane geometry
-            plane = ref_plane.GetPlane()
-            plane_normal = plane.Normal
-            plane_origin = plane.Origin
+# Start transaction
+t = Transaction(doc, 'Extend Hanger Rods')
+t.Start()
 
-            t = Transaction(doc, 'Extend Hanger Rods')
-            t.Start()
+for e in Hanger:
+    rod_info = e.GetRodInfo()
+    rod_count = rod_info.RodCount
+    rod_info.CanRodsBeHosted = False  # Detach rods from structure
 
-            for e in Hanger:
-                STName = e.GetRodInfo().RodCount
-                # Detaches rods from structure
-                hgrhost = e.GetRodInfo().CanRodsBeHosted = False
-                STName1 = e.GetRodInfo()
-                for n in range(STName):
-                    rodlen = STName1.GetRodLength(n)
-                    rodpos = STName1.GetRodEndPosition(n)
-                    
-                    # Calculate the intersection of the rod with the reference plane
-                    rod_vector = rodpos - plane_origin
-                    distance_to_plane = plane_normal.DotProduct(rod_vector)
-                    intersection_point = rodpos - (distance_to_plane * plane_normal)
-                    
-                    # Calculate the new length of the rod
-                    delta_length = intersection_point.DistanceTo(rodpos)
-                    
-                    # Check if the reference plane is above or below the rod
-                    if distance_to_plane > 0:
-                        new_length = rodlen - delta_length
-                    else:
-                        new_length = rodlen + delta_length
+    for n in range(rod_count):
+        rod_len = rod_info.GetRodLength(n)
+        rod_pos = rod_info.GetRodEndPosition(n)  # Should already be in Project Coordinates
 
-                    # Set the new rod length
-                    STName1.SetRodLength(n, new_length)
+        # Calculate intersection of rod with reference plane
+        rod_vector = rod_pos - plane_origin
+        distance_to_plane = plane_normal.DotProduct(rod_vector)
+        intersection_point = rod_pos - (distance_to_plane * plane_normal)
 
-            t.Commit()
-        except:
-            pass
+        # Calculate new rod length
+        delta_length = intersection_point.DistanceTo(rod_pos)
 
+        # Check if the reference plane is above or below the rod
+        if distance_to_plane > 0:
+            new_length = rod_len - delta_length
+        else:
+            new_length = rod_len + delta_length
 
+        # Set the new rod length
+        rod_info.SetRodLength(n, new_length)
+
+t.Commit()

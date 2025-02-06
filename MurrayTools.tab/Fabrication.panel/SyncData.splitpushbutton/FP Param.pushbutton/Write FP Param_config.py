@@ -2,7 +2,7 @@
 import Autodesk
 from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, Transaction, FabricationPart, FabricationConfiguration
 from SharedParam.Add_Parameters import Shared_Params
-from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsInteger, get_parameter_value_by_name_AsValueString
+from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsInteger, get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsDouble
 
 Shared_Params()
 
@@ -57,6 +57,12 @@ duct_collector = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Fa
 AllElements = FilteredElementCollector(doc).OfClass(FabricationPart) \
                    .WhereElementIsNotElementType() \
                    .ToElements()
+
+# Creating a collector for Flex Ducts in the active view
+flex_duct_collector = FilteredElementCollector(doc) \
+                        .OfCategory(BuiltInCategory.OST_FlexDuctCurves) \
+                        .WhereElementIsNotElementType() \
+                        .ToElements()
 
 t = Transaction(doc, "Update FP Parameters")
 t.Start()
@@ -151,6 +157,8 @@ actions = [
     else set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Size')) if x.Alias != 'TRM' \
     else set_parameter_by_name(x, 'FP_Product Entry', (get_parameter_value_by_name_AsString(x, 'Size') or '') + ' x ' + (get_parameter_value_by_name_AsValueString(x, 'Angle') or '')),
     lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength),
+    lambda x: set_parameter_by_name(x, 'FP_Centerline Length', get_parameter_value_by_name_AsDouble(x, 'Length')),
+    lambda x: set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Overall Size')),
     ]
 
 # Apply the actions to the respective element collections
@@ -165,7 +173,8 @@ safely_set_parameter(actions[7], hanger_collector)
 safely_set_parameter(actions[8], AllElements)
 safely_set_parameter(actions[9], pipe_collector)
 safely_set_parameter(actions[10], duct_collector)
-
+safely_set_parameter(actions[11], flex_duct_collector)
+safely_set_parameter(actions[12], flex_duct_collector)
 try:
     for x in AllElements:
         connector_info = get_fabrication_connector_info(x)

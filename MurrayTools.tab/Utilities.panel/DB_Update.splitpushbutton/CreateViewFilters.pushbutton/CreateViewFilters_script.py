@@ -24,7 +24,17 @@ part_collector = FilteredElementCollector(doc, curview.Id).OfClass(FabricationPa
 
 SNamelist = []
 
-if part_collector:
+selection = [doc.GetElement(id) for id in __revit__.ActiveUIDocument.Selection.GetElementIds()]
+
+# Filter selection for elements that have the "Fabrication Service" parameter
+filtered_selection = [x for x in selection if x.LookupParameter("Fabrication Service")]
+
+if filtered_selection:
+    try:
+        SNamelist = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'), filtered_selection))
+    except:
+        pass
+else:
     try:
         SNamelist = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'), part_collector))
     except:
@@ -107,8 +117,8 @@ system_colors = {
     'ACID VENT': (255, 0, 127),
     'SUMP PUMP DISCHARGE': (115, 117, 8),
     'TRAP PRIMER': (12, 38, 207),
-    'OVERFLOW DRAIN': (179, 16, 146),
-    'STORM DRAIN': (157, 56, 224),
+    'OVERFLOW DRAIN': (204, 0, 102),
+    'STORM DRAIN': (255, 127, 191),
     'SANITARY VENT': (21, 237, 50),
     'SANITARY WASTE': (204, 0, 204),
     'CONDENSATE DRAIN': (86, 129, 118),
@@ -118,12 +128,12 @@ system_colors = {
     'LAB WASTE': (55, 120, 81),
     'LAB VENT': (83, 184, 123),
     'METHANE VENT': (255, 191, 0),
-    'UG OVERFLOW DRAIN': (179, 16, 146),
+    'UG OVERFLOW DRAIN': (204, 0, 102),
     'UG CONDENSATE DRAIN': (86, 129, 118),
     'UG SANITARY VENT': (21, 237, 50),
     'UG SANTIARY WASTE': (204, 0, 204),
     'UG GREY WASTE': (204, 153, 102),
-    'UG STORM DRAIN': (157, 56, 224),
+    'UG STORM DRAIN': (255, 127, 191),
     'UG LAB WASTE': (55, 120, 81),
     'UG LAB VENT': (83, 184, 123),
     'UG TRAP PRIMER': (12, 38, 207),
@@ -132,7 +142,8 @@ system_colors = {
 
     # gasses
     'CARBON DIOXIDE': (22, 107, 37),
-    'LAB AIR': (43, 102, 67),
+    'LAB AIR': (76, 153, 133),
+    'LAB VACUUM': (255, 0, 191),
     'COMPRESSED AIR': (105, 110, 13),
     'MEDICAL AIR': (76, 153, 133),
     'MEDICAL VACUUM': (255, 0, 191),

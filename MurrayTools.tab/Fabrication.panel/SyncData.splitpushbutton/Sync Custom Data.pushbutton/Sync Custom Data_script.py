@@ -1,12 +1,12 @@
-
 #Imports
-from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, BuiltInParameter, Element, Transaction, TransactionGroup, FabricationPart
+from Autodesk.Revit.DB import FilteredElementCollector, Transaction, FabricationPart
 from SharedParam.Add_Parameters import Shared_Params
 
 Shared_Params()
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+curview = doc.ActiveView
 
 # Create a FilteredElementCollector to get all FabricationPart elements
 AllElements = FilteredElementCollector(doc).OfClass(FabricationPart) \
@@ -17,29 +17,34 @@ AllElements = FilteredElementCollector(doc).OfClass(FabricationPart) \
 def set_customdata_by_custid(fabpart, custid, value):
 	fabpart.SetPartCustomDataText(custid, value)
 
-t = Transaction(doc, "Update Line and Valve Numbers")
+t = Transaction(doc, "Update Fabrication Custom Data")
 t.Start()
 
+# Dictionary of parameter names and corresponding custom data IDs
+param_map = {
+    'FP_Line Number': 1,
+    'FP_Valve Number': 2,
+    'FP_Bundle': 6,
+    'FP_Location': 13
+}
+
 for Fpart in AllElements:
-    custom_param1 = Fpart.LookupParameter('FP_Line Number')
-    if custom_param1.HasValue:
-        custom_param = custom_param1.AsString()
-        set_customdata_by_custid(Fpart, 1, custom_param)
-
-    custom_param2 = Fpart.LookupParameter('FP_Valve Number')
-    if custom_param2.HasValue:
-        custom_param = custom_param2.AsString()
-        set_customdata_by_custid(Fpart, 2, custom_param)
-
-    custom_param6 = Fpart.LookupParameter('FP_Bundle')
-    if custom_param6.HasValue:
-        custom_param = custom_param6.AsString()
-        set_customdata_by_custid(Fpart, 6, custom_param)
-
+    # Retrieve all relevant parameters once
+    param_values = {p: Fpart.LookupParameter(p) for p in param_map}
+    
+    # Iterate through only valid parameters
+    for param_name, custom_id in param_map.items():
+        param = param_values[param_name]
+        if param and param.HasValue:
+            custom_param = param.AsString()
+            if custom_param:
+                set_customdata_by_custid(Fpart, custom_id, custom_param)
+    
+    # Handle SpoolName separately
     spool_param = Fpart.LookupParameter('STRATUS Assembly')
-    if spool_param.HasValue:
+    if spool_param and spool_param.HasValue:
         custom_param = spool_param.AsString()
-        Fpart.SpoolName = custom_param
+        if custom_param:
+            Fpart.SpoolName = custom_param
 
 t.Commit()
-

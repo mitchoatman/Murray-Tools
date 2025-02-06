@@ -14,8 +14,8 @@ tooltip: >-
     [Shift]-Click to extend braces to user defined elevation.
           1. Run Command.
           2. Select braces you want to extend.
-          3. Enter elevation into dialog using format FT-IN (no spaces)
-             eg:  15-3 or 15-6.5
+          3. Enter elevation into dialog.
+
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Walls

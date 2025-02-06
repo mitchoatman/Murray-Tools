@@ -3,6 +3,7 @@ layout:
   - HideIsolate
   - SelectFabFilter
   - Leveler
+  - Location
 
 
 background:

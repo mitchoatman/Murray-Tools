@@ -1,11 +1,3 @@
-__title__ = 'Extend\nBraces'
-__doc__ = """Extends Seismic braces to a user specified elevation.
-1. Run Command.
-2. Select braces you want to extend.
-3. Enter elevation into dialog using format FT-IN (no spaces)
-eg:  15-3 or 15-6.5
-"""
-
 
 #Imports
 import Autodesk
@@ -15,6 +7,7 @@ from rpw.ui.forms import TextInput
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 import math
 import os
+import re
 
 
 DB = Autodesk.Revit.DB
@@ -25,7 +18,45 @@ app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float (RevitVersion)
 
+def parse_elevation(input_str):
+    """
+    Converts various user-input formats into feet as a float.
+    Supported formats:
+    - 5-6         -> 5 feet 6 inches
+    - 5 6         -> 5 feet 6 inches
+    - 5.5         -> 5.5 feet
+    - 5'-6"       -> 5 feet 6 inches
+    - 5' 6"       -> 5 feet 6 inches
+    - 5'-6 3/8"   -> 5 feet 6.375 inches
+    - 5'-6.125"   -> 5 feet 6.125 inches
+    """
+    input_str = input_str.strip().replace('"', '')  # Remove quotes if present
 
+    # Case 1: Decimal feet (e.g., "5.5")
+    if re.match(r"^\d+(\.\d+)?$", input_str):
+        return float(input_str)
+
+    # Case 2: Feet-inches format (handles "5-6", "5 6", "5'-6 3/8", "5'-6.125")
+    match = re.match(r"(\d+)[\s'\-]*(\d*(?:\s*\d+/\d+|\.\d+)*)?", input_str)
+    if match:
+        feet = float(match.group(1))
+        inches = 0
+
+        if match.group(2):
+            inch_part = match.group(2).strip()
+            if " " in inch_part:  # Handles mixed whole + fraction ("6 3/8")
+                whole_inches, fraction = inch_part.split(" ", 1)
+                inches = float(whole_inches) + eval(fraction)
+            elif "/" in inch_part:  # Handles fraction-only inches ("3/8")
+                inches = eval(inch_part)
+            elif "." in inch_part:  # Handles decimal inches ("6.125")
+                inches = float(inch_part)
+            elif inch_part.isdigit():  # Handles whole inches ("6")
+                inches = float(inch_part)
+
+        return feet + (inches / 12)
+
+    raise ValueError("Invalid elevation format. Use 5-6, 5.5, 5'-6\", 5'-6.125\", etc.")
 
 
 class CustomISelectionFilter(ISelectionFilter):
@@ -60,12 +91,8 @@ if len(Braces) > 0:
     f.close()
 
     #This displays dialog
-    value = TextInput('TOS Elevation *Input in this format FT-IN*', default = PrevInput)
-    InputFT = float(value.split("-", 1)[0])
-    InputIN = (float(value.split("-", 1)[1]) / 12)
-    #print("Sin of Angle is: {}".format(InputFT))
-    #print("Sin of Angle is: {}".format(InputIN))
-    valuenum = InputFT + InputIN
+    value = TextInput('TOS Elevation:', default = PrevInput)
+    valuenum = parse_elevation(value)
 
     f = open((filepath), 'w')
     f.write(value)

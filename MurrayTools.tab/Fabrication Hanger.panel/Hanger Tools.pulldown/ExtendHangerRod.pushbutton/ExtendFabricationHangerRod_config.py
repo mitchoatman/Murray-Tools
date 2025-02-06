@@ -1,43 +1,79 @@
 # Imports
 import Autodesk
 from Autodesk.Revit import DB
+from Autodesk.Revit.DB import Transaction
 from Autodesk.Revit.UI import *
 from Autodesk.Revit.UI.Selection import *
-from rpw.ui.forms import FlexForm, Label, ComboBox, TextBox, Separator, Button, CheckBox
-from pyrevit import script
-from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, FamilySymbol, Structure, Transaction, BuiltInParameter, \
-                                Family, TransactionGroup, FamilyInstance
+from rpw.ui.forms import FlexForm, Label, TextBox, Separator, Button, CheckBox
+import re
 import os
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
-fec = FilteredElementCollector
-app = doc.Application
-RevitVersion = app.VersionNumber
-RevitINT = float(RevitVersion)
 
 class CustomISelectionFilter(ISelectionFilter):
-    def __init__(self, nom_categorie):
-        self.nom_categorie = nom_categorie
+    def __init__(self, category_name):
+        self.category_name = category_name
+
     def AllowElement(self, e):
-        if e.Category.Name == self.nom_categorie:
-            return True
-        else:
-            return False
+        return e.Category.Name == self.category_name
+
     def AllowReference(self, ref, point):
         return True
 
-pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
-CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers to Extend")
-Hanger = [doc.GetElement(elId) for elId in pipesel]
+def parse_elevation(input_str):
+    """
+    Converts various user-input formats into feet as a float.
+    Supported formats:
+    - 5-6         -> 5 feet 6 inches
+    - 5 6         -> 5 feet 6 inches
+    - 5.5         -> 5.5 feet
+    - 5'-6"       -> 5 feet 6 inches
+    - 5' 6"       -> 5 feet 6 inches
+    - 5'-6 3/8"   -> 5 feet 6.375 inches
+    - 5'-6.125"   -> 5 feet 6.125 inches
+    """
+    input_str = input_str.strip().replace('"', '')  # Remove quotes if present
 
+    # Case 1: Decimal feet (e.g., "5.5")
+    if re.match(r"^\d+(\.\d+)?$", input_str):
+        return float(input_str)
+
+    # Case 2: Feet-inches format (handles "5-6", "5 6", "5'-6 3/8", "5'-6.125")
+    match = re.match(r"(\d+)[\s'\-]*(\d*(?:\s*\d+/\d+|\.\d+)*)?", input_str)
+    if match:
+        feet = float(match.group(1))
+        inches = 0
+
+        if match.group(2):
+            inch_part = match.group(2).strip()
+            if " " in inch_part:  # Handles mixed whole + fraction ("6 3/8")
+                whole_inches, fraction = inch_part.split(" ", 1)
+                inches = float(whole_inches) + eval(fraction)
+            elif "/" in inch_part:  # Handles fraction-only inches ("3/8")
+                inches = eval(inch_part)
+            elif "." in inch_part:  # Handles decimal inches ("6.125")
+                inches = float(inch_part)
+            elif inch_part.isdigit():  # Handles whole inches ("6")
+                inches = float(inch_part)
+
+        return feet + (inches / 12)
+
+    raise ValueError("Invalid elevation format. Use 5-6, 5.5, 5'-6\", 5'-6.125\", etc.")
+
+# Select fabrication hangers
+pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
+    CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers to Extend")
+Hangers = [doc.GetElement(elId) for elId in pipesel]
+
+# Ensure folder for settings
 folder_name = "c:\\Temp"
 filepath = os.path.join(folder_name, 'Ribbon_ExtendHangerRod.txt')
 
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
+
 if not os.path.exists(filepath):
     with open(filepath, 'w') as f:
         f.write('5-6')
@@ -45,120 +81,53 @@ if not os.path.exists(filepath):
 with open(filepath, 'r') as f:
     PrevInput = f.read()
 
-if len(Hanger) > 0:
-    # Display dialog
+if len(Hangers) > 0:
+    # Display user input dialog
     components = [
-        Label('TOS Elevation from 0 *Input in this format FT-IN*'),
+        Label('Enter Target Elevation:'),
         TextBox('Elevation', PrevInput),
-        CheckBox('checkboxvalue', 'Add Rod Control', default=True),
+        CheckBox('RodControl', 'Add Rod Control', default=True),
         Button('Ok')
     ]
     form = FlexForm('Modify Hanger Rod', components)
     form.show()
 
-    # Convert dialog input into variable
+    # Parse user input
     value = form.values['Elevation']
-    InputFT = float(value.split("-", 1)[0])
-    InputIN = float(value.split("-", 1)[1]) / 12
-    valuenum = InputFT + InputIN
-    RodControl = form.values['checkboxvalue']
+    try:
+        target_elevation = parse_elevation(value)
+    except ValueError as e:
+        print(e)
+        exit()
+    RodControl = form.values['RodControl']
 
     with open(filepath, 'w') as f:
         f.write(value)
 
-    ItmList1 = list()
-    zLocs = []
-
     t = Transaction(doc, 'Extend Hanger Rods')
     t.Start()
 
-    for e in Hanger:
-        STName = e.GetRodInfo().RodCount
-        ItmList1.append(STName)
-        # Detaches rods from structure
-        hgrhost = e.GetRodInfo().CanRodsBeHosted = False
-        STName1 = e.GetRodInfo()
-        for n in range(STName):
-            rodlen = STName1.GetRodLength(n)
-            rodpos = STName1.GetRodEndPosition(n)
-            # Turns rodpos into string and removes ( ) to clean it up.
-            stringrodpos = str(rodpos).replace('(', '').replace(')', '')
-            length = len(stringrodpos)
+    for hanger in Hangers:
+        rod_info = hanger.GetRodInfo()
+        rod_count = rod_info.RodCount
 
-            # Looks for "," to locate where Z coordinate starts
-            zcoordloc = stringrodpos.rfind(', ', 0, length)
-            # Removes x and y coordinate data and returns only z converted back to number.
-            zcoord = float((stringrodpos[zcoordloc + 2:length]))
-            STName1.SetRodLength(n, rodlen + (valuenum - zcoord))
+        # Get the hanger's associated level
+        level_id = hanger.get_Parameter(DB.BuiltInParameter.FABRICATION_LEVEL_PARAM).AsElementId()
+        level = doc.GetElement(level_id)
+        level_elevation = level.Elevation if level else 0  # Get level elevation in feet
+
+        # Normalize target elevation relative to level
+        adjusted_elevation = target_elevation - level_elevation
+
+        for n in range(rod_count):
+            rod_length = rod_info.GetRodLength(n)
+            rod_end_pos = rod_info.GetRodEndPosition(n)
+            rod_z = rod_end_pos.Z  # Extract rod Z-coordinate
+
+            # Adjust rod length to match target elevation
+            new_length = rod_length + (adjusted_elevation - rod_z)
+            rod_info.SetRodLength(n, new_length)
+
     t.Commit()
 else:
     print('At least one fabrication hanger must be selected.')
-
-if RodControl:
-    path, filename = os.path.split(__file__)
-    NewFilename = '\\FP_Rod Control.rfa'
-
-    # Search project for all Families
-    families = FilteredElementCollector(doc).OfClass(Family)
-    # Set desired family name and type name:
-    FamilyName = 'FP_Rod Control'
-    FamilyType = 'FP_Rod Control'
-    # Check if the family is in the project
-    Fam_is_in_project = any(f.Name == FamilyName for f in families)
-
-    class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
-        def OnFamilyFound(self, familyInUse, overwriteParameterValues):
-            overwriteParameterValues.Value = False
-            return True
-
-        def OnSharedFamilyFound(self, sharedFamily, familyInUse, source, overwriteParameterValues):
-            source.Value = DB.FamilySource.Family
-            overwriteParameterValues.Value = False
-            return True
-
-    ItmList1 = list()
-    ItmList2 = list()
-
-    family_pathCC = path + NewFilename
-
-    tg = TransactionGroup(doc, "Add Rod Control")
-    tg.Start()
-
-    t = Transaction(doc, 'Load Rod Control')
-    t.Start()
-    if not Fam_is_in_project:
-        fload_handler = FamilyLoaderOptionsHandler()
-        family = doc.LoadFamily(family_pathCC, fload_handler)
-    t.Commit()
-
-    familyTypes = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_StructuralFoundation)\
-                                               .OfClass(FamilySymbol)\
-                                               .ToElements()
-
-    t = Transaction(doc, 'Populate Rod Control')
-    t.Start()
-    for famtype in familyTypes:
-        typeName = famtype.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
-        if famtype.Family.Name == FamilyName and typeName == FamilyType:
-            famtype.Activate()
-            doc.Regenerate()
-            for e in Hanger:
-                STName = e.GetRodInfo().RodCount
-                ItmList1.append(STName)
-                STName1 = e.GetRodInfo()
-                for n in range(STName):
-                    rodloc = STName1.GetRodEndPosition(n)
-                    ItmList2.append(rodloc)
-            for hangerlocation in ItmList2:
-                familyInst = doc.Create.NewFamilyInstance(hangerlocation, famtype, Structure.StructuralType.NonStructural)
-    t.Commit()
-
-    tg.Assimilate()
-
-    # Run Attach to Structure in a new transaction
-    t = Transaction(doc, 'Attach Hangers to Structure')
-    t.Start()
-    for e in Hanger:
-        e.GetRodInfo().CanRodsBeHosted = True  # Re-enable hosting
-        e.GetRodInfo().AttachToStructure()  # Attach to structure
-    t.Commit()
