@@ -179,37 +179,46 @@ def set_pipe_label_size():
     filter = LogicalAndFilter(pipe_accessory_filter, family_name_filter)
 
     # Collect all elements that match the filter
-    pipe_labels = FilteredElementCollector(doc).WherePasses(filter).ToElements()
+    pipe_labels = FilteredElementCollector(doc, curview.Id).WherePasses(filter).WhereElementIsNotElementType().ToElements()
+
 
     t = Transaction(doc, "Set Pipe Label type")
     t.Start()
+
     # Iterate over elements and fetch parameter values
     for pipe_label in pipe_labels:
         try:
-            diameter = (get_parameter_value_by_name_AsDouble(pipe_label, 'Diameter') * 12)
-            # print diameter
-            # print diameter <= 0.5
+            diameter = get_parameter_value_by_name_AsDouble(pipe_label, 'Diameter') * 12
+            product_entry = ""
+
             if diameter <= 0.50:
-                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'AA')
-            if 0.50 < diameter < 1.001:
-                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'A')
-            if 1.00 < diameter < 2.376:
-                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'B')
-            if 2.375 < diameter < 3.251:
-                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'C')
-            if 3.25 < diameter < 4.501:
-                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'D')
-            if 4.50 < diameter < 5.876:
-                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'E')
-            if 5.875 < diameter < 7.876:
-                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'F')
-            if 7.875 < diameter < 9.876:
-                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'G')
-            if diameter > 9.876:
-                set_parameter_by_name(pipe_label, 'FP_Product Entry', 'H')
+                product_entry = "AA"
+            elif 0.50 < diameter < 1.001:
+                product_entry = "A"
+            elif 1.00 < diameter < 2.376:
+                product_entry = "B"
+            elif 2.375 < diameter < 3.251:
+                product_entry = "C"
+            elif 3.25 < diameter < 4.501:
+                product_entry = "D"
+            elif 4.50 < diameter < 5.876:
+                product_entry = "E"
+            elif 5.875 < diameter < 7.876:
+                product_entry = "F"
+            elif 7.875 < diameter < 9.876:
+                product_entry = "G"
+            else:
+                product_entry = "H"
+
+            # Format the final string as "diameter - Letter"
+            product_entry_str = "{:.3f} - {}".format(diameter, product_entry)
+            set_parameter_by_name(pipe_label, 'FP_Product Entry', product_entry_str)
+
         except:
             pass
+
     t.Commit()
+
 
 
 while True:
