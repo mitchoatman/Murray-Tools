@@ -79,11 +79,12 @@ if len(Fpipework) > 0:
             D = (C / 231)
             Z = (D * 8.34)
             F = (pipelb_param + Z)
-            #print(piperad)
-            #print(B)
-            #print(C)
-            #print(D)
-            #print(Z)
+            # print "piperad ({})".format(piperad)
+            # print "B ({})".format(B)
+            # print "C ({})".format(C)
+            # print "D ({})".format(D)
+            # print "Z ({})".format(Z)
+            # print "F ({})".format(F)
             Total_Weight = Total_Weight + F
         else:
             fweight_param = get_parameter_value_by_name(pipe, 'Weight')

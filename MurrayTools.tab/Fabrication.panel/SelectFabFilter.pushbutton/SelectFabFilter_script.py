@@ -38,6 +38,8 @@ CommentsList = []
 SpecificationList = []
 HangerRodSizeList = []
 
+selection = revit.get_selection()
+
 preselection = [doc.GetElement(id) for id in __revit__.ActiveUIDocument.Selection.GetElementIds()]
 
 if preselection:

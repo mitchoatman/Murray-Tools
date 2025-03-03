@@ -1,0 +1,26 @@
+#highlight: new
+title:
+  "Floor\nSleeve"
+
+tooltip: |-
+  Place floor sleeve family on pipe centerline at vertical pipe and level line intersection.
+  It will append Fabrication service name and abbreviation to the sleeves.  It will also assign
+  the proper schedule level while not duplicating existing sleeves.
+  
+  1.  Click the button.
+  2.  Sleeves are populated on pipes in the active view that cross a level line.
+
+  If executed in a floorplan view the sleeves are only populated on level above. When executed
+  from a 3D view all visible vertical pipes and level lines are populated with sleeves.
+  
+  If a vertical pipe is pre-selected the tool will only populate a sleeve on the selected element.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://youtu.be/2464K7fS2iY"
+
+# bundle author
+author: Mitchell Oatman

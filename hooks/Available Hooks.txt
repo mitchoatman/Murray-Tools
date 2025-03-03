@@ -1,0 +1,56 @@
+UI Extensions can contain a `hooks/` subdirectory. This directory can contain especially named scripts that would hook up to the Revit event system and will get executed whenever that event occurs. For example, a `doc-changed.py` hook script, gets executed automatically every time **DocumentChanged** event occurs in Revit.
+
+- Under current implementation, Python, CPython, C#, and VB.NET hook scripts are supported.
+- The hooks scripts are only active if the Extension containing them is active and loaded. Disabling the extension, disables all the hook scripts in that extension.
+- For performance reasons, multiple hooks scripts for the same event are NOT supported under the same `hooks/` directory. There are many events firing when working with Revit and having too many hooks will reduce performance dramatically due to the overhead of reading, compiling, and executing an external code file every time an event occurs.
+- Hooks that are not supported under a specific Revit version, will not be activated. See the table below.
+
+options-showing.*			UIApplication.DisplayingOptionsDialog	
+app-init.*				Application.ApplicationInitialized	
+app-closing.*				UIApplication.ApplicationClosing	
+app-idling.*				UIApplication.Idling	
+dialog-showing.*			UIApplication.DialogBoxShowing	
+doc-changed.*				Application.DocumentChanged	
+doc-closed.*				Application.DocumentClosed	
+doc-closing.*				Application.DocumentClosing	
+doc-created.*				Application.DocumentCreated	
+doc-creating.*				Application.DocumentCreating	
+doc-opened.*				Application.DocumentOpened	
+doc-opening.*				Application.DocumentOpening	
+doc-printed.*				Application.DocumentPrinted	
+doc-printing.*				Application.DocumentPrinting	
+doc-saved-as.*				Application.DocumentSavedAs	
+doc-saved.*				Application.DocumentSaved	
+doc-saving-as.*				Application.DocumentSavingAs	
+doc-saving.*				Application.DocumentSaving	
+doc-synced.*				Application.DocumentSynchronizedWithCentral	
+doc-syncing.*				Application.DocumentSynchronizingWithCentral	
+doc-worksharing-enabled.*		Application.DocumentWorksharingEnabled	
+dock-focus-changed.*			UIApplication.DockableFrameFocusChanged	
+dock-visibility-changed.*		UIApplication.DockableFrameVisibilityChanged	
+fabparts-browser-changed.*		UIApplication.FabricationPartBrowserChanged	
+failure-processing.*			Application.FailuresProcessing	
+family-loaded.*				Application.FamilyLoadedIntoDocument	
+family-loading.*			Application.FamilyLoadingIntoDocument	
+file-exported.*				Application.FileExported	
+file-exporting.*			Application.FileExporting	
+file-imported.*				Application.FileImported	
+file-importing.*			Application.FileImporting	
+formula-editing.*			UIApplication.FormulaEditing	
+link-opened.*				Application.LinkedResourceOpened	
+link-opening.*				Application.LinkedResourceOpening	
+progress-changed.*			Application.ProgressChanged	Fires a lot and reduces performance. Use only when absolutely needed.
+transferred-project-standards.*		UIApplication.TransferredProjectStandards	
+transferring-project-standards.*	UIApplication.TransferringProjectStandards	
+type-duplicated.*			Application.ElementTypeDuplicated	
+type-duplicating.*			Application.ElementTypeDuplicating	
+view-activated.*			UIApplication.ViewActivated	
+view-activating.*			UIApplication.ViewActivating	
+view-exported.*				Application.ViewExported	
+view-exporting.*			Application.ViewExporting	
+view-printed.*				Application.ViewPrinted	
+view-printing.*				Application.ViewPrinting	
+worksharing-ops-progress-changed.*	Application.WorksharedOperationProgressChanged	
+command-before-exec[<cmd-id>].*		AddInCommandBinding.BeforeExecuted	Executed before the original command is executed. See Notes
+command-can-exec[<cmd-id>].*		AddInCommandBinding.CanExecute	Executed when Revit needs to know whether a tool is available in the GUI or not. See Notes
+command-exec[<cmd-id>].*		AddInCommandBinding.Executed	Overrides the normal function of the tool

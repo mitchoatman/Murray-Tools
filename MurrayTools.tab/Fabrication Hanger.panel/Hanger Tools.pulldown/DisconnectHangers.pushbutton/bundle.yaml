@@ -1,19 +1,19 @@
-# highlight: updated
-# highlight: new
+#highlight: new
 
 # bundle title
 title:
-  "Single\nSchedule"
+  "Disconnect\nHanger"
 
 # bundle tooltip
 tooltip: |-
-  Creates a single fabrication hanger schedule to use as a template.
-  
-    - Still requires filters, sorting, and grouping by user.
+  Disconnects selected hangers from their host.
+    1. Run Command.
+    2. Select Fabrication Hangers.
+    3. Click Finish.
 
 # context directives are listed under `context` key, the order does not matter
-# context:
-  # - Selection
+#context:
+#  - Selection
 
 # bundle help url
 #help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"

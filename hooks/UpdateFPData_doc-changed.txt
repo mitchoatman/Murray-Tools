@@ -1,46 +1,106 @@
+# Imports
+import clr
+clr.AddReference('System')
+from Autodesk.Revit.DB import (BuiltInCategory, BuiltInParameter, ElementId, WorksharingUtils, FabricationPart, FabricationConfiguration)
+from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsInteger, get_parameter_value_by_name_AsValueString
 
-from pyrevit import revit, EXEC_PARAMS
+# Variables
+sender = __eventsender__
+args = __eventargs__
+doc = args.GetDocument()
+Config = FabricationConfiguration.GetFabricationConfiguration(doc)
 
-selection = EXEC_PARAMS.event_args.GetAddedElementIds()
+# Convert the Revit-specific collections to Python lists
+modified_el_ids = list(args.GetModifiedElementIds())
+deleted_el_ids = list(args.GetDeletedElementIds())
+new_el_ids = list(args.GetAddedElementIds())
 
-import Autodesk
-from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, Transaction, FabricationPart, FabricationConfiguration
-from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsInteger
+# Use list comprehension to get valid elements only
+combined_el_ids = [doc.GetElement(e_id) for e_id in modified_el_ids + new_el_ids if doc.GetElement(e_id) is not None]
 
-Config = FabricationConfiguration.GetFabricationConfiguration(revit.doc)
+# IUpdater aiming modified elements
+allowed_cats = [ElementId(BuiltInCategory.OST_FabricationHangers), ElementId(BuiltInCategory.OST_FabricationDuctwork), ElementId(BuiltInCategory.OST_FabricationPipework)]
 
-# --------------SELECTED ELEMENTS-------------------
 
-if selection:
-    with revit.Transaction(revit.doc, "Update FP Parameters"):
-        for x in selection:
-            isfabpart = x.LookupParameter("Fabrication Service")
-            if isfabpart:
-                set_parameter_by_name(x, 'FP_CID', get_parameter_value_by_name_AsInteger(x, 'Part Pattern Number'))
-                set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType))
-                set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'))
-                set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation'))
+# Function to get fabrication connector names and track their IDs
+def get_fabrication_connector_info(fabPart):
+    # Create a dictionary to store connector names with their IDs
+    connector_info = {}
+    # Check if the element is a fabrication part
+    if isinstance(fabPart, FabricationPart):
+        connectors = fabPart.ConnectorManager.Connectors
+        # Loop through each connector
+        for connector in connectors:
+            try:
+                # Get FabricationConnectorInfo from the connector
+                fab_connector_info = connector.GetFabricationConnectorInfo()
+                # Extract the BodyConnectorId
+                fabrication_connector_id = fab_connector_info.BodyConnectorId
+                # Use GetFabricationConnectorName with the correct fabrication configuration and connector ID
+                connector_name = FabricationConfiguration.GetFabricationConfiguration(doc).GetFabricationConnectorName(fabrication_connector_id)
+                # Store the connector ID and name in the dictionary
+                connector_info[connector.Id] = connector_name  # Directly use connector.Id
+            except:
+                pass
+    return connector_info
+
+
+for x in combined_el_ids:
+    # Check if the element is a FabricationPart and has a valid Category
+    if isinstance(x, FabricationPart) and hasattr(x, 'Category') and hasattr(x.Category, 'Id'):
+        if x.Category.Id in allowed_cats:
+            set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) if x.ItemCustomId == 2041 else None
+            set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) if x.Category.Name == 'MEP Fabrication Ductwork' else None
+            set_parameter_by_name(x, 'FP_CID', x.ItemCustomId)
+            set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType))
+            set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'))
+            set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation'))
+            try:
+                [set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Size'))]
+                if x.Alias == 'TRM':
+                    trimsize = get_parameter_value_by_name_AsString(x, 'Size')
+                    trimangle = get_parameter_value_by_name_AsValueString(x, 'Angle')
+                    set_parameter_by_name(x, 'FP_Product Entry', trimsize + ' x ' + trimangle)
+            except:
+                pass
+            try:
                 if x.ItemCustomId == 838:
-                    set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Size of Primary End'))
                     set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No')
                     [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
-                try:
-                    if (x.GetRodInfo().RodCount) > 0:
-                        ItmDims = x.GetDimensions()
-                        for dta in ItmDims:
-                            if dta.Name == 'Rod Extn Below':
-                                RB = x.GetDimensionValue(dta)
-                            if dta.Name == 'Rod Length':
-                                RL = x.GetDimensionValue(dta)
-                        TRL = RL + RB
-                        set_parameter_by_name(x, 'FP_Rod Length', TRL)
-                except:
-                    pass
+                    ProductEntry = x.LookupParameter('Product Entry')
+                    if ProductEntry:
+                        if (x.GetRodInfo().RodCount) < 2:
+                            # Get the host element's size
+                            hosted_info = x.GetHostedInfo().HostId
+                            HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
+                            # Get the hanger's size
+                            HangerSize = get_parameter_value_by_name_AsString(x, 'Product Entry')
+                            set_parameter_by_name(x, 'FP_Product Entry', HangerSize)
+                            # Set the 'FP_Hanger Shield' parameter based on whether the host and hanger sizes match
+                            if HostSize == HangerSize:
+                                set_parameter_by_name(x, 'FP_Hanger Shield', 'No')
+                            else:
+                                set_parameter_by_name(x, 'FP_Hanger Shield', 'Yes')
+                                set_parameter_by_name(x, 'Comments', HostSize)
+                                set_parameter_by_name(x, 'FP_Hanger Host Diameter', HostSize)
 
-                try:
-                    if (x.GetRodInfo().RodCount) > 1:
+                            ItmDims = x.GetDimensions()
+                            for dta in ItmDims:
+                                if dta.Name == 'Length A':
+                                    RLA = x.GetDimensionValue(dta)
+                                if dta.Name == 'Length B':
+                                    RLB = x.GetDimensionValue(dta)
+                            set_parameter_by_name(x, 'FP_Rod Length', RLA)
+                            set_parameter_by_name(x, 'FP_Rod Length A', RLA)
+                            set_parameter_by_name(x, 'FP_Rod Length B', RLB)
+
+                    else:
                         ItmDims = x.GetDimensions()
                         for dta in ItmDims:
+                            if dta.Name == 'Length A':
+                                RLA = x.GetDimensionValue(dta)
+                            if dta.Name == 'Length B':
+                                RLB = x.GetDimensionValue(dta)
                             if dta.Name == 'Width':
                                 TrapWidth = x.GetDimensionValue(dta)
                             if dta.Name == 'Bearer Extn':
@@ -51,10 +111,15 @@ if selection:
                                 TrapLRod = x.GetDimensionValue(dta)
                         BearerLength = TrapWidth + TrapExtn + TrapExtn
                         set_parameter_by_name(x, 'FP_Bearer Length', BearerLength)
-                except:
-                    pass
-
-# --------------SELECTED ELEMENTS-------------------
-
-
-
+                        set_parameter_by_name(x, 'FP_Rod Length', RLA)
+                        set_parameter_by_name(x, 'FP_Rod Length A', RLA)
+                        set_parameter_by_name(x, 'FP_Rod Length B', RLB)
+            except:
+                pass
+            try:
+                connector_info = get_fabrication_connector_info(x)
+                for connector_id, name in connector_info.items():
+                    param_name = "FP_Connector C{}".format(connector_id + 1)  # Offset by 1
+                    set_parameter_by_name(x, param_name, name)
+            except:
+                pass

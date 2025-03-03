@@ -1,0 +1,9 @@
+from pyrevit import script, forms
+from pyrevit.userconfig import user_config
+import os, sys
+
+doc = __eventargs__.Document
+try:
+	os.startfile (r"C:\\Egnyte\Shared\\Engineering\\031407MEP\\Sync-Database\\Update Database - notimer.lnk")
+except:
+    sys.exit()

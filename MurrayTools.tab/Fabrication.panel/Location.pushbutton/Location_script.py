@@ -1,7 +1,7 @@
 
 #Imports
 import Autodesk
-from pyrevit import DB, revit, script, forms
+from pyrevit import DB, revit, forms
 from Autodesk.Revit.DB import Transaction
 from Autodesk.Revit.UI import Selection
 import os, sys

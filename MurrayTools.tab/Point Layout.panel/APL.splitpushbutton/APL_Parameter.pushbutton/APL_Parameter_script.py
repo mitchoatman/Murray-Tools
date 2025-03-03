@@ -155,6 +155,13 @@ try:
                 slvdiameter = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Diameter') * 12)
                 result_string2 = slvdiameter + ' RISER'
                 set_parameter_by_name(x, 'TS_Point_Description', result_string2)
+
+            accessory_elements3 = [element for element in accessory_models_collector if "Round Floor Sleeve" in element.Name]
+            for x in accessory_elements3:
+                slvdiameter = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Diameter') * 12)
+                slvlength = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Length') * 12)
+                result_string = 'SLV ' + slvdiameter + ' x ' + slvlength
+                set_parameter_by_name(x, 'TS_Point_Description', result_string)
     except:
         pass
         print 'Something did not get data, good luck!  Trust but verify...'

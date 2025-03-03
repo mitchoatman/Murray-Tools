@@ -66,11 +66,11 @@ if servicelist:
     if RevitINT > 2022:
         for fp_servicename in servicelist:
             cat_filter = create_filter_2023_newer(key_parameter = BuiltInParameter.FABRICATION_SERVICE_NAME, element_value = str(fp_servicename))
-            list_of_filters.Add(cat_filter)
+            list_of_filters.append(cat_filter)  # Changed Add to append
     else:
         for fp_servicename in servicelist:
             cat_filter = create_filter_2022_older(key_parameter = BuiltInParameter.FABRICATION_SERVICE_NAME, element_value = str(fp_servicename))
-            list_of_filters.Add(cat_filter)
+            list_of_filters.append(cat_filter)  # Changed Add to append
 
     if list_of_filters:
         multiple_filters = LogicalOrFilter(list_of_filters)
@@ -99,8 +99,20 @@ if servicelist:
         collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationPipework)
         valves_to_renumber = collector.ToElements()
 
-        #This displays dialog
-        value = forms.ask_for_string(default=PrevInput, prompt='Enter Valve Number:', title='Valve Number')
+        # Convert PrevInput to integer and increment by 1
+        try:
+            if "-" in PrevInput:
+                valuesplit = PrevInput.rsplit('-', 1)
+                start_value = str(int(valuesplit[-1]) + 1)
+                initial_value = valuesplit[0] + "-" + start_value.zfill(len(valuesplit[-1]))
+            else:
+                start_value = str(int(PrevInput) + 1)
+                initial_value = start_value.zfill(len(PrevInput))
+        except ValueError:
+            initial_value = "1"
+
+        #This displays dialog with incremented value
+        value = forms.ask_for_string(default=initial_value, prompt='Enter Valve Number:', title='Valve Number')
 
         f = open((filepath), 'w')
         f.write(value)
@@ -131,10 +143,9 @@ if servicelist:
             for valve in valves_to_renumber_sorted:
                 ST = valve.ServiceType
                 if ST == 53:
-                    #increments valve number  by 1
+                    #increments valve number by 1
                     numincrement = numincrement + 1
 
-                    #print numincrement
                     #converts valve number back into string and fills in leading zeros
                     lastpart = str(numincrement).zfill(valvenumlength)
 
@@ -145,21 +156,20 @@ if servicelist:
                     set_parameter_by_name(valve, 'Mark', newvalvenumber)
                     set_customdata_by_custid(valve, 2, newvalvenumber)
         else:
-            #converts number from string to integer
-            valuenum = int(float(value[-1]))
-
             #gets the length of characters for number
             valvenumlength = (len(value))
 
+            #converts number from string to integer
+            valuenum = int(float(value))
+            
             numincrement = valuenum - 1
             
             for valve in valves_to_renumber_sorted:
                 ST = valve.ServiceType
                 if ST == 53:
-                    #increments valve number  by 1
+                    #increments valve number by 1
                     numincrement = numincrement + 1
 
-                    #print numincrement
                     #converts valve number back into string and fills in leading zeros
                     lastpart = str(numincrement).zfill(valvenumlength)
 

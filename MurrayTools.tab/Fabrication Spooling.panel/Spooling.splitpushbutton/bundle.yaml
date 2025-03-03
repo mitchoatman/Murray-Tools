@@ -2,6 +2,7 @@ layout:
   - StratusAssembly
   - PinAllSpools
   - Rename_Spools
+  - Tag_Spools_View
 
 background:
   title: 'D5D5CD'

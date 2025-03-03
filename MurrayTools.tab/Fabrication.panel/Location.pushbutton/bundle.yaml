@@ -6,7 +6,7 @@ title:
 tooltip: >-
   Writes User Defined Location data to the FP_Location Parameter and to Fabrication Custom Data Field so data will follow MAJ export.
 
-    1. Select elements you want to assign a Valve Number.
+    1. Select elements you want to assign a Location.
     2. Run Script.
     3. Enter Location value in the dialog.
     4. Click Ok

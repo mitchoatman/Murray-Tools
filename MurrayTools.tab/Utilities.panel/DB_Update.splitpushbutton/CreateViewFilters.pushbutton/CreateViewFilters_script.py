@@ -148,6 +148,7 @@ system_colors = {
     'MEDICAL AIR': (76, 153, 133),
     'MEDICAL VACUUM': (255, 0, 191),
     'GAS': (0, 129, 0),
+    'GAS - LOW PRESSURE': (0, 129, 0),
     'NITROGEN': (41, 5, 66),
     'OXYGEN': (6, 59, 2),
     'UG NITROGEN': (41, 5, 66),

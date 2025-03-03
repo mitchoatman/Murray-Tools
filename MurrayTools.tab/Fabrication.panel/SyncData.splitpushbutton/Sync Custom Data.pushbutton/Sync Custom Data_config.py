@@ -1,7 +1,7 @@
 #Imports
-from Autodesk.Revit.DB import FilteredElementCollector, Transaction, FabricationPart
+from Autodesk.Revit.DB import FilteredElementCollector, Transaction, FabricationPart, Group
 from SharedParam.Add_Parameters import Shared_Params
-
+from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsInteger, get_parameter_value_by_name_AsValueString
 Shared_Params()
 
 doc = __revit__.ActiveUIDocument.Document
@@ -27,7 +27,7 @@ param_map = {
     'FP_Bundle': 6,
     'FP_Location': 13
 }
-
+# Gets revit data and pushes into fabricaton part custom data fields
 for Fpart in AllElements:
     # Retrieve all relevant parameters once
     param_values = {p: Fpart.LookupParameter(p) for p in param_map}
@@ -42,9 +42,31 @@ for Fpart in AllElements:
     
     # Handle SpoolName separately
     spool_param = Fpart.LookupParameter('STRATUS Assembly')
-    if spool_param and spool_param.HasValue:
+    spool_param = Fpart.LookupParameter('FP_Spool Number')
+    if spool_param:
         custom_param = spool_param.AsString()
         if custom_param:
             Fpart.SpoolName = custom_param
 
+t.Commit()
+
+# Pulls data from imported maj fab parts into revit parameters
+t = Transaction(doc, "Update Line and Valve Numbers")
+t.Start()
+# Get group members and modify their parameters
+group_elements = [Fpart.GetMemberIds() if isinstance(Fpart, Group) else [Fpart.Id] for Fpart in AllElements]
+
+for group_member_ids in group_elements:
+    for member_id in group_member_ids:
+        member_element = doc.GetElement(member_id)  # Assuming you have the doc object
+        ln = member_element.GetPartCustomDataText(1)
+        set_parameter_by_name(member_element, 'FP_Line Number', ln)
+
+        vn = member_element.GetPartCustomDataText(2)
+        set_parameter_by_name(member_element, 'FP_Valve Number', vn)
+
+        sn = member_element.SpoolName
+        set_parameter_by_name(member_element, 'FP_Spool Number', sn)
+
+  
 t.Commit()

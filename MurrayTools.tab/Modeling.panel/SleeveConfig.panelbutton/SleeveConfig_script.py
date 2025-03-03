@@ -1,15 +1,9 @@
 import os
-from rpw.ui.forms import FlexForm, TextBox, Button, Label
-from pyrevit import script
-
-app = __revit__.Application
-doc = __revit__.ActiveUIDocument.Document
-uidoc = __revit__.ActiveUIDocument
-active_view = doc.ActiveView
+from pyrevit import script, forms
 
 try:
     folder_name = "c:\\Temp"
-    filepath = os.path.join(folder_name, 'Ribbon_Wall-Sleeve.txt')
+    filepath = os.path.join(folder_name, 'Ribbon_Sleeve.txt')
 
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
@@ -18,23 +12,15 @@ try:
             f.write('1')
 
     with open(filepath, 'r') as f:
-        AnnularSpace = f.read()
-        AnnularSpace = round(float(AnnularSpace) * 12, 3)
+        SleeveLength = f.read()
+        SleeveLength = round(float(SleeveLength) * 12, 3)
 
-    # Display dialog
-    components = [
-        Label('Default Sleeve Length (inches)'),
-        TextBox('space', str(AnnularSpace)),
-        Button('Ok')
-    ]
-    form = FlexForm('Sleeve Configuration', components)
-    form.show()
+    SleeveLength = forms.ask_for_string(default= str(SleeveLength), prompt='Default Sleeve Length (Inches)', title='Sleeve Configuration')
 
     # Convert dialog input into variable
-    AnnularSpace = float(form.values['space'])
-    AnnularSpaceStored = str((AnnularSpace) / 12)
+    SleeveLength = str(float(SleeveLength) / 12)
 
     with open(filepath, 'w') as f:
-        f.write (AnnularSpaceStored)
+        f.write (SleeveLength)
 except:
     pass

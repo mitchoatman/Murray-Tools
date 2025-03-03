@@ -23,6 +23,9 @@ Config = FabricationConfiguration.GetFabricationConfiguration(doc)
 def set_customdata_by_custid(fabpart, custid, value):
 	fabpart.SetPartCustomDataText(custid, value)
 
+def get_parameter_value_by_name_AsValueString(element, parameterName):
+    return element.LookupParameter(parameterName).AsValueString()
+
 hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers) \
                    .WhereElementIsNotElementType() \
                    .ToElements()
@@ -174,7 +177,7 @@ for hanger in hanger_collector:
                 set_customdata_by_custid(hanger, 7, '37')
     except:
         output = script.get_output()
-        print('{}: {}'.format('Disconnected Hanger', output.linkify(hanger.Id)))
+        print('{}: {}'.format((get_parameter_value_by_name_AsValueString(hanger, 'Family')), output.linkify(hanger.Id)))
 
 #End Transaction
 t.Commit()

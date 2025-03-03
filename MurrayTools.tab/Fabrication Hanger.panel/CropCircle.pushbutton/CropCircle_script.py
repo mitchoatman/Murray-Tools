@@ -1,12 +1,20 @@
-
 import Autodesk
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, FamilySymbol, Structure, Transaction, BuiltInParameter, \
-                                FabricationConfiguration, Family, TransactionGroup
+from Autodesk.Revit.DB import (
+    FilteredElementCollector, 
+    BuiltInCategory, 
+    FamilySymbol, 
+    Structure, 
+    Transaction, 
+    BuiltInParameter,
+    FabricationConfiguration, 
+    Family, 
+    TransactionGroup
+)
 import os
 
 path, filename = os.path.split(__file__)
-NewFilename = '\Crop-Circle.rfa'
+NewFilename = r'\Crop-Circle.rfa'
 
 DB = Autodesk.Revit.DB
 doc = __revit__.ActiveUIDocument.Document
@@ -15,17 +23,14 @@ curview = doc.ActiveView
 fec = FilteredElementCollector
 app = doc.Application
 RevitVersion = app.VersionNumber
-RevitINT = float (RevitVersion)
+RevitINT = float(RevitVersion)
 Config = FabricationConfiguration.GetFabricationConfiguration(doc)
 
 # Search project for all Families
 families = FilteredElementCollector(doc).OfClass(Family)
-# Set desired family name and type name:
 FamilyName = 'Crop-Circle'
 FamilyType = 'Hanger'
-# Check if the family is in the project
 Fam_is_in_project = any(f.Name == FamilyName for f in families)
-#print("Family '{}' is in project: {}".format(FamilyName, is_in_project))
 
 ItmList1 = []
 ItmList2 = []
@@ -37,107 +42,72 @@ class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
         overwriteParameterValues.Value = False
         return True
 
-
     def OnSharedFamilyFound(self, sharedFamily, familyInUse, source, overwriteParameterValues):
         source.Value = DB.FamilySource.Family
         overwriteParameterValues.Value = False
         return True
 
-selection = [doc.GetElement(id) for id in __revit__.ActiveUIDocument.Selection.GetElementIds()]
-
-if selection:
-    tg = TransactionGroup(doc, "Add Crop Circles")
-    tg.Start()
-
-    t = Transaction(doc, 'Load Crop-Circle Family')
-    #Start Transaction
-    t.Start()
-    if Fam_is_in_project == False:
-        fload_handler = FamilyLoaderOptionsHandler()
-        family = doc.LoadFamily(family_pathCC, fload_handler)
-    t.Commit()
-
-    familyTypes = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_GenericModel)\
-                                                .OfClass(FamilySymbol)\
+def get_existing_crop_circles():
+    # Collect all existing Crop-Circle family instances in the document.
+    crop_circles = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_GenericModel)\
+                                                .WhereElementIsNotElementType()\
                                                 .ToElements()
+    existing_locations = {}
+    for cc in crop_circles:
+        if cc.Symbol.Family.Name == FamilyName and cc.Symbol.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString() == FamilyType:
+            loc = cc.Location
+            if isinstance(loc, DB.LocationPoint):
+                existing_locations[cc.Id] = loc.Point
+    return existing_locations
 
-    t = Transaction(doc, 'Populate Crop Circles')
-    t.Start()
+def is_location_occupied(target_point, existing_locations, tolerance=0.01):
+    # Check if a target point is within tolerance of any existing Crop-Circle location.
+    for loc in existing_locations.values():
+        distance = target_point.DistanceTo(loc)
+        if distance <= tolerance:  # Tolerance in feet
+            return True
+    return False
 
-    # Collect rod locations (ItmList2) from selection first
-    ItmList2 = []
-    for e in selection:
-        isfabpart = e.LookupParameter("Fabrication Service")
-        if isfabpart and e.ItemCustomId == 838:
+
+Hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers)\
+                                                            .WhereElementIsNotElementType()
+
+tg = TransactionGroup(doc, "Add Crop Circles")
+tg.Start()
+
+t = Transaction(doc, 'Load Crop-Circle Family')
+t.Start()
+if not Fam_is_in_project:
+    fload_handler = FamilyLoaderOptionsHandler()
+    doc.LoadFamily(family_pathCC, fload_handler)
+t.Commit()
+
+familyTypes = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_GenericModel)\
+                                            .OfClass(FamilySymbol)\
+                                            .ToElements()
+
+# Get existing Crop-Circle locations
+existing_crop_locations = get_existing_crop_circles()
+
+t = Transaction(doc, 'Populate Crop Circles')
+t.Start()
+for famtype in familyTypes:
+    typeName = famtype.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
+    if famtype.Family.Name == FamilyName and typeName == FamilyType:
+        famtype.Activate()
+        doc.Regenerate()
+        for e in Hanger_collector:
             STName = e.GetRodInfo().RodCount
+            ItmList1.append(STName)
             STName1 = e.GetRodInfo()
             for n in range(STName):
                 rodloc = STName1.GetRodEndPosition(n)
                 ItmList2.append(rodloc)
-
-    #print "Collected Rod Locations: {}".format(ItmList2)
-
-    # Iterate through family types and place instances
-    for famtype in familyTypes:
-        typeName = famtype.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
-        if famtype.Family.Name == FamilyName and typeName == FamilyType:
-            famtype.Activate()
-            doc.Regenerate()
-            for hangerlocation in ItmList2:
+        for hangerlocation in ItmList2:
+            if not is_location_occupied(hangerlocation, existing_crop_locations):
                 familyInst = doc.Create.NewFamilyInstance(
                     hangerlocation, famtype, Structure.StructuralType.NonStructural
                 )
-                #print "Placed instance at: {}".format(hangerlocation)
 
-    t.Commit()
-    #End Transaction Group
-    tg.Assimilate()
-
-else:
-    Hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers)\
-                                                                .WhereElementIsNotElementType()
-
-    tg = TransactionGroup(doc, "Add Crop Circles")
-    tg.Start()
-
-    t = Transaction(doc, 'Load Crop-Circle Family')
-    #Start Transaction
-    t.Start()
-    if Fam_is_in_project == False:
-        fload_handler = FamilyLoaderOptionsHandler()
-        family = doc.LoadFamily(family_pathCC, fload_handler)
-    t.Commit()
-
-    familyTypes = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_GenericModel)\
-                                                .OfClass(FamilySymbol)\
-                                                .ToElements()
-
-    t = Transaction(doc, 'Populate Crop Circles')
-    t.Start()
-    for famtype in familyTypes:
-        typeName = famtype.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
-        if famtype.Family.Name == FamilyName and typeName == FamilyType:
-            famtype.Activate()
-            doc.Regenerate()
-            for e in Hanger_collector:
-                STName = e.GetRodInfo().RodCount
-                ItmList1.append(STName)
-                STName1 = e.GetRodInfo()
-                for n in range(STName):
-                    rodloc = STName1.GetRodEndPosition(n)
-                    ItmList2.append(rodloc)
-            for hangerlocation in ItmList2:
-                familyInst = doc.Create.NewFamilyInstance(hangerlocation, famtype, Structure.StructuralType.NonStructural)
-
-    t.Commit()
-    #End Transaction Group
-    tg.Assimilate()
-
-
-
-
-
-
-
-
-
+t.Commit()
+tg.Assimilate()

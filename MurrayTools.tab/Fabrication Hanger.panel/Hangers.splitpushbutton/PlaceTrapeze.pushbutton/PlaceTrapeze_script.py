@@ -63,11 +63,6 @@ try:
         # Find all hanger buttons across all palettes/groups
         buttonnames = []
         button_data = []  # Store tuple of (palette_idx, button_idx, button_name)
-
-        buttonnames = []
-        button_data = []
-
-        buttonnames = []
         unique_hangers = set()  # To track unique hanger button names
 
         for service_idx, service in enumerate(LoadedServices):  # Loop through all loaded services
@@ -431,7 +426,7 @@ try:
                             Dimensions.append(dim.Name)
                             if dim.Name == "Width":
                                 width_value = hanger.GetDimensionValue(dim)
-                                hanger.SetDimensionValue(dim, delta_y)
+                                hanger.SetDimensionValue(dim, newwidth)
                             if dim.Name == "Bearer Extn":
                                 bearer_value = hanger.GetDimensionValue(dim)
                                 hanger.SetDimensionValue(dim, 0.25)
@@ -464,7 +459,7 @@ try:
                             Dimensions.append(dim.Name)
                             if dim.Name == "Width":
                                 width_value = hanger.GetDimensionValue(dim)
-                                hanger.SetDimensionValue(dim, delta_x)
+                                hanger.SetDimensionValue(dim, newwidth)
                             if dim.Name == "Bearer Extn":
                                 bearer_value = hanger.GetDimensionValue(dim)
                                 hanger.SetDimensionValue(dim, 0.25)
