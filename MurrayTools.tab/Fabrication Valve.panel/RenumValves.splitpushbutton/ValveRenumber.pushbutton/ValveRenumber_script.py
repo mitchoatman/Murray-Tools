@@ -84,10 +84,6 @@ if servicelist:
 
         t.Commit()
 
-    pipe_collectorv = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationPipework) \
-                       .WhereElementIsNotElementType() \
-                       .ToElements()
-
     #FUNCTION TO SET PARAMETER VALUE
     def set_parameter_by_name(element, parameterName, value):
         element.LookupParameter(parameterName).Set(value)
@@ -111,7 +107,7 @@ if servicelist:
         except ValueError:
             initial_value = "1"
 
-        #This displays dialog with incremented value
+        # This displays dialog with incremented value
         value = forms.ask_for_string(default=initial_value, prompt='Enter Valve Number:', title='Valve Number')
 
         f = open((filepath), 'w')
@@ -126,54 +122,56 @@ if servicelist:
         valves_to_renumber_sorted = sorted(valves_to_renumber, key=lambda x: distance_between_parts(selected_valve, x))
 
         if "-" in value:
-            #splits the spoolname
+            # Splits the spoolname
             valuesplit = value.rsplit('-', 1)
             
-            #gets the length of characters for number
-            valvenumlength = (len(valuesplit[-1]))
+            # Gets the length of characters for number
+            valvenumlength = len(valuesplit[-1])
 
-            #gets the first half of spool name
+            # Gets the first half of spool name
             firstpart = valuesplit[0]
             
-            #converts number from string to integer
+            # Converts number from string to integer
             valuenum = int(float(valuesplit[-1]))
             
             numincrement = valuenum - 1
             
             for valve in valves_to_renumber_sorted:
                 ST = valve.ServiceType
-                if ST == 53:
-                    #increments valve number by 1
+                AL = valve.Alias  # Fixed syntax error here
+                if ST == 53 and AL != 'STRAINER' and AL != 'CHECK' and AL != 'BALANCE':
+                    # Increments valve number by 1
                     numincrement = numincrement + 1
 
-                    #converts valve number back into string and fills in leading zeros
+                    # Converts valve number back into string and fills in leading zeros
                     lastpart = str(numincrement).zfill(valvenumlength)
 
-                    #combines both halfs of valve number
+                    # Combines both halves of valve number
                     newvalvenumber = firstpart + "-" + lastpart
                         
                     set_parameter_by_name(valve, 'FP_Valve Number', newvalvenumber)
                     set_parameter_by_name(valve, 'Mark', newvalvenumber)
                     set_customdata_by_custid(valve, 2, newvalvenumber)
         else:
-            #gets the length of characters for number
-            valvenumlength = (len(value))
+            # Gets the length of characters for number
+            valvenumlength = len(value)
 
-            #converts number from string to integer
+            # Converts number from string to integer
             valuenum = int(float(value))
             
             numincrement = valuenum - 1
             
             for valve in valves_to_renumber_sorted:
                 ST = valve.ServiceType
-                if ST == 53:
-                    #increments valve number by 1
+                AL = valve.Alias  # Fixed syntax error here
+                if ST == 53 and AL != 'STRAINER' and AL != 'CHECK':  # Already correct here
+                    # Increments valve number by 1
                     numincrement = numincrement + 1
 
-                    #converts valve number back into string and fills in leading zeros
+                    # Converts valve number back into string and fills in leading zeros
                     lastpart = str(numincrement).zfill(valvenumlength)
 
-                    #combines both halfs of valve number
+                    # Combines both halves of valve number
                     newvalvenumber = lastpart
                         
                     set_parameter_by_name(valve, 'FP_Valve Number', newvalvenumber)

@@ -6,7 +6,7 @@ title:
 
 # bundle tooltip
 tooltip: |-
-  Adds tags to all valves in active view.
+  Adds tags to all Fabrication valves in active view.
   1. Execute command.
   2. Valves will be tagged.
 

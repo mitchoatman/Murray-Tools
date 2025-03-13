@@ -13,6 +13,9 @@ tooltip: |-
   4. Specify number pattern.
   5. Valves will be numbered.
 
+  Will look at ALIAS in Fabrication valves and if it is set
+  to STRAINER or CHECK those elements will not be numbered.
+
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Selection

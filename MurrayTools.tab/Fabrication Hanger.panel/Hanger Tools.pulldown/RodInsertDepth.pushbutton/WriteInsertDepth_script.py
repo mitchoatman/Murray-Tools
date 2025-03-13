@@ -1,9 +1,8 @@
-
 import Autodesk
 from Autodesk.Revit.DB import FabricationAncillaryUsage, FabricationPart
 from Autodesk.Revit.DB import Transaction
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
-from rpw.ui.forms import FlexForm, Label, ComboBox, TextBox, TextBox, Separator, Button, CheckBox
+from rpw.ui.forms import FlexForm, Label, ComboBox, TextBox, Separator, Button, CheckBox
 from SharedParam.Add_Parameters import Shared_Params
 import sys, math
 
@@ -11,15 +10,15 @@ Shared_Params()
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 
-#This writes to fab part custom data field
+# Existing helper functions remain unchanged
 def set_customdata_by_custid(fabpart, custid, value):
-	fabpart.SetPartCustomDataReal(custid, value)
+    fabpart.SetPartCustomDataReal(custid, value)
 
 def set_parameter_by_name(element, parameterName, value):
     element.LookupParameter(parameterName).Set(value)
 
 def get_parameter_value_by_name(element, parameterName):
-    return element.LookupParameter(parameterName).AsDouble()
+    return element.LookupParameter(parameterName).AsString() if element.LookupParameter(parameterName).StorageType == Autodesk.Revit.DB.StorageType.String else element.LookupParameter(parameterName).AsDouble()
 
 class CustomISelectionFilter(ISelectionFilter):
     def __init__(self, nom_categorie):
@@ -30,13 +29,12 @@ class CustomISelectionFilter(ISelectionFilter):
         else:
             return False
     def AllowReference(self, ref, point):
-        return true
+        return True
 
-def set_fp_parameters(element, InsertDepth, TRL):
-    # Set the 'FP_Insert Depth' parameter
+def set_fp_parameters(element, InsertDepth, TRL, is_beam_hanger):
     set_parameter_by_name(element, 'FP_Insert Depth', InsertDepth)
-    # Calculate and set the 'FP_Rod Cut Length' parameter
-    rod_cut_length = InsertDepth + TRL
+    # Only add InsertDepth to rod length if not a beam hanger
+    rod_cut_length = TRL if is_beam_hanger else (InsertDepth + TRL)
     set_parameter_by_name(element, 'FP_Rod Cut Length', round_to_nearest_quarter(rod_cut_length))
 
 def round_to_nearest_half(value):
@@ -49,304 +47,217 @@ def round_to_nearest_quarter(value):
     rounded_value_in_inches = math.ceil(value_in_inches * 4) / 4
     return rounded_value_in_inches / 12
 
+# Updated function to process each hanger individually with beam hanger check
+def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
+    AnciDiam = list()
+    # Check if this is a beam hanger
+    is_beam_hanger = False
+    try:
+        beam_hanger_param = get_parameter_value_by_name(hanger, 'FP_Beam Hanger')
+        is_beam_hanger = beam_hanger_param == 'Yes'
+    except:
+        pass  # If parameter doesn't exist or fails, assume it's not a beam hanger
+
+    # If it's a beam hanger, set InsertDepth to 0
+    InsertDepth = 0 if is_beam_hanger else None
+
+    if insert_type == 1:  # BlueBanger MD
+        set_parameter_by_name(hanger, 'FP_Insert Type', 'BlueBanger MD - ' + str(deck_thickness * 12))
+        if not is_beam_hanger:
+            AnciObj = hanger.GetPartAncillaryUsage()
+            for n in AnciObj:
+                AnciDiam.append(n.AncillaryWidthOrDiameter)
+                for elinfo in AnciDiam:
+                    formatted_elinfo = "{:.6f}".format(elinfo)
+                    if formatted_elinfo == '0.031250':  # 3/8"
+                        InsertDepth = (deck_thickness + (1.25 / 12))
+                    elif formatted_elinfo == '0.041667':  # 1/2"
+                        InsertDepth = (deck_thickness + (0.75 / 12))
+                    elif formatted_elinfo == '0.052083':  # 5/8"
+                        InsertDepth = (deck_thickness + (0.75 / 12))
+                    elif formatted_elinfo == '0.062500':  # 3/4"
+                        InsertDepth = (deck_thickness + (1.0 / 12))
+                    elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
+                        InsertDepth = (-4.0 / 12)
+        set_customdata_by_custid(hanger, 9, InsertDepth)
+        set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
+
+    elif insert_type == 2:  # BlueBanger WD
+        set_parameter_by_name(hanger, 'FP_Insert Type', 'BlueBanger WD')
+        if not is_beam_hanger:
+            AnciObj = hanger.GetPartAncillaryUsage()
+            for n in AnciObj:
+                AnciDiam.append(n.AncillaryWidthOrDiameter)
+                for elinfo in AnciDiam:
+                    formatted_elinfo = "{:.6f}".format(elinfo)
+                    if formatted_elinfo == '0.031250':  # 3/8"
+                        InsertDepth = (1.75 / 12)
+                    elif formatted_elinfo == '0.041667':  # 1/2"
+                        InsertDepth = (1.25 / 12)
+                    elif formatted_elinfo == '0.052083':  # 5/8"
+                        InsertDepth = (1.75 / 12)
+                    elif formatted_elinfo == '0.062500':  # 3/4"
+                        InsertDepth = (1.25 / 12)
+                    elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
+                        InsertDepth = (-4.0 / 12)
+        set_customdata_by_custid(hanger, 9, InsertDepth)
+        set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
+
+    elif insert_type == 3:  # BlueBanger RDI
+        set_parameter_by_name(hanger, 'FP_Insert Type', 'BlueBanger RDI')
+        if not is_beam_hanger:
+            AnciObj = hanger.GetPartAncillaryUsage()
+            for n in AnciObj:
+                AnciDiam.append(n.AncillaryWidthOrDiameter)
+                for elinfo in AnciDiam:
+                    formatted_elinfo = "{:.6f}".format(elinfo)
+                    if formatted_elinfo == '0.031250':  # 3/8"
+                        InsertDepth = (deck_thickness + (-0.75 / 12))
+                    elif formatted_elinfo == '0.041667':  # 1/2"
+                        InsertDepth = (deck_thickness + (-1.25 / 12))
+                    elif float(formatted_elinfo) > 0.052083:  # Bigger than 1/2"
+                        print('Some rod sizes bigger than insert can accept! \n Depth not written for hanger.')
+                        InsertDepth = 0
+        set_customdata_by_custid(hanger, 9, InsertDepth)
+        set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
+
+    elif insert_type == 4:  # Dewalt DDI
+        set_parameter_by_name(hanger, 'FP_Insert Type', 'Dewalt DDI')
+        if not is_beam_hanger:
+            AnciObj = hanger.GetPartAncillaryUsage()
+            for n in AnciObj:
+                AnciDiam.append(n.AncillaryWidthOrDiameter)
+                for elinfo in AnciDiam:
+                    formatted_elinfo = "{:.6f}".format(elinfo)
+                    if formatted_elinfo == '0.031250':  # 3/8"
+                        InsertDepth = (deck_thickness + (-6.25 / 12))
+                    elif formatted_elinfo == '0.041667':  # 1/2"
+                        InsertDepth = (deck_thickness + (-6.0 / 12))
+                    elif formatted_elinfo == '0.052083':  # 5/8"
+                        InsertDepth = (deck_thickness + (-5.625 / 12))
+                    elif formatted_elinfo in ['0.062500', '0.072917']:  # 3/4" or 7/8"
+                        InsertDepth = (deck_thickness + (-5.375 / 12))
+                    elif formatted_elinfo == '0.083333':  # 1"
+                        InsertDepth = (-4.0 / 12)
+        set_customdata_by_custid(hanger, 9, InsertDepth)
+        set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
+
+    elif insert_type == 5:  # Dewalt Wood Knocker
+        set_parameter_by_name(hanger, 'FP_Insert Type', 'Dewalt Wood Knocker')
+        if not is_beam_hanger:
+            AnciObj = hanger.GetPartAncillaryUsage()
+            for n in AnciObj:
+                AnciDiam.append(n.AncillaryWidthOrDiameter)
+                for elinfo in AnciDiam:
+                    formatted_elinfo = "{:.6f}".format(elinfo)
+                    if formatted_elinfo == '0.031250':  # 3/8"
+                        InsertDepth = (0.875 / 12)
+                    elif formatted_elinfo in ['0.041667', '0.052083', '0.062500']:  # 1/2", 5/8", 3/4"
+                        InsertDepth = (0.375 / 12)
+                    elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
+                        InsertDepth = (-4.0 / 12)
+        set_customdata_by_custid(hanger, 9, InsertDepth)
+        set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
+
+    elif insert_type == 6:  # Dewalt BangIt+
+        set_parameter_by_name(hanger, 'FP_Insert Type', 'Dewalt BangIt+')
+        if not is_beam_hanger:
+            AnciObj = hanger.GetPartAncillaryUsage()
+            for n in AnciObj:
+                AnciDiam.append(n.AncillaryWidthOrDiameter)
+                for elinfo in AnciDiam:
+                    formatted_elinfo = "{:.6f}".format(elinfo)
+                    if formatted_elinfo == '0.031250':  # 3/8"
+                        InsertDepth = (0.375 / 12)
+                    elif formatted_elinfo == '0.041667':  # 1/2"
+                        InsertDepth = (0.500 / 12)
+                    elif formatted_elinfo == '0.052083':  # 5/8"
+                        InsertDepth = (0.625 / 12)
+                    elif formatted_elinfo == '0.062500':  # 3/4"
+                        InsertDepth = (0.750 / 12)
+                    elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
+                        InsertDepth = (-4.0 / 12)
+        set_customdata_by_custid(hanger, 9, InsertDepth)
+        set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
+
+    elif insert_type == 7:  # Custom Cut/Extended Rod
+        set_parameter_by_name(hanger, 'FP_Insert Type', 'User Custom')
+        if not is_beam_hanger:
+            InsertDepth = deck_thickness
+        set_customdata_by_custid(hanger, 9, InsertDepth)
+        set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
+
+# Main execution
 pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
-CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers")            
-hangers = [doc.GetElement( elId ) for elId in pipesel]
+    CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers")
+hangers = [doc.GetElement(elId) for elId in pipesel]
 
 if len(hangers) > 0:
-  
-        #Define dialog options and show it
-    components = [Label('Insert Type:'),
-        ComboBox('Insert', {'(1) BlueBanger MD': 1, '(2) BlueBanger WD': 2, '(3) BlueBanger RDI': 3, '(4) Dewalt DDI': 4, '(5) Dewalt Wood Knocker': 5, '(6) Dewalt BangIt+': 6, '(7) Extend or Cut Rod': 7}),
+    # Define dialog options and show it
+    components = [
+        Label('Insert Type:'),
+        ComboBox('Insert', {
+            '(1) BlueBanger MD': 1,
+            '(2) BlueBanger WD': 2,
+            '(3) BlueBanger RDI': 3,
+            '(4) Dewalt DDI': 4,
+            '(5) Dewalt Wood Knocker': 5,
+            '(6) Dewalt BangIt+': 6,
+            '(7) Extend or Cut Rod': 7
+        }),
         Label('Deck Thickness(Decimal In.) | (Num = +Ext or -Cut):'),
         TextBox('Deck', '3'),
-        Button('Ok')]
+        Button('Ok')
+    ]
     form = FlexForm('Insert Type', components)
     form.show()
 
-    InsertType = (form.values['Insert'])
-    DeckThickness = (float(form.values['Deck']) / 12)
-    
-    AnciDiam = list()
-    AnciType = list()
+    InsertType = form.values['Insert']
+    DeckThickness = float(form.values['Deck']) / 12
 
     t = Transaction(doc, "Set Insert Depth")
-    t.Start() 
+    t.Start()
+    
     for e in hangers:
+        # Get hanger dimensions
         ItmDims = e.GetDimensions()
+        RLA = None
+        RLB = None
+        TrapWidth = None
+        TrapExtn = None
+        
         for dta in ItmDims:
             try:
                 if dta.Name == 'Length A':
                     RLA = e.GetDimensionValue(dta)
-            except Exception as ex:
-                pass
-            try:
-                if dta.Name == 'Length B':
+                elif dta.Name == 'Length B':
                     RLB = e.GetDimensionValue(dta)
-            except Exception as ex:
-                pass
-            try:
-                if dta.Name == 'Width':
+                elif dta.Name == 'Width':
                     TrapWidth = e.GetDimensionValue(dta)
-            except Exception as ex:
-                pass
-            try:
-                if dta.Name == 'Bearer Extn':
+                elif dta.Name == 'Bearer Extn':
                     TrapExtn = e.GetDimensionValue(dta)
-            except Exception as ex:
+            except Exception:
                 pass
-            try:
-                if dta.Name == 'Right Rod Offset':
-                    TrapRRod = e.GetDimensionValue(dta)
-            except Exception as ex:
-                pass
-            try:
-                if dta.Name == 'Left Rod Offset':
-                    TrapLRod = e.GetDimensionValue(dta)
-            except Exception as ex:
-                pass
+
+        # Set basic parameters
         try:
-            BearerLength = TrapWidth + TrapExtn + TrapExtn
-            set_parameter_by_name(e, 'FP_Bearer Length', BearerLength)
-        except Exception as ex:
-            pass
-        try:
-            set_parameter_by_name(e, 'FP_Rod Length', RLA)
-            set_parameter_by_name(e, 'FP_Rod Length A', RLA)
-            set_parameter_by_name(e, 'FP_Rod Length B', RLB)
-        except Exception as ex:
+            if TrapWidth is not None and TrapExtn is not None:
+                BearerLength = TrapWidth + TrapExtn + TrapExtn
+                set_parameter_by_name(e, 'FP_Bearer Length', BearerLength)
+        except Exception:
             pass
 
+        try:
+            if RLA is not None:
+                set_parameter_by_name(e, 'FP_Rod Length', RLA)
+                set_parameter_by_name(e, 'FP_Rod Length A', RLA)
+            if RLB is not None:
+                set_parameter_by_name(e, 'FP_Rod Length B', RLB)
+        except Exception:
+            pass
 
-    if InsertType == 1:  #BlueBanger MD
-        for e in hangers:
-            set_parameter_by_name(e, 'FP_Insert Type', 'BlueBanger MD - ' + str(DeckThickness * 12))
-            AnciObj = e.GetPartAncillaryUsage()
-            for n in AnciObj:
-                AnciDiam.append(n.AncillaryWidthOrDiameter)
-                #print AnciDiam
-                for elinfo in AnciDiam:
-                    formatted_elinfo = "{:.6f}".format(elinfo)
-                    if formatted_elinfo == '0.031250': #3/8"
-                        InsertDepth = (DeckThickness + (1.25 / 12))
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.041667': #1/2"
-                        InsertDepth = (DeckThickness + (0.75 / 12))
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.052083': #5/8"
-                        InsertDepth = (DeckThickness + (0.75 / 12))
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.062500': #3/4"
-                        InsertDepth = (DeckThickness + (1.0 / 12))
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.072917': #7/8"
-                        InsertDepth = (-4.0 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.083333': #1"
-                        InsertDepth = (-4.0 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
+        # Process insert type for this hanger
+        if RLA is not None:  # Only process if we have a rod length
+            process_hanger_insert(e, InsertType, DeckThickness, RLA)
 
-    if InsertType == 2:  #BlueBanger WD
-        for e in hangers:
-            set_parameter_by_name(e, 'FP_Insert Type', 'BlueBanger WD')
-            AnciObj = e.GetPartAncillaryUsage()
-            for n in AnciObj:
-                AnciDiam.append(n.AncillaryWidthOrDiameter)
-                #print AnciDiam
-                for elinfo in AnciDiam:
-                    formatted_elinfo = "{:.6f}".format(elinfo)
-                    if formatted_elinfo == '0.031250': #3/8"
-                        InsertDepth = (1.75 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.041667': #1/2"
-                        InsertDepth = (1.25 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.052083': #5/8"
-                        InsertDepth = (1.75 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.062500': #3/4"
-                        InsertDepth = (1.25 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.072917': #7/8"
-                        InsertDepth = (-4.0 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.083333': #1"
-                        InsertDepth = (-4.0 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-
-    if InsertType == 3:  #BlueBanger RDI
-         for e in hangers:           
-            set_parameter_by_name(e, 'FP_Insert Type', 'BlueBanger RDI')
-            AnciObj = e.GetPartAncillaryUsage()
-            for n in AnciObj:
-                AnciDiam.append(n.AncillaryWidthOrDiameter)
-                for elinfo in AnciDiam:
-                    formatted_elinfo = "{:.6f}".format(elinfo)
-                    #print formatted_elinfo
-                    if formatted_elinfo == '0.031250': #3/8"
-                        InsertDepth = (DeckThickness + (-0.75 / 12))
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.041667': #1/2"
-                        InsertDepth = (DeckThickness + (-1.25 / 12))
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo > '0.052083': #Bigger than 1/2"
-                        print 'Some rod sizes bigger than insert can accept! \n Depth not written.'
-
-    if InsertType == 4:  #Dewalt DDI
-        for e in hangers:
-            set_parameter_by_name(e, 'FP_Insert Type', 'Dewalt DDI')
-            AnciObj = e.GetPartAncillaryUsage()
-            for n in AnciObj:
-                AnciDiam.append(n.AncillaryWidthOrDiameter)
-                #print AnciDiam
-                for elinfo in AnciDiam:
-                    formatted_elinfo = "{:.6f}".format(elinfo)
-                    #print formatted_elinfo
-                    if formatted_elinfo == '0.031250': #3/8"
-                        InsertDepth = (DeckThickness + (-6.25 / 12))
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.041667': #1/2"
-                        InsertDepth = (DeckThickness + (-6.0 / 12))
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.052083': #5/8"
-                        InsertDepth = (DeckThickness + (-5.625 / 12))
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.062500': #3/4"
-                        InsertDepth = (DeckThickness + (-5.375 / 12))
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.072917': #7/8"
-                        InsertDepth = (DeckThickness + (-5.375 / 12))
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.083333': #1"
-                        InsertDepth = (-4.0 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        set_parameter_by_name(e, 'FP_Insert Depth', InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-
-    if InsertType == 5:  #Dewalt Wood Knocker
-        for e in hangers:
-            set_parameter_by_name(e, 'FP_Insert Type', 'Dewalt Wood Knocker')
-            AnciObj = e.GetPartAncillaryUsage()
-            for n in AnciObj:
-                AnciDiam.append(n.AncillaryWidthOrDiameter)
-                #print AnciDiam
-                for elinfo in AnciDiam:
-                    formatted_elinfo = "{:.6f}".format(elinfo)
-                    if formatted_elinfo == '0.031250': #3/8"
-                        InsertDepth = (0.875 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.041667': #1/2"
-                        InsertDepth = (0.375 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.052083': #5/8"
-                        InsertDepth = (0.375/ 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.062500': #3/4"
-                        InsertDepth = (0.375 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.072917': #7/8"
-                        InsertDepth = (-4.0 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.083333': #1"
-                        InsertDepth = (-4.0 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-
-    if InsertType == 6:  #Dewalt BangIt+
-        for e in hangers:
-            set_parameter_by_name(e, 'FP_Insert Type', 'Dewalt Wood Knocker')
-            AnciObj = e.GetPartAncillaryUsage()
-            for n in AnciObj:
-                AnciDiam.append(n.AncillaryWidthOrDiameter)
-                #print AnciDiam
-                for elinfo in AnciDiam:
-                    formatted_elinfo = "{:.6f}".format(elinfo)
-                    if formatted_elinfo == '0.031250': #3/8"
-                        InsertDepth = (0.375 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.041667': #1/2"
-                        InsertDepth = (0.500 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.052083': #5/8"
-                        InsertDepth = (0.625/ 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.062500': #3/4"
-                        InsertDepth = (0.750 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.072917': #7/8"
-                        InsertDepth = (-4.0 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-                    if formatted_elinfo == '0.083333': #1"
-                        InsertDepth = (-4.0 / 12)
-                        set_customdata_by_custid(e, 9, InsertDepth)
-                        #see function above
-                        set_fp_parameters(e, InsertDepth, RLA)
-
-    if InsertType == 7:  #Custom Cut/Extended Rod
-        for e in hangers:
-            set_parameter_by_name(e, 'FP_Insert Type', 'User Custom')
-            set_customdata_by_custid(e, 9, DeckThickness)
-            set_parameter_by_name(e, 'FP_Insert Depth', DeckThickness)
-            InsertDepth = DeckThickness
-            set_fp_parameters(e, InsertDepth, RLA)
     t.Commit()

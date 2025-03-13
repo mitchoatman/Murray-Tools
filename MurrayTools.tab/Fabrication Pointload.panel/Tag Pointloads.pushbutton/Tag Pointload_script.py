@@ -61,20 +61,23 @@ def get_existing_tags(element):
     tags = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangerTags)\
                                                     .WhereElementIsNotElementType()\
                                                     .ToElements()
+    tagged_elements = set()
+
     try:
-        if RevitINT > 2021:
-            tagged_elements = set()
+        if RevitINT >= 2022:  # Revit 2022 and later use GetTaggedLocalElementIds
             for tag in tags:
-                if tag.GetTaggedLocalElementIds == element.Id:
+                tagged_ids = tag.GetTaggedLocalElementIds()  # Call the method to get the collection
+                if tagged_ids and element.Id in tagged_ids:  # Check if element.Id is in the collection
                     tagged_elements.add(tag.Id)
-            return tagged_elements
-    except:
-        if RevitINT < 2022:
-            tagged_elements = set()
+        else:  # Revit 2021 and earlier use TaggedLocalElementId
             for tag in tags:
                 if tag.TaggedLocalElementId == element.Id:
                     tagged_elements.add(tag.Id)
-            return tagged_elements
+    except:
+        # If any error occurs, return an empty set (could log this for debugging)
+        return tagged_elements
+
+    return tagged_elements  # Return the set of tag IDs, empty if no tags found
 
 def needs_tagging(element, rod_count, existing_tags):
     """Determine if the element needs additional tags based on rod count.
@@ -85,6 +88,7 @@ def needs_tagging(element, rod_count, existing_tags):
     Returns:
         bool: True if more tags are needed, False otherwise"""
     return len(existing_tags) < rod_count
+
 
 # Shift-click mode: Manual selection of hangers
 if __shiftclick__:

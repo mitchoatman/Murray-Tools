@@ -1,38 +1,11 @@
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import Transaction, ParameterFilterRuleFactory, ElementParameterFilter, ParameterFilterElement, Color, ElementId, BuiltInCategory, OverrideGraphicSettings, FilteredElementCollector, FillPatternElement
-from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
-from SharedParam.Add_Parameters import Shared_Params
 from System.Collections.Generic import List
-
-Shared_Params()
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 
-# Define functions
-def set_parameter_by_name(element, parameterName, value):
-    element.LookupParameter(parameterName).Set(value)
-
-def get_parameter_value_by_name(element, parameterName):
-    return element.LookupParameter(parameterName).AsString()
-
-class CustomISelectionFilter(ISelectionFilter):
-    def __init__(self, nom_categorie):
-        self.nom_categorie = nom_categorie
-    def AllowElement(self, e):
-        if e.Category.Name == self.nom_categorie:
-            return True
-        else:
-            return False
-    def AllowReference(self, ref, point):
-        return True
-
-# Get selection
-pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
-    CustomISelectionFilter("MEP Fabrication Hangers"), 
-    "Select Fabrication Hangers")            
-Fhangers = [doc.GetElement(elId) for elId in pipesel]
-
+# Define filter properties
 view = doc.ActiveView
 filter_name = "BEAM HANGERS"
 filter_color = DB.Color(0, 255, 255)  # Cyan
@@ -53,16 +26,8 @@ categories = List[ElementId]()
 categories.Add(ElementId(BuiltInCategory.OST_FabricationHangers))
 
 # Start transaction
-t = Transaction(doc, 'Toggle Beam Hanger and Apply Filter')
+t = Transaction(doc, 'Create Beam Hanger Filter')
 t.Start()
-
-# Toggle parameter value
-for hanger in Fhangers:
-    BHangerStatus = get_parameter_value_by_name(hanger, 'FP_Beam Hanger')
-    if BHangerStatus == None or BHangerStatus == 'No':
-        set_parameter_by_name(hanger, 'FP_Beam Hanger', 'Yes')
-    else:
-        set_parameter_by_name(hanger, 'FP_Beam Hanger', 'No')
 
 # Get view to modify (view or view template)
 view_template_id = view.ViewTemplateId
@@ -81,10 +46,11 @@ applied_filters = {doc.GetElement(id).Name: id for id in view_to_modify.GetFilte
 
 # Create and apply filter if it doesn't exist
 if filter_name not in existing_filter_names:
-    # Get parameter ID
+    # Get parameter ID from first fabrication hanger found
     param_id = None
-    if Fhangers:  # Use first selected hanger to get parameter
-        for p in Fhangers[0].Parameters:
+    fabrication_hangers = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_FabricationHangers).WhereElementIsNotElementType().FirstElement()
+    if fabrication_hangers:
+        for p in fabrication_hangers.Parameters:
             if p.Definition.Name == "FP_Beam Hanger":
                 param_id = p.Id
                 break
@@ -106,7 +72,7 @@ if filter_name not in existing_filter_names:
             view_to_modify.SetFilterVisibility(filter_id, True)
             view_to_modify.SetFilterOverrides(filter_id, overrides)
     else:
-        print("Could not find FP_Beam Hanger parameter")
+        print("Could not find FP_Beam Hanger parameter or no fabrication hangers exist in the model")
 else:
     # Filter exists, apply it if not already applied
     filter_id = existing_filter_dict[filter_name]

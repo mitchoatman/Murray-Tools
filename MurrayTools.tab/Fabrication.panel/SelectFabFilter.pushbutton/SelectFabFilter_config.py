@@ -3,7 +3,7 @@ import clr
 clr.AddReference('System.Windows.Forms')
 clr.AddReference('System.Drawing')
 from System.Windows.Forms import (Form, Label, ComboBox, Button, ListBox, 
-                                CheckBox, DialogResult, FormBorderStyle, 
+                                CheckBox, DialogResult, FormBorderStyle, FormStartPosition, 
                                 SelectionMode, Control, ComboBoxStyle, TextBox)
 from System import Array
 from System.Drawing import Point, Size
@@ -41,7 +41,7 @@ class MultiPropertyFilterForm(Form):
         self.FormBorderStyle = FormBorderStyle.FixedDialog
         self.MaximizeBox = False
         self.MinimizeBox = False
-        self.StartPosition = 0  # Must be 0 per requirement
+        self.StartPosition = FormStartPosition.CenterScreen
 
         # Property selection
         self.property_label = Label()
@@ -61,8 +61,8 @@ class MultiPropertyFilterForm(Form):
 
         # AND/OR toggle (right of dropdown)
         self.logic_check = CheckBox()
-        self.logic_check.Text = "Use AND logic (unchecked = OR)"
-        self.logic_check.Location = Point(290, 10)
+        self.logic_check.Text = "AND logic (unchecked = OR)"
+        self.logic_check.Location = Point(275, 10)
         self.logic_check.Size = Size(200, 20)
 
         # Search label

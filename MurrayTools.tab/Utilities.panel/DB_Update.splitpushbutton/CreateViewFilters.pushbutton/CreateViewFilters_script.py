@@ -332,12 +332,19 @@ with Transaction(doc, "Create and Apply Filters") as t:
             filter_elem.SetElementFilter(filter_element)
             filter_id = filter_elem.Id
 
-        # Check if the filter is already applied to the view
-        if filter_name not in applied_filters:
-            overrides = OverrideGraphicSettings().SetProjectionLineColor(color)
-            view_to_modify.AddFilter(filter_id)
-            view_to_modify.SetFilterVisibility(filter_id, True)
-            view_to_modify.SetFilterOverrides(filter_id, overrides)
+            # Check if the filter is already applied to the view
+            if filter_name not in applied_filters:
+                overrides = OverrideGraphicSettings()  # Create the overrides object first
+                overrides.SetProjectionLineColor(color)  # Set the line color
+                # Add specific settings for the INSULATION filter
+                if filter_name == "INSULATION":
+                    overrides.SetSurfaceTransparency(100)  # 100% transparent
+                    overrides.SetProjectionLinePatternId(dashed_pattern_id)  # Set to dashed line pattern
+                    overrides.SetHalftone(True)  # Enable halftone
+                
+                view_to_modify.AddFilter(filter_id)
+                view_to_modify.SetFilterVisibility(filter_id, True)
+                view_to_modify.SetFilterOverrides(filter_id, overrides)
 
     for service_name in SNamelist_set:
         if service_name in system_colors:

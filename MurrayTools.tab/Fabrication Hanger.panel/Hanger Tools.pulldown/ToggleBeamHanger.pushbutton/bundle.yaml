@@ -6,10 +6,14 @@ title:
 
 # bundle tooltip
 tooltip: |-
-  Toggles Fabrication Hanger Beam Hanger Parameter.
+  Toggles Fabrication Hanger Beam Hanger Parameter. Will also
+  add a view filter to highlight beam hangers.
     1. Run Command.
     2. Select Fabrication Hangers.
     3. Click Finish button in action bar.
+
+  [Shift]+Click:
+  Will add a view filter to highlight the beam hangers.
 
 # context directives are listed under `context` key, the order does not matter
 #context:
