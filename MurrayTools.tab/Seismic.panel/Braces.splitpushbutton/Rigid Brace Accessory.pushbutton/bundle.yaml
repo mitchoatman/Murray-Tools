@@ -1,0 +1,26 @@
+highlight: updated
+
+# bundle title
+title:
+  "Rigid\nOn Accessory"
+
+# bundle tooltip
+tooltip: >-
+  Inserts a Rigid Seismic Brace Family on a selected Pipe Accessory
+
+    1. Run Command.
+    2. Select Pipe Accessory to place brace on.
+    3. *NEW Brace will now be placed.
+    4. User will need to use Extend Brace button to stretch brace.
+
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Walls
+#  - Text Notes
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman
