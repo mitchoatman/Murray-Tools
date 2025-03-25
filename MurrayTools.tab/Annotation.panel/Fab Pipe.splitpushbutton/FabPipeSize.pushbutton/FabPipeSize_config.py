@@ -3,7 +3,7 @@ from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCate
 import os
 
 path, filename = os.path.split(__file__)
-NewFilename = '\Fabrication Pipe - Size Tag.rfa'
+NewFilename = '\Fabrication Pipe - Size Tag - Aligned.rfa'
 
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
@@ -20,7 +20,7 @@ class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
         return True
 
 # Set desired family name and type name
-FamilyName = 'Fabrication Pipe - Size Tag'
+FamilyName = 'Fabrication Pipe - Size Tag - Aligned'
 FamilyType = 'Size Tag'
 
 family_pathCC = path + NewFilename

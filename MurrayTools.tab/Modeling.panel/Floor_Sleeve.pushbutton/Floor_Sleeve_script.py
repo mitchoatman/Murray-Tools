@@ -13,6 +13,9 @@ from math import atan2
 from fractions import Fraction
 import re
 import os
+from SharedParam.Add_Parameters import Shared_Params
+Shared_Params()
+
 from Parameters.Get_Set_Params import (
     set_parameter_by_name,
     get_parameter_value_by_name_AsString

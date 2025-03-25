@@ -4,6 +4,7 @@ from Autodesk.Revit import DB
 from Autodesk.Revit.UI import Selection
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, Transaction, ReferencePlane
+from Parameters.Get_Set_Params import get_parameter_value_by_name_AsValueString
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -52,9 +53,11 @@ for e in Hanger:
     rod_count = rod_info.RodCount
     rod_info.CanRodsBeHosted = False  # Detach rods from structure
 
-    for n in range(rod_count):
-        rod_len = rod_info.GetRodLength(n)
-        rod_pos = rod_info.GetRodEndPosition(n)  # Should already be in Project Coordinates
+    HangerType = get_parameter_value_by_name_AsValueString(e, 'Family')
+    # checks for 2pt duct straps and only does one cycle on them
+    if 'Strap' in HangerType and rod_count > 1:
+        rod_len = rod_info.GetRodLength(0)
+        rod_pos = rod_info.GetRodEndPosition(0)  # Should already be in Project Coordinates
 
         # Calculate intersection of rod with reference plane
         rod_vector = rod_pos - plane_origin
@@ -71,6 +74,28 @@ for e in Hanger:
             new_length = rod_len + delta_length
 
         # Set the new rod length
-        rod_info.SetRodLength(n, new_length)
+        rod_info.SetRodLength(0, new_length)
+    # if not a 2pt strap modifies hanger rod for each rod encountered
+    else:
+        for n in range(rod_count):
+            rod_len = rod_info.GetRodLength(n)
+            rod_pos = rod_info.GetRodEndPosition(n)  # Should already be in Project Coordinates
+
+            # Calculate intersection of rod with reference plane
+            rod_vector = rod_pos - plane_origin
+            distance_to_plane = plane_normal.DotProduct(rod_vector)
+            intersection_point = rod_pos - (distance_to_plane * plane_normal)
+
+            # Calculate new rod length
+            delta_length = intersection_point.DistanceTo(rod_pos)
+
+            # Check if the reference plane is above or below the rod
+            if distance_to_plane > 0:
+                new_length = rod_len - delta_length
+            else:
+                new_length = rod_len + delta_length
+
+            # Set the new rod length
+            rod_info.SetRodLength(n, new_length)
 
 t.Commit()

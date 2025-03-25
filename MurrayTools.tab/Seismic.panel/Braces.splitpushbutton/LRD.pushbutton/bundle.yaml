@@ -1,0 +1,20 @@
+highlight: new
+title:
+  "LRD"
+
+tooltip: |-
+  Places a pipe clamp at user specified point.
+    1. Run command.
+    2. Select pipe.
+    3. Select point to place clamp.
+    
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://youtu.be/2464K7fS2iY"
+
+# bundle author
+author: Mitchell Oatman

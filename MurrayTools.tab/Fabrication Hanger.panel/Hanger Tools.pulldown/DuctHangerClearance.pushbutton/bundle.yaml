@@ -1,0 +1,24 @@
+#highlight: new
+
+# bundle title
+title:
+  "Duct\nHanger Clearance"
+
+# bundle tooltip
+tooltip: |-
+  Adds a clearance family around supports.
+  1. Execute command.
+  2. Clearance family will be populated.
+
+  If hangers are selected first only the selected
+  elements will get the clearance added.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+help_url: "https://youtu.be/ahVfaciq1wg"
+
+# bundle author
+author: Mitchell Oatman

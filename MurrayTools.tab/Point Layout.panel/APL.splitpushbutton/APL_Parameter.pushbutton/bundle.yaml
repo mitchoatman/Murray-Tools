@@ -7,6 +7,10 @@ tooltip: |-
   Cleanup sleeve and insert descriptions in active view.
   Users do not have to select anything if only cleaning up sleeve and insert descriptions.
 
+
+  [Shift]+Click:    
+  Does all the same things except puts BOTTOM elevation of WS and DR-WS sleeves.
+
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Selection

@@ -226,8 +226,27 @@ try:
             accessory_elements5 = [element for element in accessory_models_collector if "WS" in element.Name or "DR-WS" in element.Name]
             for x in accessory_elements5:
                 slvdiameter = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Diameter') * 12)
-                slvelevation = feet_to_feet_inches_fraction(get_parameter_value_by_name_AsDouble(x, 'Elevation from Level'))
-                result_string = "DIA {0} CL {1}".format(slvdiameter, slvelevation)
+                
+                # Get the bounding box of the element
+                bbox = x.get_BoundingBox(doc.ActiveView)
+                if bbox:
+                    # Get the level associated with the element
+                    level_id = x.LevelId
+                    if level_id != ElementId.InvalidElementId:
+                        level = doc.GetElement(level_id)
+                        level_elevation = level.Elevation  # Elevation of the level in feet
+                        # Calculate bottom elevation relative to level
+                        bottom_elevation = bbox.Min.Z - level_elevation
+                    else:
+                        # Fallback if no level is associated
+                        bottom_elevation = bbox.Min.Z
+                    slvelevation = feet_to_feet_inches_fraction(bottom_elevation)
+                else:
+                    # Fallback to Elevation from Level parameter if bounding box is not available
+                    bottom_elevation = get_parameter_value_by_name_AsDouble(x, 'Elevation from Level')
+                    slvelevation = feet_to_feet_inches_fraction(bottom_elevation)
+                
+                result_string = "DIA {0} BOT {1}".format(slvdiameter, slvelevation)
                 set_parameter_by_name(x, 'TS_Point_Description', result_string)
     except:
         pass

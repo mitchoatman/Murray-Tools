@@ -10,3 +10,4 @@ layout:
   - SelectALLHangers
   - SelectSingleHangers
   - DisconnectHangers
+  - DuctHangerClearance

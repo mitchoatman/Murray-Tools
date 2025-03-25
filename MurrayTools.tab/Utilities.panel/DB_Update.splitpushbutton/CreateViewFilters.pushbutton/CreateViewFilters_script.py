@@ -181,14 +181,12 @@ system_colors = {
     'RELF EXH (-2 WG)': (0, 94, 189),
     'RELF EXH (-3 WG)': (0, 94, 189),
     'RELF EXH (-4 WG)': (0, 94, 189),
-
-# Add more system names and their corresponding RGB values here
 }
 
 # Define a dictionary to store custom filters (OrderedDict to preserve order)
 custom_filters = OrderedDict()
 # Adding items in the desired order
-custom_filters["INSULATION"] = {
+custom_filters["FP_INSULATION"] = {
     "parameter_name": "Specification",
     "condition": "DoesNotContain",
     "value": "XYZ",
@@ -272,8 +270,6 @@ custom_filters["BEAM HANGER"] = {
     "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
     "color": (0, 255, 255)  # Cyan color for visibility
 }
-# Add more custom filters here if needed
-
 
 # Get filters already applied to the view
 view_template_id = curview.ViewTemplateId
@@ -287,65 +283,64 @@ applied_filters = {doc.GetElement(id).Name: id for id in view_to_modify.GetFilte
 with Transaction(doc, "Create and Apply Filters") as t:
     t.Start()
 
-    # Apply custom filters from the dictionary in order
-    for filter_name, filter_props in custom_filters.items():
-        param_name = filter_props["parameter_name"]
-        condition = filter_props["condition"]
-        value = filter_props["value"]
-        categories = List[ElementId]([ElementId(cat) for cat in filter_props["categories"]])
-        color = Color(*filter_props["color"])
+    # Only apply custom filters when no elements are selected
+    if not filtered_selection:
+        # Apply custom filters from the dictionary in order
+        for filter_name, filter_props in custom_filters.items():
+            param_name = filter_props["parameter_name"]
+            condition = filter_props["condition"]
+            value = filter_props["value"]
+            categories = List[ElementId]([ElementId(cat) for cat in filter_props["categories"]])
+            color = Color(*filter_props["color"])
 
-        # Check if the filter already exists
-        if filter_name in existing_filter_names:
-            filter_id = existing_filter_dict[filter_name]
-        else:
-            # Get the parameter ID from an element that contains the parameter
-            sample_element = part_collector[0] if part_collector else None
-            if not sample_element:
-                raise Exception('No elements found to retrieve parameter ID from')
-
-            param_id = None
-            for p in sample_element.Parameters:
-                if p.Definition.Name == param_name:
-                    param_id = p.Id
-                    break
-            if not param_id:
-                raise Exception('STRATUS Assembly Parameter not found')
-
-            if condition == "EndsWith":
-                rule = ParameterFilterRuleFactory.CreateEndsWithRule(param_id, value, False)
-            elif condition == "DoesNotContain":
-                # Create a Contains rule first
-                contains_rule = ParameterFilterRuleFactory.CreateContainsRule(param_id, value, False)
-                # Invert the Contains rule using the NOT operator
-                rule = FilterInverseRule(contains_rule)
-            elif condition == "Contains":
-                # Create a Contains rule first
-                contains_rule = ParameterFilterRuleFactory.CreateContainsRule(param_id, value, False)
-            elif condition == "Equals":
-                rule = ParameterFilterRuleFactory.CreateEqualsRule(param_id, value, False)
+            # Check if the filter already exists
+            if filter_name in existing_filter_names:
+                filter_id = existing_filter_dict[filter_name]
             else:
-                raise Exception('Condition not supported')
+                # Get the parameter ID from an element that contains the parameter
+                sample_element = part_collector[0] if part_collector else None
+                if not sample_element:
+                    raise Exception('No elements found to retrieve parameter ID from')
 
-            filter_element = ElementParameterFilter(rule)
-            filter_elem = ParameterFilterElement.Create(doc, filter_name, categories)
-            filter_elem.SetElementFilter(filter_element)
-            filter_id = filter_elem.Id
+                param_id = None
+                for p in sample_element.Parameters:
+                    if p.Definition.Name == param_name:
+                        param_id = p.Id
+                        break
+                if not param_id:
+                    raise Exception('STRATUS Assembly Parameter not found')
 
-            # Check if the filter is already applied to the view
-            if filter_name not in applied_filters:
-                overrides = OverrideGraphicSettings()  # Create the overrides object first
-                overrides.SetProjectionLineColor(color)  # Set the line color
-                # Add specific settings for the INSULATION filter
-                if filter_name == "INSULATION":
-                    overrides.SetSurfaceTransparency(100)  # 100% transparent
-                    overrides.SetProjectionLinePatternId(dashed_pattern_id)  # Set to dashed line pattern
-                    overrides.SetHalftone(True)  # Enable halftone
-                
-                view_to_modify.AddFilter(filter_id)
-                view_to_modify.SetFilterVisibility(filter_id, True)
-                view_to_modify.SetFilterOverrides(filter_id, overrides)
+                if condition == "EndsWith":
+                    rule = ParameterFilterRuleFactory.CreateEndsWithRule(param_id, value, False)
+                elif condition == "DoesNotContain":
+                    contains_rule = ParameterFilterRuleFactory.CreateContainsRule(param_id, value, False)
+                    rule = FilterInverseRule(contains_rule)
+                elif condition == "Contains":
+                    contains_rule = ParameterFilterRuleFactory.CreateContainsRule(param_id, value, False)
+                elif condition == "Equals":
+                    rule = ParameterFilterRuleFactory.CreateEqualsRule(param_id, value, False)
+                else:
+                    raise Exception('Condition not supported')
 
+                filter_element = ElementParameterFilter(rule)
+                filter_elem = ParameterFilterElement.Create(doc, filter_name, categories)
+                filter_elem.SetElementFilter(filter_element)
+                filter_id = filter_elem.Id
+
+                # Check if the filter is already applied to the view
+                if filter_name not in applied_filters:
+                    overrides = OverrideGraphicSettings()
+                    overrides.SetProjectionLineColor(color)
+                    if filter_name == "FP_INSULATION":
+                        overrides.SetSurfaceTransparency(100)
+                        overrides.SetProjectionLinePatternId(dashed_pattern_id)
+                        overrides.SetHalftone(True)
+                    
+                    view_to_modify.AddFilter(filter_id)
+                    view_to_modify.SetFilterVisibility(filter_id, True)
+                    view_to_modify.SetFilterOverrides(filter_id, overrides)
+
+    # Apply service name filters regardless of selection
     for service_name in SNamelist_set:
         if service_name in system_colors:
             r, g, b = system_colors[service_name]
@@ -364,11 +359,7 @@ with Transaction(doc, "Create and Apply Filters") as t:
         if service_name not in applied_filters:
             overrides = OverrideGraphicSettings()
             overrides.SetProjectionLineColor(Color(r, g, b))
-            #overrides.SetSurfaceTransparency(50)
-            #overrides.SetProjectionLinePatternId(dashed_pattern_id)
-            #overrides.SetHalftone(True)
-            #overrides.SetCutLineWeight(5)
-
+            
             view_to_modify.AddFilter(paramFilterId)
             view_to_modify.SetFilterVisibility(paramFilterId, True)
             view_to_modify.SetFilterOverrides(paramFilterId, overrides)

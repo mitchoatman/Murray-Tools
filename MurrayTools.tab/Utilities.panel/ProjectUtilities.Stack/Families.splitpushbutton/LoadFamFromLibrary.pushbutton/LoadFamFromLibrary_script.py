@@ -27,6 +27,11 @@ try:
     # Prompt the user to select the family file
     family_path = forms.pick_file(file_ext='rfa', init_dir=str(CompleteFolderPath), multi_file=False, title='Select the family to insert')
     
+    # Check if user canceled the dialog (family_path will be None)
+    if not family_path:
+        print "Operation canceled by user."
+        sys.exit(0)  # Exit cleanly with success code
+    
     # Start a transaction
     t = Transaction(doc, 'Load Family')
     t.Start()
@@ -39,7 +44,7 @@ try:
     if success:
         forms.show_balloon('Load Family', "Family '{}' loaded successfully.".format(family_path))
         if loaded_family.Value:
-                    forms.show_balloon('Load Family', "Loaded Family Name: {}".format(loaded_family.Value.Name))
+            forms.show_balloon('Load Family', "Loaded Family Name: {}".format(loaded_family.Value.Name))
     else:
         print "Failed to load family '{}'.".format(family_path)
     
@@ -48,4 +53,4 @@ try:
 
 except Exception as e:
     print "An error occurred: {}".format(e)
-    sys.exit()
+    sys.exit(1)  # Exit with error code
