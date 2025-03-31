@@ -3,6 +3,8 @@ layout:
   - OpenMRBOM
   - ExportPCF
   - ExportMAJ
+  - ExportScheduleToExcel
+  - ExportTitleBlockParams
   - OpenBOMTemplate
   - OpenCADRequest
 

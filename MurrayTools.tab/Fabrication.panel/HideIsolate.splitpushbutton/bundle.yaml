@@ -1,6 +1,5 @@
 layout:
-  - IsolateService
-  - HideService
+  - Hide-IsolateService
   - ResetView
   - ResetIsolation
   - ResetHide

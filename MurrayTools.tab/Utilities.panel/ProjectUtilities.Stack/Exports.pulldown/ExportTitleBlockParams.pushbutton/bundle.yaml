@@ -1,0 +1,26 @@
+# highlight: updated
+#highlight: new
+
+# bundle title
+title:
+  "Export\nTitle Block Params"
+
+# bundle tooltip
+tooltip: |-
+  Exports title block parameters to Excel so changes can be imported.
+      1. Run command.
+      2. Select Import or Export.
+      3. Choose Title Block.
+      4. Choose parameters and their order to export.
+      5. Choose file location.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Walls
+#  - Text Notes
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

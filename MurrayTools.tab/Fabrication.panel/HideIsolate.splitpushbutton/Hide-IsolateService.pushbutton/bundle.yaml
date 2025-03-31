@@ -1,13 +1,14 @@
 #highlight: updated
 
 title:
-  "Isolate\nService"
+  "Hide\nIsolate"
 
 tooltip: >-
-  Isolate Fabrication Service
+  Hide or Isolate Fabrication Service in Active View
     1. Run Command.
-    2. Select a fabrication part.
-    3. Fabrication elements matching the service name of selected part are isolated.
+    2. Select a fabrication service(s) in the list
+    3. Select hide or isolate button.
+    4. Service(s) will be hidden or isolated.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

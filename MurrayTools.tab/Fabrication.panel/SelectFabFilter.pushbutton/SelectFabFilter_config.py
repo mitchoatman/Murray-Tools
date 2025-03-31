@@ -54,13 +54,13 @@ class RemoveFilterDialog(Form):
         self.ok_button = Button()
         self.ok_button.Text = "Remove"
         self.ok_button.Location = Point(110, 70)
-        self.ok_button.Size = Size(75, 23)
+        self.ok_button.AutoSize = True
         self.ok_button.Click += self.ok_clicked
 
         self.cancel_button = Button()
         self.cancel_button.Text = "Cancel"
         self.cancel_button.Location = Point(190, 70)
-        self.cancel_button.Size = Size(75, 23)
+        self.cancel_button.AutoSize = True
         self.cancel_button.Click += self.cancel_clicked
 
         self.Controls.AddRange(Array[Control]([
@@ -91,7 +91,7 @@ class MultiPropertyFilterForm(Form):
 
     def InitializeComponents(self):
         self.Text = "Multi-Property Filter"
-        self.Size = Size(500, 550)  # Your chosen size
+        self.Size = Size(550, 550)
         self.FormBorderStyle = FormBorderStyle.FixedDialog
         self.MaximizeBox = False
         self.MinimizeBox = False
@@ -101,11 +101,11 @@ class MultiPropertyFilterForm(Form):
         self.property_label = Label()
         self.property_label.Text = "Select Property:"
         self.property_label.Location = Point(10, 10)
-        self.property_label.Size = Size(100, 20)
+        self.property_label.Size = Size(120, 20)
 
         self.property_combo = ComboBox()
-        self.property_combo.Location = Point(120, 10)
-        self.property_combo.Size = Size(150, 20)
+        self.property_combo.Location = Point(130, 10)
+        self.property_combo.Size = Size(160, 20)
         self.property_combo.DropDownStyle = ComboBoxStyle.DropDownList
         properties = list(self.property_options.keys())
         if properties:
@@ -116,18 +116,18 @@ class MultiPropertyFilterForm(Form):
         # AND/OR toggle (right of dropdown)
         self.logic_check = CheckBox()
         self.logic_check.Text = "AND logic (unchecked = OR)"
-        self.logic_check.Location = Point(275, 10)
-        self.logic_check.Size = Size(200, 20)
+        self.logic_check.Location = Point(300, 10)
+        self.logic_check.Size = Size(230, 20)
 
         # Search label
         self.search_label = Label()
         self.search_label.Text = "Search:"
         self.search_label.Location = Point(10, 40)
-        self.search_label.Size = Size(100, 20)
+        self.search_label.Size = Size(120, 20)
 
         # Search bar
         self.search_box = TextBox()
-        self.search_box.Location = Point(120, 40)
+        self.search_box.Location = Point(130, 40)
         self.search_box.Size = Size(300, 20)
         self.search_box.TextChanged += self.search_changed
         self.Controls.Add(self.search_box)
@@ -136,56 +136,56 @@ class MultiPropertyFilterForm(Form):
         self.values_label = Label()
         self.values_label.Text = "Select Values:"
         self.values_label.Location = Point(10, 70)
-        self.values_label.Size = Size(100, 20)
+        self.values_label.Size = Size(120, 20)
 
         # Add Filter button (under "Select Values" label)
         self.add_button = Button()
         self.add_button.Text = "Add Filter"
-        self.add_button.Location = Point(12, 90)  # Below label (70 + 20)
-        self.add_button.Size = Size(80, 23)
+        self.add_button.Location = Point(12, 90)
+        self.add_button.AutoSize = True
         self.add_button.Click += self.add_filter
 
         # Remove Filter button (stacked below Add Filter)
         self.remove_button = Button()
         self.remove_button.Text = "Remove Filter"
-        self.remove_button.Location = Point(12, 310)  # Below Add Filter (90 + 23 + 2)
-        self.remove_button.Size = Size(85, 23)
+        self.remove_button.Location = Point(12, 310)
+        self.remove_button.AutoSize = True
         self.remove_button.Click += self.remove_filter
 
         self.values_list = ListBox()
-        self.values_list.Location = Point(120, 70)
-        self.values_list.Size = Size(300, 270)
+        self.values_list.Location = Point(130, 70)
+        self.values_list.Size = Size(350, 270)
         self.values_list.SelectionMode = SelectionMode.MultiExtended
-        self.values_list.DoubleClick += self.add_filter  # Add double-click event
+        self.values_list.DoubleClick += self.add_filter
 
-        # Filter feedback label (under ListBox)
+        # Filter feedback label - taller and full width
         self.filter_display = Label()
         self.filter_display.Text = "No filters added yet."
         self.filter_display.Location = Point(10, 350)
-        self.filter_display.Size = Size(300, 50)
+        self.filter_display.Size = Size(510, 100)
         self.filter_display.AutoSize = False
 
-        # Buttons (centered at bottom)
+        # Buttons (centered at bottom, 15 pixels from bottom)
         self.ok_button = Button()
         self.ok_button.Text = "OK"
-        self.ok_button.Location = Point(165, 480)
-        self.ok_button.Size = Size(80, 23)
+        self.ok_button.Location = Point(130, 470)
+        self.ok_button.AutoSize = True
         self.ok_button.Click += self.ok_clicked
 
         self.cancel_button = Button()
         self.cancel_button.Text = "Cancel"
-        self.cancel_button.Location = Point(255, 480)  # 165 + 80 + 10
-        self.cancel_button.Size = Size(80, 23)
+        self.cancel_button.Location = Point(350, 470)
+        self.cancel_button.AutoSize = True
         self.cancel_button.Click += self.cancel_clicked
 
         self.Controls.AddRange(Array[Control]([
             self.property_label, 
-            self.search_label,  # Added search label
+            self.search_label,
             self.values_label, 
             self.values_list,
             self.logic_check, 
             self.add_button,
-            self.remove_button,  # Added remove button
+            self.remove_button,
             self.ok_button, 
             self.cancel_button,
             self.filter_display,
@@ -258,9 +258,13 @@ class MultiPropertyFilterForm(Form):
         else:
             filter_text = "Filters:\n"
             for prop, filter_list in self.selected_filters.items():
+                filter_text += "%s:\n    " % prop  # Property name on its own line, conditions indented
+                conditions = []
                 for values, is_and in filter_list:
                     mode = "AND" if is_and else "OR"
-                    filter_text += "%s (%s): %s\n" % (prop, mode, ", ".join(str(v) for v in values))
+                    condition = "[%s: %s]" % (mode, ", ".join(str(v) for v in values))
+                    conditions.append(condition)
+                filter_text += " ".join(conditions) + "\n"
             self.filter_display.Text = filter_text.strip()
 
     def ok_clicked(self, sender, args):
@@ -312,12 +316,12 @@ if not fab_elements:
     import sys
     sys.exit()
 
-# Build property options with all 18 properties
+# Build property options with all 18 properties (excluding 'Name' and 'Comments' for special handling)
 property_options = {}
 for prop in ['CID', 'ServiceType', 'Service Name', 'Service Abbreviation', 'Size',
              'STRATUS Assembly', 'Line Number', 'STRATUS Status', 'Reference Level',
              'Item Number', 'Bundle Number', 'REF BS Designation', 'REF Line Number',
-             'Comments', 'Specification', 'Hanger Rod Size', 'Valve Number']:
+             'Specification', 'Hanger Rod Size', 'Valve Number']:
     try:
         values = set(filter(None, [get_property_value(elem, prop) for elem in fab_elements]))
         if values:
@@ -325,11 +329,18 @@ for prop in ['CID', 'ServiceType', 'Service Name', 'Service Abbreviation', 'Size
     except Exception, e:
         pass
 
-# Handle 'Name' separately with all elements
+# Handle 'Name' and 'Comments' separately with all elements
 try:
     name_values = set(filter(None, [get_property_value(elem, 'Name') for elem in all_elements]))
     if name_values:
         property_options['Name'] = sorted(name_values)
+except Exception, e:
+    pass
+
+try:
+    comments_values = set(filter(None, [get_property_value(elem, 'Comments') for elem in all_elements]))
+    if comments_values:
+        property_options['Comments'] = sorted(comments_values)
 except Exception, e:
     pass
 
@@ -342,8 +353,8 @@ if not property_options:
 form = MultiPropertyFilterForm(property_options)
 if form.ShowDialog() == DialogResult.OK and form.selected_filters:
     filtered_ids = []
-    # Choose element set based on whether 'Name' is in the filters
-    elements_to_filter = all_elements if 'Name' in form.selected_filters else fab_elements
+    # Choose element set based on whether 'Name' or 'Comments' is in the filters
+    elements_to_filter = all_elements if ('Name' in form.selected_filters or 'Comments' in form.selected_filters) else fab_elements
     for elem in elements_to_filter:
         matches = []
         for prop, filter_list in form.selected_filters.items():
