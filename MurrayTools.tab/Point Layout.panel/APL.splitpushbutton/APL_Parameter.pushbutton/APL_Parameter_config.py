@@ -67,79 +67,78 @@ def feet_to_feet_inches_fraction(decimal_feet, precision=0.125):  # 1/8" = 0.125
         else:
             return "%d'-0\"" % feet
 
+OBJselection = uidoc.Selection.PickObjects(ObjectType.Element, 'Select Elements or Finish Button')         
+selection = [doc.GetElement( elId ) for elId in OBJselection]
+
+folder_name = "c:\\Temp"
+filepath = os.path.join(folder_name, 'Ribbon_PointLayout.txt')
+
+if not os.path.exists(folder_name):
+    os.makedirs(folder_name)
+if not os.path.exists(filepath):
+    f = open((filepath), 'w')
+    f.write('123')
+    f.close()
+
+folder_name = "c:\\Temp"
+filepath = os.path.join(folder_name, 'Ribbon_PointLayout.txt')
 try:
-    OBJselection = uidoc.Selection.PickObjects(ObjectType.Element, 'Select Elements or Finish Button')         
-    selection = [doc.GetElement( elId ) for elId in OBJselection]
-
-    folder_name = "c:\\Temp"
-    filepath = os.path.join(folder_name, 'Ribbon_PointLayout.txt')
-
-    if not os.path.exists(folder_name):
-        os.makedirs(folder_name)
-    if not os.path.exists(filepath):
-        f = open((filepath), 'w')
-        f.write('123')
-        f.close()
-
-    folder_name = "c:\\Temp"
-    filepath = os.path.join(folder_name, 'Ribbon_PointLayout.txt')
-    try:
-        # read text file for stored values and show them in dialog
-        with open((filepath), 'r') as file:
-            lines = file.readlines()
-            lines = [line.rstrip() for line in lines]
-    except:
-        with open((filepath), 'w') as the_file:
-            line1 = ('pre' + '\n')
-            line2 = ('num' + '\n')
-            the_file.writelines([line1, line2]) 
-
-    if len(lines) < 2:
-        with open((filepath), 'w') as the_file:
-            line1 = ('desc' + '\n')
-            line2 = ('pre' + '\n')
-            the_file.writelines([line1, line2]) 
-
     # read text file for stored values and show them in dialog
     with open((filepath), 'r') as file:
         lines = file.readlines()
         lines = [line.rstrip() for line in lines]
-
-
-    # Display dialog
-    components = [
-
-        Label('Point Prefix:'),
-        TextBox('Pre', lines[1]),
-        CheckBox('changepre', '[Enable] the Prefix (selection)', default=False),
-        Label('Point Description:'),
-        TextBox('Desc', lines[0]),
-        CheckBox('changedesc', '[Enable] the Description (selection)', default=False),
-        CheckBox('cleanupins', 'Re-format Insert Description (view)', default=False),
-        CheckBox('writeslvdims', 'Add Size and Length to Sleeve Description (view)', default=False),
-        Button('Ok')
-        ]
-    form = FlexForm('Update APL Information', components)
-    form.show()
-
-
-    # Convert dialog input into variable
-    value = (form.values['Desc']).upper()
-    value1 = (form.values['Pre']).upper()
-    chkpre = (form.values['changepre'])
-    chkdesc = (form.values['changedesc'])
-    chkins = (form.values['cleanupins'])
-    chkslv = (form.values['writeslvdims'])
-
-
-    # write values to text file for future retrieval
+except:
     with open((filepath), 'w') as the_file:
-        line1 = (value + '\n')
-        line2 = (value1 + '\n')
-        the_file.writelines([line1, line2])
+        line1 = ('pre' + '\n')
+        line2 = ('num' + '\n')
+        the_file.writelines([line1, line2]) 
+
+if len(lines) < 2:
+    with open((filepath), 'w') as the_file:
+        line1 = ('desc' + '\n')
+        line2 = ('pre' + '\n')
+        the_file.writelines([line1, line2]) 
+
+# read text file for stored values and show them in dialog
+with open((filepath), 'r') as file:
+    lines = file.readlines()
+    lines = [line.rstrip() for line in lines]
 
 
+# Display dialog
+components = [
 
+    Label('Point Prefix:'),
+    TextBox('Pre', lines[1]),
+    CheckBox('changepre', '[Enable] the Prefix (selection)', default=False),
+    Label('Point Description:'),
+    TextBox('Desc', lines[0]),
+    CheckBox('changedesc', '[Enable] the Description (selection)', default=False),
+    CheckBox('cleanupins', 'Re-format Insert Description (view)', default=False),
+    CheckBox('writeslvdims', 'Add Size and Length to Sleeve Description (view)', default=False),
+    Button('Ok')
+    ]
+form = FlexForm('Update APL Information', components)
+form.show()
+
+
+# Convert dialog input into variable
+value = (form.values['Desc']).upper()
+value1 = (form.values['Pre']).upper()
+chkpre = (form.values['changepre'])
+chkdesc = (form.values['changedesc'])
+chkins = (form.values['cleanupins'])
+chkslv = (form.values['writeslvdims'])
+
+
+# write values to text file for future retrieval
+with open((filepath), 'w') as the_file:
+    line1 = (value + '\n')
+    line2 = (value1 + '\n')
+    the_file.writelines([line1, line2])
+
+
+try:
     t = Transaction(doc, 'Modify Point Data')
     #Start Transaction
     t.Start()
@@ -225,28 +224,23 @@ try:
 
             accessory_elements5 = [element for element in accessory_models_collector if "WS" in element.Name or "DR-WS" in element.Name]
             for x in accessory_elements5:
+                # Get diameter in feet and convert to inches for display
                 slvdiameter = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Diameter') * 12)
                 
-                # Get the bounding box of the element
-                bbox = x.get_BoundingBox(doc.ActiveView)
-                if bbox:
-                    # Get the level associated with the element
-                    level_id = x.LevelId
-                    if level_id != ElementId.InvalidElementId:
-                        level = doc.GetElement(level_id)
-                        level_elevation = level.Elevation  # Elevation of the level in feet
-                        # Calculate bottom elevation relative to level
-                        bottom_elevation = bbox.Min.Z - level_elevation
-                    else:
-                        # Fallback if no level is associated
-                        bottom_elevation = bbox.Min.Z
-                    slvelevation = feet_to_feet_inches_fraction(bottom_elevation)
-                else:
-                    # Fallback to Elevation from Level parameter if bounding box is not available
-                    bottom_elevation = get_parameter_value_by_name_AsDouble(x, 'Elevation from Level')
-                    slvelevation = feet_to_feet_inches_fraction(bottom_elevation)
+                # Get elevation and diameter in feet
+                elevation = get_parameter_value_by_name_AsDouble(x, 'Elevation from Level')
+                diameter = get_parameter_value_by_name_AsDouble(x, 'Diameter')
                 
+                # Calculate bottom elevation (subtract half the diameter in feet)
+                bottom_elevation = elevation - (diameter / 2)
+                
+                # Format bottom elevation to feet-inches-fraction
+                slvelevation = feet_to_feet_inches_fraction(bottom_elevation)
+                
+                # Create result string with BIOT label
                 result_string = "DIA {0} BOT {1}".format(slvdiameter, slvelevation)
+                
+                # Set the parameter
                 set_parameter_by_name(x, 'TS_Point_Description', result_string)
     except:
         pass

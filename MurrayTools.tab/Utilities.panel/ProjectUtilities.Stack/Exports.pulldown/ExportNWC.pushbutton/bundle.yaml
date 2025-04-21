@@ -1,0 +1,27 @@
+# highlight: updated
+#highlight: new
+
+# bundle title
+title:
+  "Export NWC"
+
+# bundle tooltip
+tooltip: |-
+  Exports an NWC file of the Active view. It creates and applies
+  materials to fabrication parts so they have color in Navis by default.
+      1. Run command.
+      2. Choose save location and file name.
+
+  [Shift]+Click:    
+  Opens NWC Export Settings.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Walls
+#  - Text Notes
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

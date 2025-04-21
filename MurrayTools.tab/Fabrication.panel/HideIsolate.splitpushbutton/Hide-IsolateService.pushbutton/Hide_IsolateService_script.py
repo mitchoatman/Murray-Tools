@@ -307,7 +307,7 @@ for Item in duct_collector:
 # Remove duplicates and show form
 unique_services = set(SrvcList)
 if not unique_services:
-    print("No services found in the current view.")
+    print("No fabrication services found in the current view.")
     import sys
     sys.exit()
 

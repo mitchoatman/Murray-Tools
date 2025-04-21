@@ -6,13 +6,14 @@ title:
   "Set Crop\nRegion"
 
 # bundle tooltip
-tooltip: >-
+tooltip: |-
   Modifies crop region to user defined window.
       1. Run Command.
       2. Window area to crop.
       3. Crop region will be modified.
 
-  [Shift]+Click:    
+  [Shift]+Click:
+  Modifies crop region to user defined window on multiple views at once.  
       1. Open a Floorplan view.
       2. Select multiple Floorplan views in Project Browser.
       3. You must click back into Floorplan you opened.

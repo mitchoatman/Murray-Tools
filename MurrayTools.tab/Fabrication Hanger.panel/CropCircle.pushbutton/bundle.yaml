@@ -9,8 +9,8 @@ tooltip: |-
   Adds Crop Circles to all Fabrication Hanger Rods in the active view.
   1. Execute command.
   2. Crop Circles will be populated on Fabrication Hangers.
+  3. Crop Circles will not be duplicated.
 
-  If hangers are pre-selected Crop Circles will only populate on selected elements.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

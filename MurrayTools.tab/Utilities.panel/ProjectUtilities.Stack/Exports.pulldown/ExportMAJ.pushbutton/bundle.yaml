@@ -15,8 +15,7 @@ tooltip: |-
 
   -------------------------
   Planned Improvements:
-    1. Allow user to set status of exported elements.
-    2. Allow filtered selection of elements that meet status requirement.
+    1. Allow filtered selection of elements that meet status requirement.
   -------------------------
 # context directives are listed under `context` key, the order does not matter
 #context:

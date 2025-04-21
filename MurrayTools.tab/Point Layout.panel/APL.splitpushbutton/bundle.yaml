@@ -2,3 +2,5 @@ layout:
   - APL_Parameter
   - Tag_SleeveSize
   - Deck_Sleeve_Schedule
+  - MoveControlPoint
+  - ExportDWG

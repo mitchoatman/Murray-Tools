@@ -1,290 +1,377 @@
-import Autodesk
+# -*- coding: utf-8 -*-
+import clr
+clr.AddReference('System.Windows.Forms')
+clr.AddReference('System.Drawing')
+from System.Windows.Forms import (Form, Label, ComboBox, Button, ListBox, 
+                                CheckBox, DialogResult, FormBorderStyle, FormStartPosition, 
+                                SelectionMode, Control, ComboBoxStyle, TextBox, MessageBox)
+from System import Array
+from System.Drawing import Point, Size
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import Transaction, FilteredElementCollector, BuiltInCategory, FabricationConfiguration, FabricationPart
-from pyrevit import revit, DB, forms
+from Autodesk.Revit.DB import FilteredElementCollector, FabricationConfiguration
+from pyrevit import revit
 from SharedParam.Add_Parameters import Shared_Params
-from Parameters.Get_Set_Params import get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsInteger
+from Parameters.Get_Set_Params import (get_parameter_value_by_name_AsString, 
+                                     get_parameter_value_by_name_AsValueString, 
+                                     get_parameter_value_by_name_AsInteger)
 
 Shared_Params()
 
-#define the active Revit application and document
-DB = Autodesk.Revit.DB
+# Define the active Revit document
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
-fec = FilteredElementCollector
-app = doc.Application
-RevitVersion = app.VersionNumber
-RevitINT = float (RevitVersion)
 Config = FabricationConfiguration.GetFabricationConfiguration(doc)
 
-servicetypenameList = []
-CIDList = []
-NameList = []
-SNameList = []
-SNameABBRList = []
-STRATUSAssemList = []
-SizeList = []
-ValveNumList = []
-LineNumList = []
-STRATUSStatusList = []
-RefLevelList = []
-ItemNumList = []
-BundleList = []
-REFLineNumList = []
-REFBSDesigList = []
-elementList = []
-CommentsList = []
-SpecificationList = []
-HangerRodSizeList = []
-BeamHangerList = []
+class RemoveFilterDialog(Form):
+    def __init__(self, filter_options, filter_keys):
+        self.filter_options = filter_options
+        self.filter_keys = filter_keys
+        self.selected_filter = None
+        self.InitializeComponents()
 
-selection = revit.get_selection()
+    def InitializeComponents(self):
+        self.Text = "Remove Filter"
+        self.Size = Size(300, 150)
+        self.FormBorderStyle = FormBorderStyle.FixedDialog
+        self.MaximizeBox = False
+        self.MinimizeBox = False
+        self.StartPosition = FormStartPosition.CenterParent
 
-preselection = [doc.GetElement(id) for id in __revit__.ActiveUIDocument.Selection.GetElementIds()]
+        self.label = Label()
+        self.label.Text = "Select filter to remove:"
+        self.label.Location = Point(10, 10)
+        self.label.Size = Size(280, 20)
 
-if preselection:
+        self.filter_combo = ComboBox()
+        self.filter_combo.Location = Point(10, 30)
+        self.filter_combo.Size = Size(260, 20)
+        self.filter_combo.DropDownStyle = ComboBoxStyle.DropDownList
+        self.filter_combo.Items.AddRange(Array[object](self.filter_options))
+        if self.filter_options:
+            self.filter_combo.SelectedIndex = 0
 
-    try:
-        for x in preselection:
-            isfabpart = x.LookupParameter("Fabrication Service")
-            if isfabpart:
-                servicetypenameList.append(Config.GetServiceTypeName(x.ServiceType))
-                CIDList.append(x.ItemCustomId)
-                NameList.append(get_parameter_value_by_name_AsValueString(x, 'Family'))
-                SNameList.append(get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'))
-                SNameABBRList.append(get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation'))
-                STRATUSAssemList.append(get_parameter_value_by_name_AsString(x, 'STRATUS Assembly'))
-                STRATUSStatusList.append(get_parameter_value_by_name_AsString(x, 'STRATUS Status'))
-                ValveNumList.append(get_parameter_value_by_name_AsString(x, 'FP_Valve Number'))
-                LineNumList.append(get_parameter_value_by_name_AsString(x, 'FP_Line Number'))
-                RefLevelList.append(get_parameter_value_by_name_AsValueString(x, 'Reference Level'))
-                ItemNumList.append(get_parameter_value_by_name_AsString(x, 'Item Number'))
-                BundleList.append(get_parameter_value_by_name_AsString(x, 'FP_Bundle'))
-                REFLineNumList.append(get_parameter_value_by_name_AsString(x, 'FP_REF Line Number'))
-                REFBSDesigList.append(get_parameter_value_by_name_AsString(x, 'FP_REF BS Designation'))
-                SizeList.append(get_parameter_value_by_name_AsString(x, 'Size of Primary End'))
-                CommentsList.append(get_parameter_value_by_name_AsString(x, 'Comments'))
-                SpecificationList.append (Config.GetSpecificationName(x.Specification))
-                HangerRodSizeList.append (get_parameter_value_by_name_AsValueString(x, 'FP_Rod Size'))
-                BeamHangerList.append (get_parameter_value_by_name_AsString(x, 'FP_Beam Hanger'))
+        self.ok_button = Button()
+        self.ok_button.Text = "Remove"
+        self.ok_button.Location = Point(110, 70)
+        self.ok_button.AutoSize = True
+        self.ok_button.Click += self.ok_clicked
 
-    except:
-        pass
+        self.cancel_button = Button()
+        self.cancel_button.Text = "Cancel"
+        self.cancel_button.Location = Point(190, 70)
+        self.cancel_button.AutoSize = True
+        self.cancel_button.Click += self.cancel_clicked
+
+        self.Controls.AddRange(Array[Control]([
+            self.label, self.filter_combo, self.ok_button, self.cancel_button
+        ]))
+
+    def ok_clicked(self, sender, args):
+        if self.filter_combo.SelectedIndex >= 0:
+            self.selected_filter = self.filter_keys[self.filter_combo.SelectedIndex]
+        self.DialogResult = DialogResult.OK
+        self.Close()
+
+    def cancel_clicked(self, sender, args):
+        self.DialogResult = DialogResult.Cancel
+        self.Close()
+
+class MultiPropertyFilterForm(Form):
+    def __init__(self, property_options):
+        self.property_options = property_options
+        self.InitializeComponents()
+        self.selected_filters = {}  # {property: [(values, is_and), ...]}
+        if self.property_options:
+            first_property = self.property_combo.Items[0]
+            if first_property in self.property_options:
+                self.property_combo.SelectedItem = first_property
+            self.property_changed(None, None)
+        self.update_filter_display()
+
+    def InitializeComponents(self):
+        self.Text = "Multi-Property Filter"
+        self.Size = Size(550, 550)
+        self.FormBorderStyle = FormBorderStyle.FixedDialog
+        self.MaximizeBox = False
+        self.MinimizeBox = False
+        self.StartPosition = FormStartPosition.CenterScreen
+
+        # Property selection
+        self.property_label = Label()
+        self.property_label.Text = "Select Property:"
+        self.property_label.Location = Point(10, 10)
+        self.property_label.Size = Size(120, 20)
+
+        self.property_combo = ComboBox()
+        self.property_combo.Location = Point(130, 10)
+        self.property_combo.Size = Size(160, 20)
+        self.property_combo.DropDownStyle = ComboBoxStyle.DropDownList
+        properties = list(self.property_options.keys())
+        if properties:
+            self.property_combo.Items.AddRange(Array[object](properties))
+        self.property_combo.SelectedIndexChanged += self.property_changed
+        self.Controls.Add(self.property_combo)
+
+        # AND/OR toggle (right of dropdown)
+        self.logic_check = CheckBox()
+        self.logic_check.Text = "AND logic (unchecked = OR)"
+        self.logic_check.Location = Point(300, 10)
+        self.logic_check.Size = Size(230, 20)
+
+        # Search label
+        self.search_label = Label()
+        self.search_label.Text = "Search:"
+        self.search_label.Location = Point(10, 40)
+        self.search_label.Size = Size(120, 20)
+
+        # Search bar
+        self.search_box = TextBox()
+        self.search_box.Location = Point(130, 40)
+        self.search_box.Size = Size(300, 20)
+        self.search_box.TextChanged += self.search_changed
+        self.Controls.Add(self.search_box)
+
+        # Values list
+        self.values_label = Label()
+        self.values_label.Text = "Select Values:"
+        self.values_label.Location = Point(10, 70)
+        self.values_label.Size = Size(120, 20)
+
+        # Add Filter button (under "Select Values" label)
+        self.add_button = Button()
+        self.add_button.Text = "Add Filter"
+        self.add_button.Location = Point(12, 90)
+        self.add_button.AutoSize = True
+        self.add_button.Click += self.add_filter
+
+        # Remove Filter button (stacked below Add Filter)
+        self.remove_button = Button()
+        self.remove_button.Text = "Remove Filter"
+        self.remove_button.Location = Point(12, 310)
+        self.remove_button.AutoSize = True
+        self.remove_button.Click += self.remove_filter
+
+        self.values_list = ListBox()
+        self.values_list.Location = Point(130, 70)
+        self.values_list.Size = Size(350, 270)
+        self.values_list.SelectionMode = SelectionMode.MultiExtended
+        self.values_list.DoubleClick += self.add_filter
+
+        # Filter feedback label - taller and full width
+        self.filter_display = Label()
+        self.filter_display.Text = "No filters added yet."
+        self.filter_display.Location = Point(10, 350)
+        self.filter_display.Size = Size(510, 100)
+        self.filter_display.AutoSize = False
+
+        # Buttons (centered at bottom, 15 pixels from bottom)
+        self.ok_button = Button()
+        self.ok_button.Text = "OK"
+        self.ok_button.Location = Point(130, 470)
+        self.ok_button.AutoSize = True
+        self.ok_button.Click += self.ok_clicked
+
+        self.cancel_button = Button()
+        self.cancel_button.Text = "Cancel"
+        self.cancel_button.Location = Point(350, 470)
+        self.cancel_button.AutoSize = True
+        self.cancel_button.Click += self.cancel_clicked
+
+        self.Controls.AddRange(Array[Control]([
+            self.property_label, 
+            self.search_label,
+            self.values_label, 
+            self.values_list,
+            self.logic_check, 
+            self.add_button,
+            self.remove_button,
+            self.ok_button, 
+            self.cancel_button,
+            self.filter_display,
+            self.search_box
+        ]))
+
+    def property_changed(self, sender, args):
+        selected_property = self.property_combo.SelectedItem
+        if selected_property:
+            self.values_list.Items.Clear()
+            self.search_box.Text = ""  # Clear search when property changes
+            values = self.property_options.get(selected_property, [])
+            if values:
+                self.values_list.Items.AddRange(Array[object](values))
+
+    def search_changed(self, sender, args):
+        selected_property = self.property_combo.SelectedItem
+        if selected_property:
+            self.values_list.Items.Clear()
+            search_term = self.search_box.Text.lower()
+            values = self.property_options.get(selected_property, [])
+            filtered_values = [v for v in values if search_term in str(v).lower()]
+            if filtered_values:
+                self.values_list.Items.AddRange(Array[object](filtered_values))
+
+    def add_filter(self, sender, args):
+        selected_property = self.property_combo.SelectedItem
+        selected_values = [item for item in self.values_list.SelectedItems]
+        if selected_property and selected_values:
+            if selected_property not in self.selected_filters:
+                self.selected_filters[selected_property] = []
+            self.selected_filters[selected_property].append((selected_values, self.logic_check.Checked))
+            self.update_filter_display()
+
+    def remove_filter(self, sender, args):
+        if not self.selected_filters:
+            MessageBox.Show("No filters to remove.")
+            return
         
-    # Creating dictionaries for faster lookup
-    CID_set = set(CIDList)
-    service_type_set = set(servicetypenameList)
-    Name_set = set(NameList)
-    SNameList_set = set(SNameList)
-    SNameABBRList_set = set(SNameABBRList)
-    STRATUSAssemList_set = set(STRATUSAssemList)
-    LineNumList_set = set(LineNumList)
-    STRATUSStatusList_set = set(STRATUSStatusList)
-    RefLevelList_set = set(RefLevelList)
-    ItemNumList_set = set(ItemNumList)
-    BundleList_set = set(BundleList)
-    REFBSDesigList_set = set(REFBSDesigList)
-    REFLineNumList_set = set(REFLineNumList)
-    ValveNumList_set = set(ValveNumList)
-    CommentsList_set = set(CommentsList)
-    SpecificationList_set = set(SpecificationList)
-    HangerRodSizeList_set = set(HangerRodSizeList)    
-    BeamHangerList_set = set(BeamHangerList) 
+        # Build a list of filter descriptions for the user to choose from
+        filter_options = []
+        filter_keys = []
+        for prop, filter_list in self.selected_filters.items():
+            for values, is_and in filter_list:
+                mode = "AND" if is_and else "OR"
+                desc = "%s (%s): %s" % (prop, mode, ", ".join(str(v) for v in values))
+                filter_options.append(desc)
+                filter_keys.append((prop, values))
+        
+        if not filter_options:
+            MessageBox.Show("No filters to remove.")
+            return
+        
+        # Show custom dialog to select filter
+        dialog = RemoveFilterDialog(filter_options, filter_keys)
+        if dialog.ShowDialog(self) == DialogResult.OK and dialog.selected_filter:
+            prop, values = dialog.selected_filter
+            for i, (v, is_and) in enumerate(self.selected_filters[prop]):
+                if v == values:
+                    del self.selected_filters[prop][i]
+                    break
+            # Clean up empty property entry
+            if not self.selected_filters[prop]:
+                del self.selected_filters[prop]
+            self.update_filter_display()
 
-    GroupOptions = {'CID': sorted(CID_set),
-        'ServiceType': sorted(service_type_set),
-        'Name': sorted(Name_set),
-        'Service Name': sorted(SNameList_set),
-        'Service Abbreviation': sorted(SNameABBRList_set),
-        'Size': sorted(set(SizeList)),
-        'STRATUS Assembly': sorted(STRATUSAssemList_set),
-        'Line Number': sorted(LineNumList),
-        'STRATUS Status': sorted(STRATUSStatusList_set),
-        'Reference Level': sorted(RefLevelList_set),
-        'Item Number': sorted(ItemNumList_set),
-        'Bundle Number': sorted(BundleList_set),
-        'REF BS Designation': sorted(REFBSDesigList_set),
-        'REF Line Number': sorted(REFLineNumList_set),
-        'Comments': sorted(CommentsList_set),
-        'Specification': sorted(SpecificationList_set),
-        'Hanger Rod Size': sorted(HangerRodSizeList_set),
-        'Valve Number': sorted(ValveNumList_set),
-        'Beam Hanger': sorted(BeamHangerList_set)}
-
-    res = forms.SelectFromList.show(GroupOptions,group_selector_title='Property Type:', multiselect=True, button_name='Select Item(s)', exitscript = True)
-    
-    if res:  # Check if user selected any filters
-        elementList = []  # Reset the list
-        processed_ids = set()  # To avoid duplicates
-        try:        
-            for elem in preselection:
-                element_added = False
-                for fil in res:
-                    # Check each property and add element ID if it matches
-                    if (fil in CID_set and elem.ItemCustomId == fil) or \
-                       (fil in service_type_set and Config.GetServiceTypeName(elem.ServiceType) == fil) or \
-                       (fil in Name_set and get_parameter_value_by_name_AsValueString(elem, 'Family') == fil) or \
-                       (fil in SNameList_set and get_parameter_value_by_name_AsString(elem, 'Fabrication Service Name') == fil) or \
-                       (fil in SNameABBRList_set and get_parameter_value_by_name_AsString(elem, 'Fabrication Service Abbreviation') == fil) or \
-                       (fil in STRATUSAssemList_set and get_parameter_value_by_name_AsString(elem, 'STRATUS Assembly') == fil) or \
-                       (fil in STRATUSStatusList_set and get_parameter_value_by_name_AsString(elem, 'STRATUS Status') == fil) or \
-                       (fil in LineNumList_set and get_parameter_value_by_name_AsString(elem, 'FP_Line Number') == fil) or \
-                       (fil in RefLevelList_set and get_parameter_value_by_name_AsValueString(elem, 'Reference Level') == fil) or \
-                       (fil in ItemNumList_set and get_parameter_value_by_name_AsString(elem, 'Item Number') == fil) or \
-                       (fil in BundleList_set and get_parameter_value_by_name_AsString(elem, 'FP_Bundle') == fil) or \
-                       (fil in REFBSDesigList_set and get_parameter_value_by_name_AsString(elem, 'FP_REF BS Designation') == fil) or \
-                       (fil in REFLineNumList_set and get_parameter_value_by_name_AsString(elem, 'FP_REF Line Number') == fil) or \
-                       (fil in ValveNumList_set and get_parameter_value_by_name_AsString(elem, 'FP_Valve Number') == fil) or \
-                       (fil in BeamHangerList_set and get_parameter_value_by_name_AsString(elem, 'FP_Beam Hanger') == fil) or \
-                       (fil in HangerRodSizeList_set and get_parameter_value_by_name_AsValueString(elem, 'FP_Rod Size') == fil) or \
-                       (get_parameter_value_by_name_AsString(elem, 'Size of Primary End') == fil) or \
-                       (get_parameter_value_by_name_AsString(elem, 'Comments') == fil) or \
-                       (Config.GetSpecificationName(elem.Specification) == fil):
-                        if elem.Id not in processed_ids:
-                            elementList.append(elem.Id)
-                            processed_ids.add(elem.Id)
-                        element_added = True
-                        break  # Move to next element if we found a match
-        except:
-            pass            
-        if elementList:
-            selection.set_to(elementList)
+    def update_filter_display(self, sender=None, args=None):
+        if not self.selected_filters:
+            self.filter_display.Text = "No filters added yet."
         else:
-            print("No elements matched the selected filters")
-    else:
-        print("No filters selected")
-else:
-    # Create a FilteredElementCollector to get all FabricationPart elements
-    part_collector = FilteredElementCollector(doc, curview.Id).OfClass(FabricationPart) \
-                       .WhereElementIsNotElementType() \
-                       .ToElements()
-    # collector for size only
-    hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers) \
-                       .WhereElementIsNotElementType() \
-                       .ToElements()
-    pipeduct_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationPipework) \
-                       .UnionWith(FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationDuctwork)) \
-                       .WhereElementIsNotElementType() \
-                       .ToElements()
+            filter_text = "Filters:\n"
+            for prop, filter_list in self.selected_filters.items():
+                filter_text += "%s:\n    " % prop  # Property name on its own line, conditions indented
+                conditions = []
+                for values, is_and in filter_list:
+                    mode = "AND" if is_and else "OR"
+                    condition = "[%s: %s]" % (mode, ", ".join(str(v) for v in values))
+                    conditions.append(condition)
+                filter_text += " ".join(conditions) + "\n"
+            self.filter_display.Text = filter_text.strip()
 
-    if part_collector:
-        try:
-            CIDList = list(map(lambda x: get_parameter_value_by_name_AsInteger(x, 'Part Pattern Number'), part_collector))
-            NameList = list(map(lambda x: get_parameter_value_by_name_AsValueString(x, 'Family'), part_collector))
-            SNameList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'), part_collector))
-            SNameABBRList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation'), part_collector))
-            STRATUSAssemList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'STRATUS Assembly'), part_collector))
-            STRATUSStatusList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'STRATUS Status'), part_collector))
-            ValveNumList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'FP_Valve Number'), part_collector))
-            servicetypenameList = list(map(lambda x: Config.GetServiceTypeName(x.ServiceType), part_collector))
-            LineNumList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'FP_Line Number'), part_collector))
-            RefLevelList = list(map(lambda x: get_parameter_value_by_name_AsValueString(x, 'Reference Level'), part_collector))
-            ItemNumList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'Item Number'), part_collector))
-            BundleList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'FP_Bundle'), part_collector))
-            REFLineNumList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'FP_REF Line Number'), part_collector))
-            REFBSDesigList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'FP_REF BS Designation'), part_collector))
-            SizeList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'Size'), pipeduct_collector))
-            CommentsList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'Comments'), part_collector))
-            SpecificationList = list(map(lambda x: Config.GetSpecificationName(x.Specification), part_collector))
-            HangerRodSizeList = list(map(lambda x: get_parameter_value_by_name_AsValueString(x, 'FP_Rod Size'), hanger_collector))
-            BeamHangerList = list(map(lambda x: get_parameter_value_by_name_AsString(x, 'FP_Beam Hanger'), hanger_collector))
+    def ok_clicked(self, sender, args):
+        self.DialogResult = DialogResult.OK
+        self.Close()
 
-        except:
-            print('No Fabrication Parts in View')
-        try:
-            # Size filter only
-            for elem in hanger_collector:
-                    SizeList.append(get_parameter_value_by_name_AsString(elem, 'Size of Primary End'))
-        except:
-            pass
+    def cancel_clicked(self, sender, args):
+        self.DialogResult = DialogResult.Cancel
+        self.Close()
 
-        # Creating dictionaries for faster lookup
-        CID_set = set(CIDList)
-        service_type_set = set(servicetypenameList)
-        Name_set = set(NameList)
-        SNameList_set = set(SNameList)
-        SNameABBRList_set = set(SNameABBRList)
-        STRATUSAssemList_set = set(STRATUSAssemList)
-        LineNumList_set = set(LineNumList)
-        STRATUSStatusList_set = set(STRATUSStatusList)
-        RefLevelList_set = set(RefLevelList)
-        ItemNumList_set = set(ItemNumList)
-        BundleList_set = set(BundleList)
-        REFBSDesigList_set = set(REFBSDesigList)
-        REFLineNumList_set = set(REFLineNumList)
-        ValveNumList_set = set(ValveNumList)
-        SizeList_set = set(SizeList)
-        SpecificationList_set = set(SpecificationList)
-        CommentsList_set = set(CommentsList)
-        HangerRodSizeList_set = set(HangerRodSizeList)  
-        BeamHangerList_set = set(BeamHangerList) 
+def get_property_value(elem, property_name):
+    property_map = {
+        'CID': lambda x: x.ItemCustomId,
+        'ServiceType': lambda x: Config.GetServiceTypeName(x.ServiceType),
+        'Name': lambda x: get_parameter_value_by_name_AsValueString(x, 'Family'),
+        'Service Name': lambda x: get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'),
+        'Service Abbreviation': lambda x: get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation'),
+        'Size': lambda x: get_parameter_value_by_name_AsString(x, 'Size of Primary End'),
+        'STRATUS Assembly': lambda x: get_parameter_value_by_name_AsString(x, 'STRATUS Assembly'),
+        'Line Number': lambda x: get_parameter_value_by_name_AsString(x, 'FP_Line Number'),
+        'STRATUS Status': lambda x: get_parameter_value_by_name_AsString(x, 'STRATUS Status'),
+        'Reference Level': lambda x: get_parameter_value_by_name_AsValueString(x, 'Reference Level'),
+        'Item Number': lambda x: get_parameter_value_by_name_AsString(x, 'Item Number'),
+        'Bundle Number': lambda x: get_parameter_value_by_name_AsString(x, 'FP_Bundle'),
+        'REF BS Designation': lambda x: get_parameter_value_by_name_AsString(x, 'FP_REF BS Designation'),
+        'REF Line Number': lambda x: get_parameter_value_by_name_AsString(x, 'FP_REF Line Number'),
+        'Comments': lambda x: get_parameter_value_by_name_AsString(x, 'Comments'),
+        'Specification': lambda x: Config.GetSpecificationName(x.Specification),
+        'Hanger Rod Size': lambda x: get_parameter_value_by_name_AsValueString(x, 'FP_Rod Size'),
+        'Valve Number': lambda x: get_parameter_value_by_name_AsString(x, 'FP_Valve Number')
+    }
+    try:
+        return property_map.get(property_name, lambda x: None)(elem)
+    except Exception, e:
+        return None
 
-        GroupOptions = {'CID': sorted(CID_set),
-            'ServiceType': sorted(service_type_set),
-            'Name': sorted(Name_set),
-            'Service Name': sorted(SNameList_set),
-            'Service Abbreviation': sorted(SNameABBRList_set),
-            'Size': sorted(SizeList_set),
-            'STRATUS Assembly': sorted(STRATUSAssemList_set),
-            'Line Number': sorted(LineNumList_set),
-            'STRATUS Status': sorted(STRATUSStatusList_set),
-            'Reference Level': sorted(RefLevelList_set),
-            'Item Number': sorted(ItemNumList_set),
-            'Bundle Number': sorted(BundleList_set),
-            'REF BS Designation': sorted(REFBSDesigList_set),
-            'REF Line Number': sorted(REFLineNumList_set),
-            'Comments': sorted(CommentsList_set),
-            'Specification': sorted(SpecificationList_set),
-            'Hanger Rod Size': sorted(HangerRodSizeList_set),
-            'Valve Number': sorted(ValveNumList_set),
-            'Beam Hanger': sorted(BeamHangerList_set)}
+# Collect elements and properties
+preselection = [doc.GetElement(id) for id in uidoc.Selection.GetElementIds()]
+fab_elements = preselection if preselection else FilteredElementCollector(doc, curview.Id) \
+    .OfClass(DB.FabricationPart) \
+    .WhereElementIsNotElementType() \
+    .ToElements()
+all_elements = preselection if preselection else FilteredElementCollector(doc, curview.Id) \
+    .WhereElementIsNotElementType() \
+    .ToElements()
 
-        res = forms.SelectFromList.show(GroupOptions,group_selector_title='Property Type:', multiselect=True, button_name='Select Item(s)', exitscript = True)
+if not fab_elements:
+    MessageBox.Show('No Fabrication parts found.')
+    import sys
+    sys.exit()
 
-        if res:  # Check if user selected any filters
-            elementList = []
-            processed_ids = set()  # To avoid duplicates
+# Build property options with all 18 properties (excluding 'Name' and 'Comments' for special handling)
+property_options = {}
+for prop in ['CID', 'ServiceType', 'Service Name', 'Service Abbreviation', 'Size',
+             'STRATUS Assembly', 'Line Number', 'STRATUS Status', 'Reference Level',
+             'Item Number', 'Bundle Number', 'REF BS Designation', 'REF Line Number',
+             'Specification', 'Hanger Rod Size', 'Valve Number']:
+    try:
+        values = set(filter(None, [get_property_value(elem, prop) for elem in fab_elements]))
+        if values:
+            property_options[prop] = sorted(values)
+    except Exception, e:
+        pass
 
-            # Combine all collectors into one iterable for efficiency
-            all_elements = list(part_collector) + list(pipeduct_collector) + list(hanger_collector)
+# Handle 'Name' and 'Comments' separately with all elements
+try:
+    name_values = set(filter(None, [get_property_value(elem, 'Name') for elem in all_elements]))
+    if name_values:
+        property_options['Name'] = sorted(name_values)
+except Exception, e:
+    pass
 
-            for elem in all_elements:
-                for fil in res:
-                    # Determine element category for size parameter
-                    is_hanger = elem.Category.Id.IntegerValue == BuiltInCategory.OST_FabricationHangers.value__
-                    is_pipeduct = (elem.Category.Id.IntegerValue == BuiltInCategory.OST_FabricationPipework.value__ or 
-                                  elem.Category.Id.IntegerValue == BuiltInCategory.OST_FabricationDuctwork.value__)
+try:
+    comments_values = set(filter(None, [get_property_value(elem, 'Comments') for elem in all_elements]))
+    if comments_values:
+        property_options['Comments'] = sorted(comments_values)
+except Exception, e:
+    pass
 
-                    # Check all properties in a single condition
-                    if (fil in CID_set and hasattr(elem, 'ItemCustomId') and elem.ItemCustomId == fil) or \
-                       (fil in service_type_set and hasattr(elem, 'ServiceType') and Config.GetServiceTypeName(elem.ServiceType) == fil) or \
-                       (fil in Name_set and get_parameter_value_by_name_AsValueString(elem, 'Family') == fil) or \
-                       (fil in SNameList_set and get_parameter_value_by_name_AsString(elem, 'Fabrication Service Name') == fil) or \
-                       (fil in SNameABBRList_set and get_parameter_value_by_name_AsString(elem, 'Fabrication Service Abbreviation') == fil) or \
-                       (fil in STRATUSAssemList_set and get_parameter_value_by_name_AsString(elem, 'STRATUS Assembly') == fil) or \
-                       (fil in STRATUSStatusList_set and get_parameter_value_by_name_AsString(elem, 'STRATUS Status') == fil) or \
-                       (fil in LineNumList_set and get_parameter_value_by_name_AsString(elem, 'FP_Line Number') == fil) or \
-                       (fil in RefLevelList_set and get_parameter_value_by_name_AsValueString(elem, 'Reference Level') == fil) or \
-                       (fil in ItemNumList_set and get_parameter_value_by_name_AsString(elem, 'Item Number') == fil) or \
-                       (fil in BundleList_set and get_parameter_value_by_name_AsString(elem, 'FP_Bundle') == fil) or \
-                       (fil in REFBSDesigList_set and get_parameter_value_by_name_AsString(elem, 'FP_REF BS Designation') == fil) or \
-                       (fil in REFLineNumList_set and get_parameter_value_by_name_AsString(elem, 'FP_REF Line Number') == fil) or \
-                       (fil in ValveNumList_set and get_parameter_value_by_name_AsString(elem, 'FP_Valve Number') == fil) or \
-                       (fil in BeamHangerList_set and get_parameter_value_by_name_AsString(elem, 'FP_Beam Hanger') == fil) or \
-                       (fil in HangerRodSizeList_set and get_parameter_value_by_name_AsValueString(elem, 'FP_Rod Size') == fil) or \
-                       (fil in CommentsList_set and get_parameter_value_by_name_AsString(elem, 'Comments') == fil) or \
-                       (fil in SpecificationList_set and hasattr(elem, 'Specification') and Config.GetSpecificationName(elem.Specification) == fil) or \
-                       (fil in SizeList_set and is_pipeduct and get_parameter_value_by_name_AsString(elem, 'Size') == fil) or \
-                       (fil in SizeList_set and is_hanger and get_parameter_value_by_name_AsString(elem, 'Size of Primary End') == fil):
-                        if elem.Id not in processed_ids:
-                            elementList.append(elem.Id)
-                            processed_ids.add(elem.Id)
-                        break  # Move to next element once we find a match
+if not property_options:
+    MessageBox.Show('No properties found for the selected elements.')
+    import sys
+    sys.exit()
 
-            if elementList:
-                selection.set_to(elementList)
-            else:
-                print("No elements matched the selected filters")
-        else:
-            print("No filters selected")
+# Show form and process results
+form = MultiPropertyFilterForm(property_options)
+if form.ShowDialog() == DialogResult.OK and form.selected_filters:
+    filtered_ids = []
+    # Choose element set based on whether 'Name' or 'Comments' is in the filters
+    elements_to_filter = all_elements if ('Name' in form.selected_filters or 'Comments' in form.selected_filters) else fab_elements
+    for elem in elements_to_filter:
+        matches = []
+        for prop, filter_list in form.selected_filters.items():
+            elem_value = get_property_value(elem, prop)
+            # Check if elem_value matches any filter condition for this property
+            prop_matches = []
+            for values, is_and in filter_list:
+                prop_matches.append((elem_value in values, is_and))
+            # Combine matches for this property: AND requires all true, OR requires any true
+            and_matches_prop = [m for m, is_and in prop_matches if is_and]
+            or_matches_prop = [m for m, is_and in prop_matches if not is_and]
+            prop_result = (not and_matches_prop or all(and_matches_prop)) and \
+                         (not or_matches_prop or any(or_matches_prop))
+            matches.append(prop_result)
+        
+        # Element must match all property conditions
+        if all(matches):
+            filtered_ids.append(elem.Id)
+
+    revit.get_selection().set_to(filtered_ids)

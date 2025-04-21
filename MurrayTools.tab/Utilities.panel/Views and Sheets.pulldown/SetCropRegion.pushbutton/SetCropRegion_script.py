@@ -8,7 +8,7 @@ uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 
 # Check if the active view is a Floor Plan (you can modify for other view types if needed)
-if str(curview.ViewType) == 'FloorPlan':
+if str(curview.ViewType) == 'FloorPlan' or str(curview.ViewType) == 'CeilingPlan':
     # Prompt the user to select a box area
     pickedBox = uidoc.Selection.PickBox(PickBoxStyle.Directional, "Select area for sketch")
     Maxx = pickedBox.Max.X
@@ -37,4 +37,4 @@ if str(curview.ViewType) == 'FloorPlan':
     curview.CropBoxVisible = True
     t.Commit()
 else:
-    print("Active view is not a Floor Plan view.")
+    print("Active view is not a Floor or Ceiling Plan view.")

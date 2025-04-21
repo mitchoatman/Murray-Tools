@@ -1,9 +1,11 @@
+import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family, Structure, XYZ, FabricationPart, FabricationConfiguration, TransactionGroup, BuiltInParameter
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 from Parameters.Get_Set_Params import get_parameter_value_by_name_AsValueString
 import math
 import os
+import sys  # Added for sys.exit
 
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
@@ -27,24 +29,24 @@ for f in families:
 
 Fam_is_in_project = target_family is not None
 
-#start of defining functions to use
+# Start of defining functions to use
 
 def stretch_brace():
-    #This section extends the brace fam to top of hanger rod elevation after its placed.
-    #writes data to TOS Parameter
-    set_parameter_by_name(new_family_instance,"Top of Steel", valuenum)
-    #reads brace angle
+    # This section extends the brace fam to top of hanger rod elevation after its placed.
+    # Writes data to TOS Parameter
+    set_parameter_by_name(new_family_instance, "Top of Steel", valuenum)
+    # Reads brace angle
     BraceAngle = get_parameter_value_by_name(new_family_instance, "BraceMainAngle")
     sinofangle = math.sin(BraceAngle)
-    #reads brace elevation
+    # Reads brace elevation
     BraceElevation = get_parameter_value_by_name(new_family_instance, 'Offset from Host')
-    #Equation to get the new hypotenus
+    # Equation to get the new hypotenus
     Height = ((valuenum - BraceElevation) - 0.2330)
     newhypotenus = ((Height / sinofangle) - 0.2290)
     if newhypotenus < 0:
         newhypotenus = 1
-    #writes new Brace length to parameter
-    set_parameter_by_name(new_family_instance,"BraceLength", newhypotenus)
+    # Writes new Brace length to parameter
+    set_parameter_by_name(new_family_instance, "BraceLength", newhypotenus)
 
 def set_parameter_by_name(element, parameterName, value):
     element.LookupParameter(parameterName).Set(value)
@@ -76,7 +78,14 @@ class CustomISelectionFilter(ISelectionFilter):
     def AllowReference(self, ref, point):
         return True
 
-pipesel = uidoc.Selection.PickObjects(ObjectType.Element, CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers to place seismic brace on")            
+# Handle user cancellation for hanger selection
+try:
+    pipesel = uidoc.Selection.PickObjects(ObjectType.Element, CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers to place seismic brace on")
+    if not pipesel:  # Check if selection is empty
+        sys.exit(0)  # Exit gracefully if no hangers selected
+except Autodesk.Revit.Exceptions.OperationCanceledException:
+    sys.exit(0)  # Exit gracefully if user cancels
+
 Fhangers = [doc.GetElement(elId) for elId in pipesel]
 
 family_pathCC = path + NewFilename
@@ -149,7 +158,6 @@ if target_famtype:
             new_family_instance = doc.Create.NewFamilyInstance(new_insertion_point, target_famtype, DB.Structure.StructuralType.NonStructural)
 
             stretch_brace()
-
 
         if STName > 1:
             RackType = get_parameter_value_by_name_AsValueString(hanger, 'Family')

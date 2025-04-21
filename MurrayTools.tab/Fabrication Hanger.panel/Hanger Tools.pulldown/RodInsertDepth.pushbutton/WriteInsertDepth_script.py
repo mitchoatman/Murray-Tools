@@ -1,9 +1,9 @@
 import Autodesk
-from Autodesk.Revit.DB import FabricationAncillaryUsage, FabricationPart
-from Autodesk.Revit.DB import Transaction
+from Autodesk.Revit.DB import FabricationAncillaryUsage, FabricationPart, Transaction
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 from rpw.ui.forms import FlexForm, Label, ComboBox, TextBox, Separator, Button, CheckBox
 from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString
 import sys, math
 
 Shared_Params()
@@ -13,9 +13,6 @@ uidoc = __revit__.ActiveUIDocument
 # Existing helper functions remain unchanged
 def set_customdata_by_custid(fabpart, custid, value):
     fabpart.SetPartCustomDataReal(custid, value)
-
-def set_parameter_by_name(element, parameterName, value):
-    element.LookupParameter(parameterName).Set(value)
 
 def get_parameter_value_by_name(element, parameterName):
     return element.LookupParameter(parameterName).AsString() if element.LookupParameter(parameterName).StorageType == Autodesk.Revit.DB.StorageType.String else element.LookupParameter(parameterName).AsDouble()
@@ -31,12 +28,6 @@ class CustomISelectionFilter(ISelectionFilter):
     def AllowReference(self, ref, point):
         return True
 
-def set_fp_parameters(element, InsertDepth, TRL, is_beam_hanger):
-    set_parameter_by_name(element, 'FP_Insert Depth', InsertDepth)
-    # Only add InsertDepth to rod length if not a beam hanger
-    rod_cut_length = TRL if is_beam_hanger else (InsertDepth + TRL)
-    set_parameter_by_name(element, 'FP_Rod Cut Length', round_to_nearest_quarter(rod_cut_length))
-
 def round_to_nearest_half(value):
     value_in_inches = value * 12
     rounded_value_in_inches = math.ceil(value_in_inches * 2) / 2
@@ -46,6 +37,12 @@ def round_to_nearest_quarter(value):
     value_in_inches = value * 12
     rounded_value_in_inches = math.ceil(value_in_inches * 4) / 4
     return rounded_value_in_inches / 12
+
+def set_fp_parameters(element, InsertDepth, TRL, is_beam_hanger):
+    set_parameter_by_name(element, 'FP_Insert Depth', InsertDepth)
+    # Only add InsertDepth to rod length if not a beam hanger
+    rod_cut_length = TRL if is_beam_hanger else (InsertDepth + TRL)
+    set_parameter_by_name(element, 'FP_Rod Cut Length', round_to_nearest_half(rod_cut_length))
 
 # Updated function to process each hanger individually with beam hanger check
 def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
@@ -180,7 +177,28 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
         set_customdata_by_custid(hanger, 9, InsertDepth)
         set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
 
-    elif insert_type == 7:  # Custom Cut/Extended Rod
+    elif insert_type == 7:  # Hilti KCM-WF
+        set_parameter_by_name(hanger, 'FP_Insert Type', 'Hilti KCM-WF')
+        if not is_beam_hanger:
+            AnciObj = hanger.GetPartAncillaryUsage()
+            for n in AnciObj:
+                AnciDiam.append(n.AncillaryWidthOrDiameter)
+                for elinfo in AnciDiam:
+                    formatted_elinfo = "{:.6f}".format(elinfo)
+                    if formatted_elinfo == '0.031250':  # 3/8"
+                        InsertDepth = (1.9 / 12)
+                    elif formatted_elinfo == '0.041667':  # 1/2"
+                        InsertDepth = (1.5 / 12)
+                    elif formatted_elinfo == '0.052083':  # 5/8"
+                        InsertDepth = (0.9 / 12)
+                    elif formatted_elinfo == '0.062500':  # 3/4"
+                        InsertDepth = (1.5 / 12)
+                    elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
+                        InsertDepth = (-4.0 / 12)
+        set_customdata_by_custid(hanger, 9, InsertDepth)
+        set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
+
+    elif insert_type == 8:  # Custom Cut/Extended Rod
         set_parameter_by_name(hanger, 'FP_Insert Type', 'User Custom')
         if not is_beam_hanger:
             InsertDepth = deck_thickness
@@ -203,7 +221,8 @@ if len(hangers) > 0:
             '(4) Dewalt DDI': 4,
             '(5) Dewalt Wood Knocker': 5,
             '(6) Dewalt BangIt+': 6,
-            '(7) Extend or Cut Rod': 7
+            '(7) Hilti KCM-WF': 7,
+            '(8) Extend or Cut Rod': 8
         }),
         Label('Deck Thickness(Decimal In.) | (Num = +Ext or -Cut):'),
         TextBox('Deck', '3'),
@@ -219,6 +238,11 @@ if len(hangers) > 0:
     t.Start()
     
     for e in hangers:
+        try:
+            [set_parameter_by_name(e, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in e.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
+            [set_parameter_by_name(e, 'FP_Product Entry', get_parameter_value_by_name_AsString(e, 'Product Entry')) if e.LookupParameter('Product Entry') else set_parameter_by_name(e, 'FP_Product Entry', get_parameter_value_by_name_AsString(e, 'Size'))]
+        except:
+            pass
         # Get hanger dimensions
         ItmDims = e.GetDimensions()
         RLA = None

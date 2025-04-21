@@ -7,7 +7,7 @@ title:
 
 # bundle tooltip
 tooltip: >-
-  Duplicates selected view or views.
+  Duplicates selected view(s).
       1. Select a view in project browser.
       2. Run command.
       3. Choose duplicate method and quantity.

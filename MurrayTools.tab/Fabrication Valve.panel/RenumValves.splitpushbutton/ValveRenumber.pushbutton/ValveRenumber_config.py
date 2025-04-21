@@ -54,21 +54,34 @@ def renumber_valves_by_proximity(selected_valve):
     collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationPipework)
     valves_to_renumber = collector.ToElements()
 
-    # Convert PrevInput to integer and increment by 1
+    # Read the previous input from file
     try:
-        if "-" in PrevInput:
-            valuesplit = PrevInput.rsplit('-', 1)
-            start_value = str(int(valuesplit[-1]) + 1)
-            initial_value = valuesplit[0] + "-" + start_value.zfill(len(valuesplit[-1]))
-        else:
-            start_value = str(int(PrevInput) + 1)
-            initial_value = start_value.zfill(len(PrevInput))
-    except ValueError:
-        initial_value = "1"
+        with open(filepath, 'r') as f:
+            PrevInput = f.read().strip()
+    except:
+        PrevInput = "1"
 
-    # Prompt user for valve number
+    # Function to extract prefix and numeric part from a string
+    def extract_number_and_prefix(val):
+        import re
+        # Find the last sequence of digits in the string
+        match = re.search(r'(\d+)$', val)
+        if match:
+            num = match.group(1)
+            prefix = val[:match.start()]
+            return prefix, int(num), len(num)
+        else:
+            # If no number found, treat the whole string as prefix and start with 1
+            return val, 0, 0
+
+    # Get initial value by incrementing PrevInput
+    prefix, num, num_length = extract_number_and_prefix(PrevInput)
+    initial_value = "{}{}".format(prefix, str(num + 1).zfill(num_length or 1))
+
+    # Ask user for input, defaulting to incremented value
     value = forms.ask_for_string(default=initial_value, prompt='Enter Valve Number:', title='Valve Number')
 
+    # Write the user-provided value back to the file
     with open(filepath, 'w') as f:
         f.write(value)
 
@@ -79,41 +92,28 @@ def renumber_valves_by_proximity(selected_valve):
 
     valves_to_renumber_sorted = sorted(valves_to_renumber, key=lambda x: distance_between_parts(selected_valve, x))
 
-    if "-" in value:
-        valuesplit = value.rsplit('-', 1)
-        valvenumlength = len(valuesplit[-1])
-        firstpart = valuesplit[0]
-        valuenum = int(float(valuesplit[-1]))
-        numincrement = valuenum - 1
-        
-        for valve in valves_to_renumber_sorted:
-            ST = valve.ServiceType
-            AL = valve.Alias
-            if ST == 53 and AL != 'STRAINER' and AL != 'CHECK' and AL != 'BALANCE':
-                numincrement += 1
-                lastpart = str(numincrement).zfill(valvenumlength)
-                newvalvenumber = firstpart + "-" + lastpart
-                set_parameter_by_name(valve, 'FP_Valve Number', newvalvenumber)
-                set_parameter_by_name(valve, 'Mark', newvalvenumber)
-                set_customdata_by_custid(valve, 2, newvalvenumber)
-    else:
-        valvenumlength = len(value)
-        valuenum = int(float(value))
-        numincrement = valuenum - 1
-        
-        for valve in valves_to_renumber_sorted:
-            ST = valve.ServiceType
-            AL = valve.Alias
-            if ST == 53 and AL != 'STRAINER' and AL != 'CHECK':
-                numincrement += 1
-                lastpart = str(numincrement).zfill(valvenumlength)
-                newvalvenumber = lastpart
-                set_parameter_by_name(valve, 'FP_Valve Number', newvalvenumber)
-                set_parameter_by_name(valve, 'Mark', newvalvenumber)
-                set_customdata_by_custid(valve, 2, newvalvenumber)
+    # Extract prefix and starting number from the user-provided value
+    prefix, start_num, num_length = extract_number_and_prefix(value)
+    num_length = num_length or 1  # Default to 1 if no number was found
 
+    # Increment logic for renumbering
+    numincrement = start_num - 1
+    for valve in valves_to_renumber_sorted:
+        ST = valve.ServiceType
+        AL = valve.Alias
+        if ST == 53 and AL not in ['STRAINER', 'CHECK', 'BALANCE']:
+            # Increment the number
+            numincrement += 1
+            # Format the new valve number with leading zeros
+            newvalvenumber = "{}{}".format(prefix, str(numincrement).zfill(num_length))
+            
+            # Set the parameters
+            set_parameter_by_name(valve, 'FP_Valve Number', newvalvenumber)
+            set_parameter_by_name(valve, 'Mark', newvalvenumber)
+            set_customdata_by_custid(valve, 2, newvalvenumber)
+
+    # Write the last assigned number back to the file
     try:
-        newvalvenumber
         with open(filepath, 'w') as f:
             f.write(newvalvenumber)
     except NameError:
