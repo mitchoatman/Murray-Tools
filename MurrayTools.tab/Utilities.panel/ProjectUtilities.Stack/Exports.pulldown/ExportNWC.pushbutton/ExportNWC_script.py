@@ -80,7 +80,9 @@ with revit.Transaction("Analyze View Filters"):
         filter_name = filter_element.Name
         
         override_settings = active_view.GetFilterOverrides(filter_id)
-        filter_color = override_settings.ProjectionLineColor
+        pattern_color = override_settings.SurfaceForegroundPatternColor
+        line_color = override_settings.ProjectionLineColor
+        filter_color = pattern_color if pattern_color.IsValid else line_color
 
         if filter_color.IsValid:
             material_id = get_or_update_material(doc, filter_name, filter_color)

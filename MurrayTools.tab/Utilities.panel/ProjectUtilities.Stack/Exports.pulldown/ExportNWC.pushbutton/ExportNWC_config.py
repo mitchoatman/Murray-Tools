@@ -46,7 +46,7 @@ class ExportOptionsForm(Form):
         self.Text = "NWC Export Options"
         self.Width = 400  # Increased width to accommodate wider checkboxes
         self.Height = 360  # Increased height for title label and ComboBox
-        self.FormBorderStyle = 0
+        self.FormBorderStyle = FormBorderStyle.Sizable
         self.StartPosition = FormStartPosition.CenterScreen
         self.options = load_options()
         self.create_controls()
@@ -55,15 +55,6 @@ class ExportOptionsForm(Form):
         y = 20
         spacing = 30
         checkbox_width = 300  # Set width to prevent text wrapping
-
-        # Title label
-        self.title_label = Label()
-        self.title_label.Text = "NWC Export Options"
-        self.title_label.Location = Point(20, y)
-        self.title_label.Size = Size(300, 20)
-        self.title_label.Font = Font("Arial", 12, FontStyle.Bold)  # Bold and larger for emphasis
-        self.Controls.Add(self.title_label)
-        y += spacing
 
         # ComboBox for Coordinates
         self.combobox_coordinates = ComboBox()
