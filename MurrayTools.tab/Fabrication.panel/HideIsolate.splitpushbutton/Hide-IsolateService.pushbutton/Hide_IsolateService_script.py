@@ -22,6 +22,10 @@ app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float(RevitVersion)
 
+hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers) \
+                   .WhereElementIsNotElementType() \
+                   .ToElements()
+
 pipe_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationPipework) \
                    .WhereElementIsNotElementType() \
                    .ToElements()
@@ -296,6 +300,10 @@ class ServiceSelectionForm(Form):
 
 # Collect services
 SrvcList = list()
+for Item in hanger_collector:
+    servicename = get_parameter_value_by_name_AsString(Item, 'Fabrication Service Name')
+    SrvcList.append(servicename)
+
 for Item in pipe_collector:
     servicename = get_parameter_value_by_name_AsString(Item, 'Fabrication Service Name')
     SrvcList.append(servicename)

@@ -1,6 +1,5 @@
 import Autodesk
 
-
 #FUNCTION TO GET PARAMETER VALUE  change "AsDouble()" to "AsString()" to change data type.
 def set_parameter_by_name(element, parameterName, value):
     element.LookupParameter(parameterName).Set(value)

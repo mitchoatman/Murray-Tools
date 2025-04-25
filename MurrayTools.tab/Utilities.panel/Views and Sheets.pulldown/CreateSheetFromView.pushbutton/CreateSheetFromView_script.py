@@ -28,8 +28,10 @@ if not selected_titleblocks:
     sys.exit()
 
 #>>>>>> DEFINE SHEET NUMBER AND NAME
+# Set default sheet number text based on number of selected views
+default_sheet_number = 'Varies - Don\'t Change' if len(selected_views) > 1 else 'Sheet Number'
 components = [Label('Sheet Number:'),
-              TextBox('sheetnumber', 'Sheet Number'),
+              TextBox('sheetnumber', default_sheet_number),
               Label('Sheet Name:'),
               TextBox('sheetname', 'Sheet Name'),
               Button('Ok')]
@@ -42,11 +44,12 @@ if not form.values:
 snumber = form.values['sheetnumber']
 sname = form.values['sheetname']
 
-# Check if sheet already exists
-sheet_exists = any(sheet.SheetNumber == snumber for sheet in fec(doc).OfClass(ViewSheet).ToElements())
-if sheet_exists:
-    TaskDialog.Show("Error", "Sheet with number {} already exists.".format(snumber))
-    sys.exit()
+# Check if sheet number already exists (only if single view and user provided a custom sheet number)
+if len(selected_views) == 1 and snumber != 'Varies - Don\'t Change':
+    sheet_exists = any(sheet.SheetNumber == snumber for sheet in fec(doc).OfClass(ViewSheet).ToElements())
+    if sheet_exists:
+        TaskDialog.Show("Error", "Sheet with number {} already exists.".format(snumber))
+        sys.exit()
 
 # Check if selected views are already placed on any sheet
 for view in selected_views:
@@ -65,13 +68,28 @@ t = Transaction(doc, 'Sheet From View')
 
 # Begin new transaction
 t.Start()
-for view in selected_views:
+for i, view in enumerate(selected_views):
+    # Use view name as sheet number, or user-provided sheet number for single view
+    current_sheet_number = snumber if len(selected_views) == 1 and snumber != 'Varies - Don\'t Change' else view.Name
+    
+    # Check if the generated sheet number already exists
+    sheet_exists = any(sheet.SheetNumber == current_sheet_number for sheet in fec(doc).OfClass(ViewSheet).ToElements())
+    if sheet_exists:
+        TaskDialog.Show("Error", "Sheet with number {} already exists.".format(current_sheet_number))
+        t.RollBack()
+        sys.exit()
+    
+    # Create new sheet
     SHEET = ViewSheet.Create(doc, selected_titleblocks)
     SHEET.Name = sname
-    SHEET.SheetNumber = snumber
+    SHEET.SheetNumber = current_sheet_number
     x = SHEET.Outline.Max.Add(SHEET.Outline.Min).Divide(2.0)[0]
     y = SHEET.Outline.Max.Add(SHEET.Outline.Min).Divide(2.0)[1]
     ViewLocation = XYZ(x, y, 0.0)
     NEWSHEET = Viewport.Create(doc, SHEET.Id, view.Id, ViewLocation)
+    
 t.Commit()
-uidoc.RequestViewChange(SHEET)
+
+# Set the active view to the last created sheet
+if i == len(selected_views) - 1:
+    uidoc.RequestViewChange(SHEET)

@@ -76,8 +76,6 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                         InsertDepth = (deck_thickness + (1.0 / 12))
                     elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
                         InsertDepth = (-4.0 / 12)
-        set_customdata_by_custid(hanger, 9, InsertDepth)
-        set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
 
     elif insert_type == 2:  # BlueBanger WD
         set_parameter_by_name(hanger, 'FP_Insert Type', 'BlueBanger WD')
@@ -97,8 +95,6 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                         InsertDepth = (1.25 / 12)
                     elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
                         InsertDepth = (-4.0 / 12)
-        set_customdata_by_custid(hanger, 9, InsertDepth)
-        set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
 
     elif insert_type == 3:  # BlueBanger RDI
         set_parameter_by_name(hanger, 'FP_Insert Type', 'BlueBanger RDI')
@@ -115,8 +111,6 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                     elif float(formatted_elinfo) > 0.052083:  # Bigger than 1/2"
                         print('Some rod sizes bigger than insert can accept! \n Depth not written for hanger.')
                         InsertDepth = 0
-        set_customdata_by_custid(hanger, 9, InsertDepth)
-        set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
 
     elif insert_type == 4:  # Dewalt DDI
         set_parameter_by_name(hanger, 'FP_Insert Type', 'Dewalt DDI')
@@ -136,8 +130,6 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                         InsertDepth = (deck_thickness + (-5.375 / 12))
                     elif formatted_elinfo == '0.083333':  # 1"
                         InsertDepth = (-4.0 / 12)
-        set_customdata_by_custid(hanger, 9, InsertDepth)
-        set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
 
     elif insert_type == 5:  # Dewalt Wood Knocker
         set_parameter_by_name(hanger, 'FP_Insert Type', 'Dewalt Wood Knocker')
@@ -153,8 +145,6 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                         InsertDepth = (0.375 / 12)
                     elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
                         InsertDepth = (-4.0 / 12)
-        set_customdata_by_custid(hanger, 9, InsertDepth)
-        set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
 
     elif insert_type == 6:  # Dewalt BangIt+
         set_parameter_by_name(hanger, 'FP_Insert Type', 'Dewalt BangIt+')
@@ -174,8 +164,6 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                         InsertDepth = (0.750 / 12)
                     elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
                         InsertDepth = (-4.0 / 12)
-        set_customdata_by_custid(hanger, 9, InsertDepth)
-        set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
 
     elif insert_type == 7:  # Hilti KCM-WF
         set_parameter_by_name(hanger, 'FP_Insert Type', 'Hilti KCM-WF')
@@ -195,13 +183,14 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                         InsertDepth = (1.5 / 12)
                     elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
                         InsertDepth = (-4.0 / 12)
-        set_customdata_by_custid(hanger, 9, InsertDepth)
-        set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
 
     elif insert_type == 8:  # Custom Cut/Extended Rod
         set_parameter_by_name(hanger, 'FP_Insert Type', 'User Custom')
         if not is_beam_hanger:
             InsertDepth = deck_thickness
+
+    # Only set custom data and parameters if InsertDepth is not None
+    if InsertDepth is not None:
         set_customdata_by_custid(hanger, 9, InsertDepth)
         set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
 
@@ -238,6 +227,14 @@ if len(hangers) > 0:
     t.Start()
     
     for e in hangers:
+        # Skip elements named 'Seismic LRD'
+        try:
+            element_name = get_parameter_value_by_name_AsString(e, 'Family')
+            if element_name == 'Seismic LRD':
+                continue
+        except:
+            pass
+
         try:
             [set_parameter_by_name(e, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in e.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
             [set_parameter_by_name(e, 'FP_Product Entry', get_parameter_value_by_name_AsString(e, 'Product Entry')) if e.LookupParameter('Product Entry') else set_parameter_by_name(e, 'FP_Product Entry', get_parameter_value_by_name_AsString(e, 'Size'))]
@@ -281,7 +278,8 @@ if len(hangers) > 0:
             pass
 
         # Process insert type for this hanger
-        if RLA is not None:  # Only process if we have a rod length
+        rod_size = get_parameter_value_by_name(e, 'FP_Rod Size')
+        if rod_size is not None:  # Only process if we have a rod size
             process_hanger_insert(e, InsertType, DeckThickness, RLA)
 
     t.Commit()

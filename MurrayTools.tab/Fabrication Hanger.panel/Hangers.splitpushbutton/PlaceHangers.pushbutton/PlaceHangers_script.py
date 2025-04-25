@@ -220,19 +220,21 @@ try:
         with open(filepath, 'w') as the_file:
             line1 = (str(buttonnames[0]) + '\n')
             line2 = ('1' + '\n')
-            line3 = '4'
-            the_file.writelines([line1, line2, line3])
+            line3 = '4' + '\n'
+            line4 = 'True'
+            the_file.writelines([line1, line2, line3, line4])
 
     with open(filepath, 'r') as file:
         lines = file.readlines()
         lines = [line.rstrip() for line in lines]
 
-    if len(lines) < 3:
+    if len(lines) < 4:
         with open(filepath, 'w') as the_file:
             line1 = (str(buttonnames[0]) + '\n')
             line2 = ('1' + '\n')
-            line3 = '4'
-            the_file.writelines([line1, line2, line3])
+            line3 = '4' + '\n'
+            line4 = 'True'
+            the_file.writelines([line1, line2, line3, line4])
         with open(filepath, 'r') as file:
             lines = file.readlines()
             lines = [line.rstrip() for line in lines]
@@ -246,7 +248,7 @@ try:
             Label('Hanger Spacing (Ft):'),
             TextBox('Spacing', lines[2]),
             CheckBox('checkboxvalue', 'Attach to Structure', default=True),
-            CheckBox('checkboxjointvalue', 'Support Joints', default=True),
+            CheckBox('checkboxjointvalue', 'Support Joints', default=lines[3].lower() == 'true'),
             Button('Ok')
         ]
         form = FlexForm('Hanger and Spacing', components)
@@ -260,7 +262,7 @@ try:
             Label('Hanger Spacing (Ft):'),
             TextBox('Spacing', lines[2]),
             CheckBox('checkboxvalue', 'Attach to Structure', default=True),
-            CheckBox('checkboxjointvalue', 'Support Joints', default=True),
+            CheckBox('checkboxjointvalue', 'Support Joints', default=lines[3].lower() == 'true'),
             Button('Ok')
         ]
         form = FlexForm('Hanger and Spacing', components)
@@ -281,8 +283,9 @@ try:
     with open(filepath, 'w') as the_file:
         line1 = (Selectedbutton + '\n')
         line2 = (str(distancefromend) + '\n')
-        line3 = str(Spacing)
-        the_file.writelines([line1, line2, line3])
+        line3 = str(Spacing) + '\n'
+        line4 = str(SupportJoint)
+        the_file.writelines([line1, line2, line3, line4])
 
     validbutton = FabricationService.IsValidButtonIndex(Servicegroupnum, Buttonnum)
     FabricationServiceButton = FabricationService.GetButton(Servicegroupnum, Buttonnum)
@@ -535,7 +538,7 @@ try:
                         
                         # Mark bend as processed and advance proposed_position
                         bend_hangers_placed.add(current_segment.Id)
-                        proposed_position = last_hanger_position + Spacing
+                        proposeddrawn_position = last_hanger_position + Spacing
                     else:
                         # Skip couplings/tees or bends already processed
                         proposed_position = segment_end + Spacing

@@ -1,0 +1,26 @@
+#highlight: updated
+#highlight: new
+
+# bundle title
+title:
+  "Generate\nBulk BOM"
+
+# bundle tooltip
+tooltip: |-
+  Exports a Schedule into Murray MR Template, no Export / Import steps required.
+
+  [Shift]+Click:    
+  Creates a Schedule formatted for export to MR Template.
+  Users must set filters and formatting on Pipe lengths to calculate totals.
+  This function will also sync FP Parameters for entire model.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Walls
+#  - Text Notes
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

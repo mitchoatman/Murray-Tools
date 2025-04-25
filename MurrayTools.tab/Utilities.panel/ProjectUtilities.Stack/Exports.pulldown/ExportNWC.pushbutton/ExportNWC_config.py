@@ -25,7 +25,8 @@ default_options = {
     "DivideFileIntoLevels": False,
     "ConvertElementProperties": True,
     "ExportUrls": False,
-    "ConvertLinkedCADFormats": False
+    "ConvertLinkedCADFormats": False,
+    "ExportLinks": False
 }
 
 # Load saved options if they exist
@@ -45,7 +46,7 @@ class ExportOptionsForm(Form):
     def __init__(self):
         self.Text = "NWC Export Options"
         self.Width = 400  # Increased width to accommodate wider checkboxes
-        self.Height = 360  # Increased height for title label and ComboBox
+        self.Height = 350  # Increased height for new checkbox
         self.FormBorderStyle = FormBorderStyle.Sizable
         self.StartPosition = FormStartPosition.CenterScreen
         self.options = load_options()
@@ -99,6 +100,14 @@ class ExportOptionsForm(Form):
         self.Controls.Add(self.checkbox_linked_cad)
         y += spacing
 
+        self.checkbox_export_links = CheckBox()
+        self.checkbox_export_links.Text = "Convert Linked Files"
+        self.checkbox_export_links.Checked = self.options.get("ExportLinks", False)
+        self.checkbox_export_links.Location = Point(20, y)
+        self.checkbox_export_links.Size = Size(checkbox_width, 20)
+        self.Controls.Add(self.checkbox_export_links)
+        y += spacing
+
         self.checkbox_divide_levels = CheckBox()
         self.checkbox_divide_levels.Text = "Divide File Into Levels"
         self.checkbox_divide_levels.Checked = self.options["DivideFileIntoLevels"]
@@ -130,6 +139,7 @@ class ExportOptionsForm(Form):
         self.options["ConvertElementProperties"] = self.checkbox_element_properties.Checked
         self.options["ExportUrls"] = self.checkbox_export_urls.Checked
         self.options["ConvertLinkedCADFormats"] = self.checkbox_linked_cad.Checked
+        self.options["ExportLinks"] = self.checkbox_export_links.Checked
         save_options(self.options)
         self.DialogResult = DialogResult.OK
         self.Close()

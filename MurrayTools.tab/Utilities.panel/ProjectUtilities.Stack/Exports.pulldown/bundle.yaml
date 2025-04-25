@@ -8,6 +8,7 @@ layout:
   - ExportTitleBlockParams
   - OpenBOMTemplate
   - OpenCADRequest
+  - GenerateBulkBOM
 
 
 background:

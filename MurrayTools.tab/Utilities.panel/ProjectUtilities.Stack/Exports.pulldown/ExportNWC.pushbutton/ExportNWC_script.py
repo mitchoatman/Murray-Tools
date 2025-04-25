@@ -10,6 +10,17 @@ Shared_Params()
 doc = revit.doc
 active_view = doc.ActiveView
 
+# Validate active view
+if not active_view or active_view.ViewType not in [DB.ViewType.FloorPlan, DB.ViewType.CeilingPlan, DB.ViewType.ThreeD, DB.ViewType.Section, DB.ViewType.Elevation, DB.ViewType.Detail]:
+    from Autodesk.Revit.UI import TaskDialog, TaskDialogCommonButtons, TaskDialogResult
+    dialog = TaskDialog("Invalid Active View")
+    dialog.MainInstruction = "The active view is not valid for export."
+    dialog.MainContent = "Please click into a graphical view (e.g., 3D View, Floor Plan, Section, or Elevation) and try again."
+    dialog.CommonButtons = TaskDialogCommonButtons.Close
+    dialog.Show()
+    import sys
+    sys.exit()
+
 # File save dialog for NWC export
 folder_name = "C:\\Temp"
 filepath = os.path.join(folder_name, "Ribbon_NWC-Export.txt")
@@ -53,21 +64,29 @@ def get_or_update_material(doc, material_name, color):
             needs_update = mat_color.Red != color.Red or mat_color.Green != color.Green or mat_color.Blue != color.Blue
             is_insulation = material_name.lower() in ['fp_insulation', 'insulation', 'mp insulation']
             if needs_update or (is_insulation and mat.Transparency != 50):
-                with revit.Transaction("Update Material Color"):
-                    mat.Color = color
-                    if is_insulation:
-                        mat.Transparency = 50
+                try:
+                    with revit.Transaction("Update Material Color"):
+                        mat.Color = color
+                        if is_insulation:
+                            mat.Transparency = 50
+                except Exception as e:
+                    print "Failed to update material %s: %s" % (material_name, str(e))
+                    continue
             return mat.Id
-    with revit.Transaction("Create Material"):
-        new_mat_id = Material.Create(doc, material_name)
-        new_mat = doc.GetElement(new_mat_id)
-        if new_mat:
-            new_mat.Color = color
-            if material_name.lower() in ['fp_insulation', 'insulation', 'mp insulation']:
-                new_mat.Transparency = 50
-            new_mat.SurfaceForegroundPatternId = DB.ElementId.InvalidElementId
-            new_mat.SurfaceBackgroundPatternId = DB.ElementId.InvalidElementId
-        return new_mat_id
+    try:
+        with revit.Transaction("Create Material"):
+            new_mat_id = Material.Create(doc, material_name)
+            new_mat = doc.GetElement(new_mat_id)
+            if new_mat:
+                new_mat.Color = color
+                if material_name.lower() in ['fp_insulation', 'insulation', 'mp insulation']:
+                    new_mat.Transparency = 50
+                new_mat.SurfaceForegroundPatternId = DB.ElementId.InvalidElementId
+                new_mat.SurfaceBackgroundPatternId = DB.ElementId.InvalidElementId
+            return new_mat_id
+    except Exception as e:
+        print "Failed to create material %s: %s" % (material_name, str(e))
+        return None
 
 filter_material_mapping = {}
 elements_to_update = {}
@@ -86,6 +105,8 @@ with revit.Transaction("Analyze View Filters"):
 
         if filter_color.IsValid:
             material_id = get_or_update_material(doc, filter_name, filter_color)
+            if material_id is None:
+                continue  # Skip if material creation/update failed
             filter_material_mapping[filter_name] = (filter_color, material_id)
             
             if filter_name.lower() in ['fp_insulation', 'insulation', 'mp insulation']:
@@ -150,7 +171,8 @@ default_options = {
     "DivideFileIntoLevels": False,
     "ConvertElementProperties": True,
     "ExportUrls": False,
-    "ConvertLinkedCADFormats": False
+    "ConvertLinkedCADFormats": False,
+    "ExportLinks": False
 }
 
 # Load saved options
@@ -176,6 +198,7 @@ export_options.DivideFileIntoLevels = options["DivideFileIntoLevels"]
 export_options.ConvertElementProperties = options["ConvertElementProperties"]
 export_options.ExportUrls = options["ExportUrls"]
 export_options.ConvertLinkedCADFormats = options["ConvertLinkedCADFormats"]
+export_options.ExportLinks = options["ExportLinks"]
 
 try:
     doc.Export(folder_path, file_name, export_options)

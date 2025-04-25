@@ -3,15 +3,18 @@
 
 # bundle title
 title:
-  "Create Sheet\nFrom View"
+  "Create Sheet(s)\nFrom View(s)"
 
 # bundle tooltip
 tooltip: >-
-  Creates an new sheet from selected view.
-      1. Select a view in project browser.
+  Creates a new sheet(s) from selected view.
+      1. Select a view(s) in project browser.
       2. Run Script.
       3. Pick desired title block.
       4. Enter Sheet name and number.
+      
+  Will create multiple sheets from multiple views selected.
+  New sheets will use view name for sheet number when multiple are selected.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-__title__ = 'Schedules\nTo Excel'
-__doc__ = """Exports visible fields from selected schedules to an Excel file, excluding ElementId and column headers, preserving the first 16 rows of MR-BOM.xlsx in the script's folder, and writing data starting at row 17."""
 
 from pyrevit import forms, revit, DB, script
 import clr
@@ -80,6 +78,8 @@ def export_schedule_to_excel(schedule, source_excel_path, output_filepath):
         vseop.Title = False
         vseop.HeadersFootersBlanks = True
 
+        # Export
+
         # Export schedule to temporary CSV (only visible fields, no ElementId, no headers)
         schedule.Export(op.dirname(temp_csv_path), op.basename(temp_csv_path), vseop)
         revit.files.correct_text_encoding(temp_csv_path)
@@ -95,11 +95,41 @@ def export_schedule_to_excel(schedule, source_excel_path, output_filepath):
             row = 17
             for csv_row in csv_reader:
                 for col, value in enumerate(csv_row, 1):
-                    ws.Cells[row, col].Value2 = value
+                    # Format column C (size column) as text
+                    if col == 3:
+                        ws.Cells[row, col].NumberFormat = '@'  # Set format to text
+                    # Skip writing '0' or '0"' in column C (col 3)
+                    if col == 3 and value in ['0', '0"']:
+                        ws.Cells[row, col].Value2 = ''
+                    else:
+                        ws.Cells[row, col].Value2 = value
                 row += 1
 
-        # Save as new file
+        # Sort data in columns A to G, starting at row 17, by column B (descending)
+        last_row = ws.Cells(ws.Rows.Count, 1).End(-4162).Row  # Find last row (xlUp)
+        if last_row >= 17:  # Ensure there is data to sort
+            range_to_sort = ws.Range(ws.Cells(17, 1), ws.Cells(last_row, 7))  # A17:G<last_row>
+            range_to_sort.Sort(
+                Key1=ws.Cells(17, 2),  # Sort by column B
+                Order1=2,  # Descending (2 = xlDescending)
+                Orientation=1  # Top to bottom (1 = xlTopToBottom)
+            )
+
+        # Find and replace '0"' with '' in column B, starting at row 17 (strict match)
+        if last_row >= 17:  # Ensure there is data to process
+            column_b_range = ws.Range(ws.Cells(17, 2), ws.Cells(last_row, 2))  # B17:B<last_row>
+            column_b_range.Replace(
+                What='0"',
+                Replacement='',
+                LookAt=2,  # xlWhole (2 = match entire cell contents)
+                SearchOrder=1,  # xlByRows (1 = search by rows)
+                MatchCase=False
+            )
+
+        # Suppress Excel overwrite prompt and save as new file
+        excel.DisplayAlerts = False
         wb.SaveAs(output_filepath)
+        excel.DisplayAlerts = True
         wb.Close()
         wb = None
         Marshal.ReleaseComObject(ws)
