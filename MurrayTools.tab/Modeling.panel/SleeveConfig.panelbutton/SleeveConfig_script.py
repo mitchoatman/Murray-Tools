@@ -9,7 +9,7 @@ try:
         os.makedirs(folder_name)
     if not os.path.exists(filepath):
         with open(filepath, 'w') as f:
-            f.write('1')
+            f.write('0.5')
 
     with open(filepath, 'r') as f:
         SleeveLength = f.read()

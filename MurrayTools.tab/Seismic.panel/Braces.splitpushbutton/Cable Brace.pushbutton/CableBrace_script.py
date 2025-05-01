@@ -160,9 +160,9 @@ if target_famtype:
             for n in range(STName):
                 rodloc = STName1.GetRodEndPosition(n)
                 valuenum = rodloc.Z
-                if RackType == '1.625 Single Strut Trapeze':
+                if "1.625" in RackType and "Single" in RackType:
                     combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_bottom_point.Z + 0.25524))
-                elif RackType == '1.625 Double Strut Trapeze':
+                elif "1.625" in RackType and "Double" in RackType:
                     combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_bottom_point.Z + 0.390656))
                 else:
                     combined_xyz = XYZ(rodloc.X, rodloc.Y, middle_bottom_point.Z)  # Fallback

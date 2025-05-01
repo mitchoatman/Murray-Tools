@@ -175,7 +175,7 @@ if target_famtype:
             for n in range(STName):
                 rodloc = STName1.GetRodEndPosition(n)
                 valuenum = rodloc.Z
-                if RackType == '1.625 Single Strut Trapeze':
+                if "1.625" in RackType and "Single" in RackType:
                     combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_bottom_point.Z + 0.229166666))
                     new_family_instance = doc.Create.NewFamilyInstance(combined_xyz, target_famtype, DB.Structure.StructuralType.NonStructural)
                 elif RackType == '038 Unistrut Trapeeze':
@@ -184,7 +184,7 @@ if target_famtype:
                 elif RackType == '050 Unistrut Trapeeze':
                     combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_bottom_point.Z + 0.2815))
                     new_family_instance = doc.Create.NewFamilyInstance(combined_xyz, target_famtype, DB.Structure.StructuralType.NonStructural)
-                elif RackType == '1.625 Double Strut Trapeze':
+                elif "1.625" in RackType and "Double" in RackType:
                     combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_bottom_point.Z + 0.364584))
                     new_family_instance = doc.Create.NewFamilyInstance(combined_xyz, target_famtype, DB.Structure.StructuralType.NonStructural)
                 elif RackType == '050 Doublestrut Trapeeze':

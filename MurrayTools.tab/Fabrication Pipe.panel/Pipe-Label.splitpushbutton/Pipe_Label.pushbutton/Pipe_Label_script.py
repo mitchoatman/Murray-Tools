@@ -9,7 +9,7 @@ from Autodesk.Revit.UI.Selection import ObjectType
 import re
 from math import atan2, degrees
 from fractions import Fraction
-from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Add_SharedParameters import Shared_Params
 import os
 
 Shared_Params()

@@ -4,7 +4,7 @@ from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, BuiltIn
 ParameterValueProvider, ElementId, FilterStringBeginsWith, Transaction, FilterStringEquals, \
 ElementParameterFilter, ParameterValueProvider, LogicalOrFilter, TransactionGroup, FabricationPart, FabricationConfiguration
 from pyrevit import revit, DB, script, forms
-from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString
 
 Shared_Params()

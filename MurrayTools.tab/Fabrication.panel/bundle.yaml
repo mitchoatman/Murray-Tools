@@ -4,6 +4,7 @@ layout:
   - SelectFabFilter
   - Leveler
   - Location
+  - SetStatus
 
 
 background:

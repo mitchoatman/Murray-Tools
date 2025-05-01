@@ -2,7 +2,7 @@ import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import Transaction, FilteredElementCollector, BuiltInCategory, FabricationConfiguration, FabricationPart
 from pyrevit import revit, DB, forms
-from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsInteger
 
 Shared_Params()

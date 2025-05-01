@@ -2,7 +2,7 @@ import Autodesk
 from Autodesk.Revit.DB import IFamilyLoadOptions, FamilySource, Transaction, FilteredElementCollector, Family, TransactionGroup, \
                               BuiltInCategory, FamilySymbol, BuiltInParameter, Reference, IndependentTag, TagMode, TagOrientation, \
                               ViewType
-from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Add_SharedParameters import Shared_Params
 import os
 import sys
 

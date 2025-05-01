@@ -13,10 +13,6 @@ tooltip: |-
       2. Select Elements.
       3. Choose save location and file name.
 
-  -------------------------
-  Planned Improvements:
-    1. Allow filtered selection of elements that meet status requirement.
-  -------------------------
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Walls

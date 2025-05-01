@@ -4,7 +4,7 @@ ParameterValueProvider, ElementId, FilterStringBeginsWith, Transaction, FilterSt
 ElementParameterFilter, ParameterValueProvider, LogicalOrFilter, TransactionGroup, FabricationPart
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 from pyrevit import revit, DB, forms
-from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Add_SharedParameters import Shared_Params
 import os
 from Parameters.Get_Set_Params import get_parameter_value_by_name_AsString
 Shared_Params()

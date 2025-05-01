@@ -5,7 +5,7 @@ from pyrevit import DB, revit, script, forms
 from Autodesk.Revit.DB import Transaction
 from Autodesk.Revit.UI import Selection
 import os
-from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import set_parameter_by_name
 Shared_Params()
 

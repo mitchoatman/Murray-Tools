@@ -1,6 +1,6 @@
 #Imports
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, FabricationPart, Group
-from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsInteger, get_parameter_value_by_name_AsValueString
 Shared_Params()
 

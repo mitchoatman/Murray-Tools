@@ -2,7 +2,7 @@ import Autodesk
 from pyrevit import revit
 from Autodesk.Revit.DB import Transaction, FabricationConfiguration
 import os
-from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import set_parameter_by_name
 Shared_Params()
 

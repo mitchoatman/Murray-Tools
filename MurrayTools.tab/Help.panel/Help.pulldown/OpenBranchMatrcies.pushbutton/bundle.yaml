@@ -1,0 +1,21 @@
+#highlight: updated
+#highlight: new
+
+# bundle title
+title:
+  "Open Branch\nMatrices"
+
+# bundle tooltip
+tooltip: |-
+  Opens a folder where the Murray Branch Matrices are stored.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Walls
+#  - Text Notes
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

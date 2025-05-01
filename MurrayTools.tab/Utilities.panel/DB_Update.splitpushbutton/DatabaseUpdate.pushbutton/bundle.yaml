@@ -5,8 +5,14 @@ title:
   "Database\nUpdate"
 
 # bundle tooltip
-tooltip: >-
+tooltip: |-
   Syncs the Fabrication Database to your computer for reloads
+
+  [Shift]+Click:    
+  Does the following:
+  1. Syncs model to central (safety first)
+  2. Starts database sync (waits for it to finish)
+  3. Reloads fabrication config (database changes loaded in Revit)
 
 # context directives are listed under `context` key, the order does not matter
 context:

@@ -4,7 +4,7 @@ from Autodesk.Revit.DB import Transaction
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 import math
 import re
-from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Add_SharedParameters import Shared_Params
 
 Shared_Params()
 

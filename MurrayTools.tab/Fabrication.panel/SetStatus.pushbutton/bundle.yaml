@@ -1,0 +1,23 @@
+#highlight: new
+
+# bundle title
+title:
+  "Set\nStatus"
+
+# bundle tooltip
+tooltip: |-
+  Assigns Status to Fabrication parts.
+  1. Run Command.
+  2. Choose status(s) to exclude from selection.
+  3. Select elements.
+  4. Choose status to assign to selected elements.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+help_url: "https://youtu.be/lSqrnCQ3Hng"
+
+# bundle author
+author: Mitchell Oatman

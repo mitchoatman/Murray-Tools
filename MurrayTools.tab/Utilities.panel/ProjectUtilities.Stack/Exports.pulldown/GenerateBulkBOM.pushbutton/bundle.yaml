@@ -11,8 +11,7 @@ tooltip: |-
 
   [Shift]+Click:    
   Creates a Schedule formatted for export to MR Template.
-  Users must set filters and formatting on Pipe lengths to calculate totals.
-  This function will also sync FP Parameters for entire model.
+  This function will also sync FP Parameters for entire model. (May take some time)
 
 # context directives are listed under `context` key, the order does not matter
 #context:

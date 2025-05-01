@@ -1,7 +1,7 @@
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import Transaction, ParameterFilterRuleFactory, ElementParameterFilter, ParameterFilterElement, Color, ElementId, BuiltInCategory, OverrideGraphicSettings, FilteredElementCollector, FillPatternElement
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
-from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Add_SharedParameters import Shared_Params
 from System.Collections.Generic import List
 
 Shared_Params()

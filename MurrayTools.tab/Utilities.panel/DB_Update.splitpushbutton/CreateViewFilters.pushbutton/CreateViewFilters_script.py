@@ -7,15 +7,17 @@ from Autodesk.Revit.UI import UIApplication
 from System.Collections.Generic import List
 from collections import OrderedDict
 from random import randint
-from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import get_parameter_value_by_name_AsString
 
 Shared_Params()
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
-app = doc.Application
 curview = doc.ActiveView
+app = doc.Application
+RevitVersion = app.VersionNumber
+RevitINT = float(RevitVersion)
 
 # Create a FilteredElementCollector to get all FabricationPart elements from the current view
 part_collector = FilteredElementCollector(doc, curview.Id).OfClass(FabricationPart) \
@@ -311,18 +313,30 @@ with Transaction(doc, "Create and Apply Filters") as t:
                         break
                 if not param_id:
                     raise Exception('STRATUS Assembly Parameter not found')
-
-                if condition == "EndsWith":
-                    rule = ParameterFilterRuleFactory.CreateEndsWithRule(param_id, value, False)
-                elif condition == "DoesNotContain":
-                    contains_rule = ParameterFilterRuleFactory.CreateContainsRule(param_id, value, False)
-                    rule = FilterInverseRule(contains_rule)
-                elif condition == "Contains":
-                    contains_rule = ParameterFilterRuleFactory.CreateContainsRule(param_id, value, False)
-                elif condition == "Equals":
-                    rule = ParameterFilterRuleFactory.CreateEqualsRule(param_id, value, False)
+                if RevitINT < 2023:
+                    if condition == "EndsWith":
+                        rule = ParameterFilterRuleFactory.CreateEndsWithRule(param_id, value, False)
+                    elif condition == "DoesNotContain":
+                        contains_rule = ParameterFilterRuleFactory.CreateContainsRule(param_id, value, False)
+                        rule = FilterInverseRule(contains_rule)
+                    elif condition == "Contains":
+                        contains_rule = ParameterFilterRuleFactory.CreateContainsRule(param_id, value, False)
+                    elif condition == "Equals":
+                        rule = ParameterFilterRuleFactory.CreateEqualsRule(param_id, value, False)
+                    else:
+                        raise Exception('Condition not supported')
                 else:
-                    raise Exception('Condition not supported')
+                    if condition == "EndsWith":
+                        rule = ParameterFilterRuleFactory.CreateEndsWithRule(param_id, value)
+                    elif condition == "DoesNotContain":
+                        contains_rule = ParameterFilterRuleFactory.CreateContainsRule(param_id, value)
+                        rule = FilterInverseRule(contains_rule)
+                    elif condition == "Contains":
+                        contains_rule = ParameterFilterRuleFactory.CreateContainsRule(param_id, value)
+                    elif condition == "Equals":
+                        rule = ParameterFilterRuleFactory.CreateEqualsRule(param_id, value)
+                    else:
+                        raise Exception('Condition not supported')
 
                 filter_element = ElementParameterFilter(rule)
                 filter_elem = ParameterFilterElement.Create(doc, filter_name, categories)
@@ -352,11 +366,18 @@ with Transaction(doc, "Create and Apply Filters") as t:
         if service_name in existing_filter_names:
             paramFilterId = existing_filter_dict[service_name]
         else:
-            rule = ParameterFilterRuleFactory.CreateEqualsRule(fabrication_service_name_parameter, service_name, False)
-            filter = ElementParameterFilter(rule)
-            paramFilter = ParameterFilterElement.Create(doc, service_name, categories)
-            paramFilter.SetElementFilter(filter)
-            paramFilterId = paramFilter.Id
+            if RevitINT < 2023:
+                rule = ParameterFilterRuleFactory.CreateEqualsRule(fabrication_service_name_parameter, service_name, False)
+                filter = ElementParameterFilter(rule)
+                paramFilter = ParameterFilterElement.Create(doc, service_name, categories)
+                paramFilter.SetElementFilter(filter)
+                paramFilterId = paramFilter.Id
+            else:
+                rule = ParameterFilterRuleFactory.CreateEqualsRule(fabrication_service_name_parameter, service_name)
+                filter = ElementParameterFilter(rule)
+                paramFilter = ParameterFilterElement.Create(doc, service_name, categories)
+                paramFilter.SetElementFilter(filter)
+                paramFilterId = paramFilter.Id
 
         if service_name not in applied_filters:
             overrides = OverrideGraphicSettings()

@@ -3,7 +3,7 @@ from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, BuiltIn
     ParameterValueProvider, ElementId, Transaction, FilterStringEquals, ElementParameterFilter, FabricationPart
 from Autodesk.Revit.UI.Selection import ObjectType
 from pyrevit import revit, DB, forms
-from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Add_SharedParameters import Shared_Params
 import os
 from Parameters.Get_Set_Params import get_parameter_value_by_name_AsString
 

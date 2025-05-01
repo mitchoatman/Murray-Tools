@@ -4,7 +4,7 @@ from Autodesk.Revit.DB import FabricationPart, FabricationAncillaryUsage, Transa
 from Autodesk.Revit.UI.Selection import *
 from rpw.ui.forms import FlexForm, Label, TextBox, Separator, Button
 from pyrevit import script
-from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Add_SharedParameters import Shared_Params
 import os
 
 Shared_Params()

@@ -3,7 +3,7 @@ from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FabricationPart, FabricationAncillaryUsage, Transaction, FilteredElementCollector, BuiltInCategory, TransactionGroup
 from Autodesk.Revit.UI.Selection import *
 from rpw.ui.forms import SelectFromList
-from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Add_SharedParameters import Shared_Params
 
 Shared_Params()
 

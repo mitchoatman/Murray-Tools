@@ -6,7 +6,7 @@ from Autodesk.Revit.UI import Selection
 from Autodesk.Revit.UI.Selection import ObjectType
 from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsDouble
 from rpw.ui.forms import FlexForm, Label, TextBox, Button, CheckBox
-from SharedParam.Add_Parameters import Shared_Params
+from Parameters.Add_SharedParameters import Shared_Params
 import os
 
 Shared_Params()
