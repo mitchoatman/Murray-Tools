@@ -126,6 +126,8 @@ else:
 ops = [MyOption(item, checked=(item in ignorebools)) for item in Bool_List]
 
 ignorebools = forms.SelectFromList.show(ops, title='IgnoreField Options', multiselect=True, button_name='Select IgnoreField(s)')
+if ignorebools is None:
+    ignorebools = []  # Set to empty list if dialog is canceled
 
 with open(filepath, 'w') as f:
     f.write(str(ignorebools))
@@ -173,7 +175,7 @@ components = [
     Label('Enter Start Number:'),
     TextBox('StrtNum', lines[1]),
     CheckBox('checkboxvalue', 'Same Number for Identical Parts', default=checkboxdef),
-    CheckBox('SetStartcheckboxvalue', 'Set Numbering Start Location (In Development)', default=False),
+    CheckBox('SetStartcheckboxvalue', 'Set Numbering Start Location', default=False),
     Button('Ok')
 ]
 form = FlexForm('Renumber Fabrication Parts', components)
@@ -188,35 +190,74 @@ start_number = int(value)
 
 Fill_length = len(value)
 
+# Function to calculate distance between two fabrication parts
+def distance_between_parts(part1, part2):
+    point1 = part1.Origin
+    point2 = part2.Origin
+    return point1.DistanceTo(point2)
+
+# Function to renumber parts by proximity
+def renumber_by_proximity(selected_part, parts_to_renumber, prefix, start_num, fill_length, identical_parts=False, ignore_fields=None):
+    unique_elements = {}
+    parts_sorted = sorted(parts_to_renumber, key=lambda x: distance_between_parts(selected_part, x))
+    
+    current_number = start_num
+    
+    if not identical_parts:
+        for part in parts_sorted:
+            num_to_assign = prefix + str(current_number).zfill(fill_length)
+            set_parameter_by_name(part, 'Item Number', num_to_assign)
+            set_parameter_by_name(part, 'STRATUS Item Number', num_to_assign)
+            current_number += 1
+    else:
+        for part in parts_sorted:
+            identical_elements = [n for n in parts_to_renumber if part.IsSameAs(n, ignore_fields)]
+            key = tuple(element.Id.IntegerValue for element in identical_elements)
+            if key in unique_elements:
+                num_to_assign = unique_elements[key]
+            else:
+                num_to_assign = prefix + str(current_number).zfill(fill_length)
+                unique_elements[key] = num_to_assign
+                current_number += 1
+            for element in identical_elements:
+                set_parameter_by_name(element, 'Item Number', num_to_assign)
+                set_parameter_by_name(element, 'STRATUS Item Number', num_to_assign)
+    
+    return current_number
+
 t = Transaction(doc, 'Re-Number Fabrication Hangers')
 t.Start()
 
 unique_elements = {}
 
-if not snfip:
-    for ue in Fhangers1:
-        num_to_assign = valuepre + str(start_number).zfill(Fill_length)
-        set_parameter_by_name(ue, 'Item Number', str(num_to_assign))
-        set_parameter_by_name(ue, 'STRATUS Item Number', str(num_to_assign))
-        start_number += 1
-    if sslfn:
-        print('Setting start location not available yet')
+if sslfn:
+    # Prompt user to select the starting part
+    selected_part_ref = uidoc.Selection.PickObject(ObjectType.Element, CustomISelectionFilter(fabrication_categories), "Select Fabrication Part to start numbering from")
+    selected_part = doc.GetElement(selected_part_ref.ElementId)
+    
+    # Renumber parts by proximity
+    start_number = renumber_by_proximity(selected_part, Fhangers1, valuepre, start_number, Fill_length, snfip, IgnFld)
 else:
-    for e in Fhangers1:
-        identical_elements = [n for n in Fhangers2 if e.IsSameAs(n, IgnFld)]
-        key = tuple(element.Id.IntegerValue for element in identical_elements)
-        if key in unique_elements:
-            num_to_assign = unique_elements[key]
-        else:
+    if not snfip:
+        for ue in Fhangers1:
             num_to_assign = valuepre + str(start_number).zfill(Fill_length)
-            unique_elements[key] = num_to_assign
+            set_parameter_by_name(ue, 'Item Number', str(num_to_assign))
+            set_parameter_by_name(ue, 'STRATUS Item Number', str(num_to_assign))
             start_number += 1
+    else:
+        for e in Fhangers1:
+            identical_elements = [n for n in Fhangers2 if e.IsSameAs(n, IgnFld)]
+            key = tuple(element.Id.IntegerValue for element in identical_elements)
+            if key in unique_elements:
+                num_to_assign = unique_elements[key]
+            else:
+                num_to_assign = valuepre + str(start_number).zfill(Fill_length)
+                unique_elements[key] = num_to_assign
+                start_number += 1
 
-        for element in identical_elements:
-            set_parameter_by_name(element, 'Item Number', num_to_assign)
-            set_parameter_by_name(element, 'STRATUS Item Number', num_to_assign)
-    if sslfn:
-        print('Setting start location not available yet')
+            for element in identical_elements:
+                set_parameter_by_name(element, 'Item Number', num_to_assign)
+                set_parameter_by_name(element, 'STRATUS Item Number', num_to_assign)
 
 t.Commit()
 

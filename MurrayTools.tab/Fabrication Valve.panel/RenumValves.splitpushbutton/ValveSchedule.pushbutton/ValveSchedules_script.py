@@ -3,7 +3,17 @@ clr.AddReference('RevitAPI')
 clr.AddReference('RevitServices')
 
 from System.Collections.Generic import List
-from Autodesk.Revit.DB import BuiltInCategory, Transaction, ElementId, ViewSchedule, FilteredElementCollector, ParameterElement, ScheduleFieldType, BuiltInParameter, ParameterFilterElement, ParameterFilterRuleFactory
+from Autodesk.Revit.DB import (
+    BuiltInCategory, Transaction, ElementId, ViewSchedule, 
+    FilteredElementCollector, ParameterElement, ScheduleFieldType, 
+    BuiltInParameter, ScheduleFilter, ScheduleFilterType
+)
+
+from Parameters.Add_SharedParameters import Shared_Params
+Shared_Params()
+
+from Parameters.FabPart_Params import Sync_FP_Params_Entire_Model
+Sync_FP_Params_Entire_Model()
 
 # Define the active Revit application and document
 doc = __revit__.ActiveUIDocument.Document
@@ -46,20 +56,23 @@ if not schedule_exists(schedule_name, categoryId):
     # Get all parameters in the document
     parameters = FilteredElementCollector(doc).OfClass(ParameterElement).ToElements()
 
+    # Dictionary to store ScheduleFieldIds for filtering
+    field_ids = {}
+
     # Function to add field by name
     def add_field_by_name(definition, paramName, userColumnName, parameters):
-        # print paramName
-        # print paramName == "Family"
         if paramName == "Family":
             # Handle the Family parameter separately using the built-in parameter
             paramId = ElementId(BuiltInParameter.ELEM_FAMILY_PARAM)
             field = definition.AddField(ScheduleFieldType.Instance, paramId)
             field.ColumnHeading = userColumnName
+            field_ids[paramName] = field.FieldId
         elif paramName == "Reference Level":
-            # Handle the Item Number parameter using the built-in parameter
+            # Handle the Reference Level parameter using the built-in parameter
             paramId = ElementId(BuiltInParameter.FABRICATION_LEVEL_PARAM)
             field = definition.AddField(ScheduleFieldType.Instance, paramId)
             field.ColumnHeading = userColumnName
+            field_ids[paramName] = field.FieldId
         else:
             # Find the parameter with the matching name
             parameter = next((p for p in parameters if p.Name == paramName), None)
@@ -71,12 +84,30 @@ if not schedule_exists(schedule_name, categoryId):
                 field = definition.AddField(ScheduleFieldType.Instance, paramId)
                 # Set the field column header
                 field.ColumnHeading = userColumnName
+                field_ids[paramName] = field.FieldId
+                # Set FP_Service Type as hidden
+                if paramName == "FP_Service Type":
+                    try:
+                        field.IsHidden = True
+                    except Exception:
+                        pass
 
     # Add fields to the schedule in the specified order
     for paramName, userColumnName in fieldNames:
         add_field_by_name(definition, paramName, userColumnName, parameters)
 
+    # Add filter for FP_Service Type = Valve
+    try:
+        if "FP_Service Type" in field_ids:
+            filter_obj = ScheduleFilter(
+                field_ids["FP_Service Type"],
+                ScheduleFilterType.Equal,
+                "Valve"
+            )
+            definition.AddFilter(filter_obj)
+    except Exception:
+        pass
+
     t.Commit()
 else:
     print("Schedule '{}' already exists.".format(schedule_name))
-

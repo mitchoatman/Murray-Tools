@@ -6,18 +6,22 @@ title:
 
 # bundle tooltip
 tooltip: |-
-  Numbers valves in active view by isolated service.
+  Numbers valves in active view.
   1. Execute command.
-  2. Isolate system you wish to number valves on.
-  3. Select a valve to start numbering from.
-  4. Specify number pattern.
-  5. Valves will be numbered.
+  2. Select a Fabrication Valve to start numbering from.
+  3. Specify number pattern.
+  4. Valves matching the selected valve service in the active view will be numbered.
 
   Will look at ALIAS in Fabrication valves and if it is set
   to STRAINER or CHECK those elements will not be numbered.
 
   [Shift]+Click:    
-  A new faster method that only requires a selection of one valve.
+  (Legacy Version) Numbers valves in active view by isolated service.
+  1. Execute command.
+  2. Isolate system you wish to number valves on.
+  3. Select a valve to start numbering from.
+  4. Specify number pattern.
+  5. Valves will be numbered.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

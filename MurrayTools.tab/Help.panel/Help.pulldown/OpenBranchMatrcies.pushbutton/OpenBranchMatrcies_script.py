@@ -1,2 +1,2 @@
 import subprocess
-subprocess.Popen('explorer "Z:\\Shared\\Reference\\!QAQC\\07 Branch Matrix"')
+subprocess.Popen('explorer "Z:\\Shared\\Reference\\!Detailing\\00-SOPs\\Pipe Branch Matrix')

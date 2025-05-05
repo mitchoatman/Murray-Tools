@@ -15,9 +15,8 @@ tooltip: |-
 
 
 # context directives are listed under `context` key, the order does not matter
-#context:
-#  - Walls
-#  - Text Notes
+context:
+  - Selection
 
 # bundle help url
 #help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"

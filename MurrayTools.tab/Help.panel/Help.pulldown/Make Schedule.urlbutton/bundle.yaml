@@ -1,0 +1,12 @@
+#highlight: new
+# bundle title
+title:
+  "Make Schedule"
+
+# bundle tooltip
+tooltip: >-
+  Will open browser to helpful page.
+
+hyperlink: "https://apple-puppy-32a.notion.site/Make-Schedule-1e742e29c188809db25ff4a8f57a5cde"
+context: zero-doc
+

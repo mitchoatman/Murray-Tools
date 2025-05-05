@@ -58,8 +58,8 @@ for famtype in familyTypes:
 
 for valve in Pipe_collector:
     ST = valve.ServiceType
-    if ST == 53:
-        # Check if the valve is already tagged
+    AL = valve.Alias
+    if ST == 53 and AL not in ['STRAINER', 'CHECK', 'BALANCE']:
         is_tagged = False
         valve_id = valve.Id
         for tag in existing_tags:
