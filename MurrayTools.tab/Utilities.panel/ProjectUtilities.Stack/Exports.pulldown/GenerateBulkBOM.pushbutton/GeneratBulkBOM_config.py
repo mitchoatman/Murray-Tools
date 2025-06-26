@@ -6,7 +6,7 @@ from Autodesk.Revit.DB import (
     BuiltInCategory, Transaction, ElementId, ViewSchedule, 
     FilteredElementCollector, ParameterElement, ScheduleFieldType, 
     BuiltInParameter, ScheduleSortGroupField, ScheduleSortOrder,
-    FormatOptions, ScheduleFilter, ScheduleFilterType, ScheduleFieldDisplayType
+    ScheduleFilter, ScheduleFilterType, ScheduleFieldDisplayType
 )
 
 from Parameters.Add_SharedParameters import Shared_Params
@@ -26,10 +26,22 @@ def schedule_exists(schedule_name, category_id):
             return True
     return False
 
-# Define the fields for all schedules
-fieldNames = [
+# Define the fields for non-hanger schedules
+fieldNames_default = [
     ("Count", "Qty"),
     ("FP_Centerline Length", "Length"),
+    ("FP_Product Entry", "Size"),
+    ("Family", "Description"),
+    ("FP_Part Material", "Material"),
+    ("FP_Unit Cost", "Unit Cost"),
+    ("FP_Total", "Total"),
+    ("FP_Service Type", "FP_Service Type")
+]
+
+# Define the fields for hanger schedule
+fieldNames_hangers = [
+    ("Count", "Qty"),
+    ("FP_Bearer Length", "Length"),
     ("FP_Product Entry", "Size"),
     ("Family", "Description"),
     ("FP_Part Material", "Material"),
@@ -43,7 +55,7 @@ pipework_category_id = ElementId(BuiltInCategory.OST_FabricationPipework)
 hanger_category_id = ElementId(BuiltInCategory.OST_FabricationHangers)
 
 # Function to create a schedule with specified name, category, fields, and filters
-def create_schedule(schedule_name, category_id, filters):
+def create_schedule(schedule_name, category_id, filters, fieldNames):
     if not schedule_exists(schedule_name, category_id):
         # Start a new transaction
         t = Transaction(doc, "Create {}".format(schedule_name))
@@ -86,23 +98,12 @@ def create_schedule(schedule_name, category_id, filters):
                         field = definition.AddField(ScheduleFieldType.Instance, paramId)
                         field.ColumnHeading = userColumnName
                         field_ids[paramName] = field.FieldId
-                        # Configure FP_Centerline Length: Suppress 0 feet and calculate totals
+                        # Configure FP_Centerline Length: Calculate totals
                         if paramName == "FP_Centerline Length":
                             field.DisplayType = ScheduleFieldDisplayType.Totals
-
-                            # # Set formatting options
-                            # format_options = field.GetFormatOptions()
-                            # format_options.UseDefault = False
-                            # field.SetFormatOptions(format_options)
-                            # #-
-                            # format_options = field.GetFormatOptions()
-                            # format_options.UnitTypeId = ForgeTypeId.FeetFractionalInches
-                            # field.SetFormatOptions(format_options)
-                            # #-
-                            # format_options = field.GetFormatOptions()
-                            # format_options.SuppressLeadingZeros = True
-                            # field.SetFormatOptions(format_options)
-
+                        # Configure FP_Bearer Length: Calculate totals
+                        if paramName == "FP_Bearer Length":
+                            field.DisplayType = ScheduleFieldDisplayType.Totals
                         # Set FP_Service Type as hidden
                         if paramName == "FP_Service Type":
                             try:
@@ -169,12 +170,12 @@ copper_filters = [
     ("FP_Part Material", ScheduleFilterType.NotContains, "Iron"),
     ("FP_Part Material", ScheduleFilterType.NotContains, "Steel"),
     ("FP_Part Material", ScheduleFilterType.NotContains, "PVC"),
-    ("FP_Part Material", ScheduleFilterType.NotContains, "Polyethylene"),
+    ("FP_Part Material", ScheduleFilterType.NotContains, "Poly"),
     ("FP_Service Type", ScheduleFilterType.Equal, "Pipework")
 ]
 
-# Create all schedules
-create_schedule("MEP FAB PIPE", pipework_category_id, pipework_filters)
-create_schedule("MEP FAB VALVES", pipework_category_id, valve_filters)
-create_schedule("MEP FAB HANGERS", hanger_category_id, hanger_filters)
-create_schedule("MEP FAB COPPER PIPE", pipework_category_id, copper_filters)
+# Create all schedules with appropriate field lists
+create_schedule("MEP FAB PIPE", pipework_category_id, pipework_filters, fieldNames_default)
+create_schedule("MEP FAB VALVES", pipework_category_id, valve_filters, fieldNames_default)
+create_schedule("MEP FAB HANGERS", hanger_category_id, hanger_filters, fieldNames_hangers)
+create_schedule("MEP FAB COPPER PIPE", pipework_category_id, copper_filters, fieldNames_default)

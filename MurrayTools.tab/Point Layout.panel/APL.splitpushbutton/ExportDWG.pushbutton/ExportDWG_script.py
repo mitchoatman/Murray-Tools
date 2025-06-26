@@ -64,7 +64,7 @@ def main():
         return
 
     # Check if the active view is a floor plan
-    if active_view.ViewType != Autodesk.Revit.DB.ViewType.FloorPlan:
+    if active_view.ViewType not in [Autodesk.Revit.DB.ViewType.FloorPlan, Autodesk.Revit.DB.ViewType.CeilingPlan]:
         print("The active view is not a floor plan")
         return
 

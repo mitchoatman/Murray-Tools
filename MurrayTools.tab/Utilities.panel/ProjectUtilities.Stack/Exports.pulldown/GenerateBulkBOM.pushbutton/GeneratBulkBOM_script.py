@@ -51,14 +51,14 @@ if RevitINT < 2025:
             # Open File button
             self.open_button = Button()
             self.open_button.Text = "Open File"
-            self.open_button.Location = Point(30, 80)  # Adjusted for centering
+            self.open_button.Location = Point(30, 65)  # Adjusted for centering
             self.open_button.Size = Size(100, 25)
             self.open_button.Click += self.open_file_clicked
 
             # Continue button (was Nah Dawg)
             self.continue_button = Button()
             self.continue_button.Text = "Continue"
-            self.continue_button.Location = Point(140, 80)  # Adjusted for centering
+            self.continue_button.Location = Point(140, 65)  # Adjusted for centering
             self.continue_button.Size = Size(100, 25)
             self.continue_button.Click += self.continue_clicked
 

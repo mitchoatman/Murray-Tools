@@ -1,25 +1,44 @@
+# -*- coding: utf-8 -*-
 from pyrevit import revit, DB
-from Autodesk.Revit.DB import NavisworksExportOptions, FilteredElementCollector, Transaction, TransactionGroup, Material, FabricationPart, ElementId, BuiltInCategory
-from System.Windows.Forms import SaveFileDialog, DialogResult
+from Autodesk.Revit.DB import NavisworksExportOptions, FilteredElementCollector, Transaction, TransactionGroup, Material, FabricationPart, ElementId, BuiltInCategory, WorksharingUtils, WorksetId
+from Autodesk.Revit.UI import TaskDialog, TaskDialogCommonButtons, TaskDialogResult
+from System.Windows.Forms import SaveFileDialog, DialogResult, FolderBrowserDialog
 from Parameters.Add_SharedParameters import Shared_Params
 import os
 import json
+import sys
 
 Shared_Params()
 
 doc = revit.doc
-active_view = doc.ActiveView
 
-# Validate active view
-if not active_view or active_view.ViewType not in [DB.ViewType.FloorPlan, DB.ViewType.CeilingPlan, DB.ViewType.ThreeD, DB.ViewType.Section, DB.ViewType.Elevation, DB.ViewType.Detail]:
-    from Autodesk.Revit.UI import TaskDialog, TaskDialogCommonButtons, TaskDialogResult
-    dialog = TaskDialog("Invalid Active View")
-    dialog.MainInstruction = "The active view is not valid for export."
-    dialog.MainContent = "Please click into a graphical view (e.g., 3D View, Floor Plan, Section, or Elevation) and try again."
-    dialog.CommonButtons = TaskDialogCommonButtons.Close
-    dialog.Show()
-    import sys
-    sys.exit()
+# Get selected views
+uidoc = __revit__.ActiveUIDocument
+selected_ids = uidoc.Selection.GetElementIds()
+selected_views = []
+for element_id in selected_ids:
+    element = doc.GetElement(element_id)
+    if isinstance(element, DB.View) and element.ViewType in [
+        DB.ViewType.FloorPlan, DB.ViewType.CeilingPlan, DB.ViewType.ThreeD,
+        DB.ViewType.Section, DB.ViewType.Elevation, DB.ViewType.Detail
+    ] and not element.IsTemplate:
+        selected_views.append(element)
+
+# If no valid views are selected, use active view
+if not selected_views:
+    active_view = doc.ActiveView
+    if not active_view or active_view.ViewType not in [
+        DB.ViewType.FloorPlan, DB.ViewType.CeilingPlan, DB.ViewType.ThreeD,
+        DB.ViewType.Section, DB.ViewType.Elevation, DB.ViewType.Detail
+    ] or active_view.IsTemplate:
+        dialog = TaskDialog("Invalid View Selection")
+        dialog.MainInstruction = "No valid views selected, and the active view is not valid for export."
+        dialog.MainContent = "Please select graphical views (e.g., 3D View, Floor Plan, Section, or Elevation) or activate one, and try again."
+        dialog.CommonButtons = TaskDialogCommonButtons.Close
+        dialog.Show()
+        
+        sys.exit()
+    selected_views = [active_view]
 
 # File save dialog for NWC export
 folder_name = "C:\\Temp"
@@ -38,21 +57,88 @@ if os.path.exists(filepath):
 else:
     last_save_path = default_desktop_path
 
-save_dialog = SaveFileDialog()
-save_dialog.Title = "Save NWC File"
-save_dialog.Filter = "Navisworks Files (*.nwc)|*.nwc"
-save_dialog.DefaultExt = "nwc"
-save_dialog.InitialDirectory = last_save_path
-save_dialog.FileName = active_view.Name
+folder_path = None
+if len(selected_views) == 1:
+    save_dialog = SaveFileDialog()
+    save_dialog.Title = "Save NWC File"
+    save_dialog.Filter = "Navisworks Files (*.nwc)|*.nwc"
+    save_dialog.DefaultExt = "nwc"
+    save_dialog.InitialDirectory = last_save_path
+    save_dialog.FileName = selected_views[0].Name
 
-if save_dialog.ShowDialog() != DialogResult.OK:
-    print "Export cancelled by user."
-    import sys
-    sys.exit()
+    if save_dialog.ShowDialog() != DialogResult.OK:
+        print "Export cancelled by user."
+        sys.exit()
 
-full_file_path = save_dialog.FileName
-folder_path = os.path.dirname(full_file_path)
-file_name = os.path.splitext(os.path.basename(full_file_path))[0]
+    full_file_path = save_dialog.FileName
+    folder_path = os.path.dirname(full_file_path)
+    view_file_mapping = [(selected_views[0], os.path.basename(full_file_path))]
+else:
+    folder_dialog = FolderBrowserDialog()
+    folder_dialog.Description = "Select Folder to Save NWC Files"
+    folder_dialog.SelectedPath = last_save_path
+    folder_dialog.ShowNewFolderButton = True
+
+    if folder_dialog.ShowDialog() != DialogResult.OK:
+        print "Export cancelled by user."
+        sys.exit()
+
+    folder_path = folder_dialog.SelectedPath
+    view_file_mapping = [(view, view.Name + ".nwc") for view in selected_views]
+
+# Save the folder path
+with open(filepath, 'w') as f:
+    f.write(folder_path)
+
+# Check if model is workshared and handle workset checkout
+if doc.IsWorkshared:
+    view_workset_ids = {}
+    for view in selected_views:
+        # Collect elements in view
+        element_ids = set()
+        collectors = [
+            FilteredElementCollector(doc, view.Id).OfClass(FabricationPart).WhereElementIsNotElementType(),
+        ]
+
+        # Collect unique ElementIds
+        for collector in collectors:
+            for element in collector.ToElements():
+                element_ids.add(element.Id)
+
+        # Get workset IDs
+        workset_ids = set()
+        for element_id in element_ids:
+            try:
+                workset_id = WorksharingUtils.GetWorksetId(doc, element_id)
+                if workset_id != WorksetId.InvalidWorksetId:
+                    workset_ids.add(workset_id)
+            except:
+                pass
+
+        view_workset_ids[view.Id] = workset_ids
+
+    # Attempt to check out worksets
+    checkout_failed = False
+    all_workset_ids = set()
+    for workset_ids in view_workset_ids.values():
+        all_workset_ids.update(workset_ids)
+
+    for workset_id in all_workset_ids:
+        try:
+            if WorksharingUtils.GetCheckoutStatus(doc, workset_id) != DB.CheckoutStatus.OwnedByCurrentUser:
+                WorksharingUtils.CheckoutWorksets(doc, [workset_id])
+        except Exception as e:
+            checkout_failed = True
+            print "Failed to check out workset %s: %s" % (workset_id.IntegerValue, str(e))
+            break
+
+    if checkout_failed:
+        dialog = TaskDialog("Workset Checkout Failed")
+        dialog.MainInstruction = "Unable to check out one or more worksets."
+        dialog.MainContent = "They may be owned by another user. Please try again later."
+        dialog.CommonButtons = TaskDialogCommonButtons.Close
+        dialog.Show()
+        sys.exit()
 
 SHARED_PARAM_NAME = "FP_Material"
 
@@ -88,121 +174,127 @@ def get_or_update_material(doc, material_name, color):
         print "Failed to create material %s: %s" % (material_name, str(e))
         return None
 
-filter_material_mapping = {}
-elements_to_update = {}
-insulation_material_id = None
+# Process each view
+for view, file_name in view_file_mapping:
+    # Material assignment
+    filter_material_mapping = {}
+    elements_to_update = {}
+    insulation_material_id = None
 
-with revit.Transaction("Analyze View Filters"):
-    filters = active_view.GetFilters()
-    for filter_id in filters:
-        filter_element = doc.GetElement(filter_id)
-        filter_name = filter_element.Name
-        
-        override_settings = active_view.GetFilterOverrides(filter_id)
-        pattern_color = override_settings.SurfaceForegroundPatternColor
-        line_color = override_settings.ProjectionLineColor
-        filter_color = pattern_color if pattern_color.IsValid else line_color
-
-        if filter_color.IsValid:
-            material_id = get_or_update_material(doc, filter_name, filter_color)
-            if material_id is None:
-                continue  # Skip if material creation/update failed
-            filter_material_mapping[filter_name] = (filter_color, material_id)
+    with revit.Transaction("Analyze View Filters"):
+        filters = view.GetFilters()
+        for filter_id in filters:
+            filter_element = doc.GetElement(filter_id)
+            filter_name = filter_element.Name
             
-            if filter_name.lower() in ['fp_insulation', 'insulation', 'mp insulation']:
-                insulation_material_id = material_id
-            else:
-                filter_rules = filter_element.GetElementFilter()
-                if filter_rules:
-                    fab_parts = FilteredElementCollector(doc, active_view.Id).OfClass(FabricationPart).WherePasses(filter_rules).ToElements()
-                    for element in fab_parts:
-                        if element.Id not in elements_to_update:
-                            param = element.LookupParameter(SHARED_PARAM_NAME)
-                            if param and param.HasValue and param.AsElementId() == material_id:
-                                continue  # Skip if element already has the correct material
-                            elements_to_update[element.Id] = material_id
+            override_settings = view.GetFilterOverrides(filter_id)
+            pattern_color = override_settings.SurfaceForegroundPatternColor
+            line_color = override_settings.ProjectionLineColor
+            filter_color = pattern_color if pattern_color.IsValid else line_color
 
-categories = doc.Settings.Categories
-insulation_category = categories.get_Item(BuiltInCategory.OST_FabricationPipeworkInsulation)
-
-tg = TransactionGroup(doc, "Assign Materials")
-try:
-    tg.Start()
-    
-    with revit.Transaction("Assign Materials to Parts"):
-        assigned_count = 0
-        for element_id, material_id in elements_to_update.items():
-            element = doc.GetElement(element_id)
-            if element:
-                param = element.LookupParameter(SHARED_PARAM_NAME)
-                if param is None:
+            if filter_color.IsValid:
+                material_id = get_or_update_material(doc, filter_name, filter_color)
+                if material_id is None:
                     continue
-                try:
-                    param.Set(material_id)
-                    assigned_count += 1
-                except Exception as e:
-                    print "Failed to assign material to element %s: %s" % (element_id.IntegerValue, str(e))
+                filter_material_mapping[filter_name] = (filter_color, material_id)
+                
+                if filter_name.lower() in ['fp_insulation', 'insulation', 'mp insulation']:
+                    insulation_material_id = material_id
+                else:
+                    filter_rules = filter_element.GetElementFilter()
+                    if filter_rules:
+                        fab_parts = FilteredElementCollector(doc, view.Id).OfClass(FabricationPart).WherePasses(filter_rules).ToElements()
+                        for element in fab_parts:
+                            if element.Id not in elements_to_update:
+                                param = element.LookupParameter(SHARED_PARAM_NAME)
+                                if param and param.HasValue and param.AsElementId() == material_id:
+                                    continue
+                                elements_to_update[element.Id] = material_id
+
+    categories = doc.Settings.Categories
+    insulation_category = categories.get_Item(BuiltInCategory.OST_FabricationPipeworkInsulation)
+
+    tg = TransactionGroup(doc, "Assign Materials for View: " + view.Name)
+    try:
+        tg.Start()
         
-        if insulation_material_id and insulation_category:
-            try:
-                if insulation_category.Material is None or insulation_category.Material.Id != insulation_material_id:
-                    insulation_category.Material = doc.GetElement(insulation_material_id)
-            except Exception as e:
-                pass
-    
-    tg.Assimilate()
-    
-except Exception as e:
-    print "Error during material assignment: %s" % str(e)
-    if tg.HasStarted():
-        tg.RollBack()
-finally:
-    if tg.HasStarted():
-        tg.RollBack()
+        with revit.Transaction("Assign Materials to Parts"):
+            assigned_count = 0
+            for element_id, material_id in elements_to_update.items():
+                element = doc.GetElement(element_id)
+                if element:
+                    param = element.LookupParameter(SHARED_PARAM_NAME)
+                    if param is None:
+                        continue
+                    try:
+                        param.Set(material_id)
+                        assigned_count += 1
+                    except Exception as e:
+                        print "Failed to assign material to element %s in view %s: %s" % (element_id.IntegerValue, view.Name, str(e))
+            
+            if insulation_material_id and insulation_category:
+                try:
+                    if insulation_category.Material is None or insulation_category.Material.Id != insulation_material_id:
+                        insulation_category.Material = doc.GetElement(insulation_material_id)
+                except Exception as e:
+                    pass
+        
+        tg.Assimilate()
+        
+    except Exception as e:
+        print "Error during material assignment for view %s: %s" % (view.Name, str(e))
+        if tg.HasStarted():
+            tg.RollBack()
+    finally:
+        if tg.HasStarted():
+            tg.RollBack()
 
-# Export the NWC
-OPTIONS_FILE = r"C:\Temp\Ribbon_NavisworksExportOptions.txt"
+    # Export the NWC
+    OPTIONS_FILE = r"C:\Temp\Ribbon_NavisworksExportOptions.txt"
 
-# Default options (matching current hard-coded values)
-default_options = {
-    "ExportScope": "View",
-    "Coordinates": "Shared",
-    "FindMissingMaterials": True,
-    "DivideFileIntoLevels": False,
-    "ConvertElementProperties": True,
-    "ExportUrls": False,
-    "ConvertLinkedCADFormats": False,
-    "ExportLinks": False
-}
+    # Default options
+    default_options = {
+        "ExportScope": "View",
+        "Coordinates": "Shared",
+        "FindMissingMaterials": True,
+        "DivideFileIntoLevels": False,
+        "ConvertElementProperties": True,
+        "ExportUrls": False,
+        "ConvertLinkedCADFormats": False,
+        "ExportLinks": False,
+        "SuccessMessage": True
+    }
 
-# Load saved options
-def load_options():
-    if os.path.exists(OPTIONS_FILE):
-        with open(OPTIONS_FILE, 'r') as f:
-            return json.load(f)
-    return default_options
+    # Load saved options
+    def load_options():
+        if os.path.exists(OPTIONS_FILE):
+            with open(OPTIONS_FILE, 'r') as f:
+                return json.load(f)
+        return default_options
 
-export_options = NavisworksExportOptions()
-options = load_options()
+    export_options = NavisworksExportOptions()
+    options = load_options()
 
-# Map Coordinates option
-coordinates_map = {"Shared": DB.NavisworksCoordinates.Shared, "Project Internal": DB.NavisworksCoordinates.Internal}
-coordinates_value = coordinates_map.get(options["Coordinates"], DB.NavisworksCoordinates.Shared)
+    # Map Coordinates option
+    coordinates_map = {"Shared": DB.NavisworksCoordinates.Shared, "Project Internal": DB.NavisworksCoordinates.Internal}
+    coordinates_value = coordinates_map.get(options["Coordinates"], DB.NavisworksCoordinates.Shared)
 
-# Apply options
-export_options.ExportScope = getattr(DB.NavisworksExportScope, options["ExportScope"])
-export_options.ViewId = active_view.Id
-export_options.Coordinates = coordinates_value
-export_options.FindMissingMaterials = options["FindMissingMaterials"]
-export_options.DivideFileIntoLevels = options["DivideFileIntoLevels"]
-export_options.ConvertElementProperties = options["ConvertElementProperties"]
-export_options.ExportUrls = options["ExportUrls"]
-export_options.ConvertLinkedCADFormats = options["ConvertLinkedCADFormats"]
-export_options.ExportLinks = options["ExportLinks"]
+    # Apply options
+    export_options.ExportScope = getattr(DB.NavisworksExportScope, options["ExportScope"])
+    export_options.ViewId = view.Id
+    export_options.Coordinates = coordinates_value
+    export_options.FindMissingMaterials = options["FindMissingMaterials"]
+    export_options.DivideFileIntoLevels = options["DivideFileIntoLevels"]
+    export_options.ConvertElementProperties = options["ConvertElementProperties"]
+    export_options.ExportUrls = options["ExportUrls"]
+    export_options.ConvertLinkedCADFormats = options["ConvertLinkedCADFormats"]
+    export_options.ExportLinks = options["ExportLinks"]
 
-try:
-    doc.Export(folder_path, file_name, export_options)
-    with open(filepath, 'w') as f:
-        f.write(folder_path)
-except Exception as e:
-    print "Export failed: %s" % str(e)
+    try:
+        file_name_no_ext = os.path.splitext(file_name)[0]
+        doc.Export(folder_path, file_name_no_ext, export_options)
+        if options.get("SuccessMessage", True):
+            pass
+            TaskDialog.Show("NWC Export", "Successfully exported view %s to %s" % (view.Name, os.path.join(folder_path, file_name)))
+    except Exception as e:
+        print "Export failed for view %s: %s" % (view.Name, str(e))

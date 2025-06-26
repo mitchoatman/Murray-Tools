@@ -1,5 +1,4 @@
 import Autodesk
-from pyrevit import revit
 from Autodesk.Revit.DB import Transaction, FabricationConfiguration
 import os
 from Parameters.Add_SharedParameters import Shared_Params
@@ -89,14 +88,15 @@ class TXT_Form(Form):
             self.map_name = self.textBox2.Text
             
             # Write data to elements
-            selection = revit.get_selection()
+            selection = uidoc.Selection.GetElementIds()
             if not selection:
                 MessageBox.Show("No elements selected. Please select elements.")
                 return
             
             t = Transaction(doc, 'Set Assembly Number')
             t.Start()
-            for i in selection:
+            for element_id in selection:
+                i = doc.GetElement(element_id)  # Convert ElementId to Element
                 param_exist = i.LookupParameter("STRATUS Assembly")
                 isfabpart = i.LookupParameter("Fabrication Service")
                 if isfabpart:

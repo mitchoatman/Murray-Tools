@@ -12,6 +12,9 @@ tooltip: |-
   2. All pipes longer than standard lengths in the view will be selected.
   3. Do what you will with the selected elements. Isolate etc...
 
+  [Shift]+Click:
+  Runs Legacy version
+
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Selection

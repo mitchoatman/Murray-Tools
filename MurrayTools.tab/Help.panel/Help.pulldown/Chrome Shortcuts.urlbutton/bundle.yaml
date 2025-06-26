@@ -1,0 +1,12 @@
+#highlight: new
+# bundle title
+title:
+  "Chrome Shortcuts"
+
+# bundle tooltip
+tooltip: >-
+  Will open browser to helpful page.
+
+hyperlink: "https://www.notion.so/Chrome-Shortcuts-1ef42e29c18880baa23dc84c76d25599"
+context: zero-doc
+

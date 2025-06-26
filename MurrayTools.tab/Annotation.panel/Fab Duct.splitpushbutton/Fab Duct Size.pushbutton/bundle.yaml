@@ -5,8 +5,11 @@ title:
   "Fab Duct\nSize"
 
 # bundle tooltip
-tooltip: >-
-  This will Insert the Fabrication Duct Size Tag Family into the Active View.(If the Family is already loaded into the project)
+tooltip: |-
+  This will Insert the Fabrication Duct Size - ALIGNED Tag Family into the Active View.(If the Family is already loaded into the project)
+
+  [Shift]+Click:    
+  Inserts the NON-ALIGNED version of the family so it will rotate with duct.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

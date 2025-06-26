@@ -7,11 +7,14 @@ tooltip: |-
   It will also append Fabrication service name to the sleeve.
   Sleeve will read the "Overall Size" of element and annular space.
   
-  1.  Pick the duct to place sleeve on.
-  2.  Pick the intersection of the duct and wall.
+  1.  Select the duct to place sleeve on.
+  2.  Pick the intersection of the duct centerline and wall.
   3.  Repeat as necessary, ESC to end the command.
   
-  If a sleeve is selected prior to executing button it will swap Width and Depth.
+  If a sleeve is selected prior to executing button it will swap Width and Depth of that selected sleeve.
+  1.  Select wall sleeve.
+  2.  Run command.
+  3.  Selected sleeve will be flipped.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

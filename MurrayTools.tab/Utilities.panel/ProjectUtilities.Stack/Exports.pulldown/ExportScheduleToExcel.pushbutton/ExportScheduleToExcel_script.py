@@ -258,14 +258,14 @@ class ScheduleDialog(Form):
         # Buttons
         self.export_button = Button()
         self.export_button.Text = "Export to Excel"
-        self.export_button.Location = Point(150, 230)
         self.export_button.Size = Size(100, 25)
+        self.export_button.Location = Point((400 - 100 - 120 - 10) / 2, 230)
         self.export_button.Click += self.export_clicked
 
         self.import_button = Button()
         self.import_button.Text = "Import from Excel"
-        self.import_button.Location = Point(260, 230)
         self.import_button.Size = Size(120, 25)
+        self.import_button.Location = Point(self.export_button.Location.X + self.export_button.Width + 15, 230)
         self.import_button.Click += self.import_clicked
 
         # Add controls to form

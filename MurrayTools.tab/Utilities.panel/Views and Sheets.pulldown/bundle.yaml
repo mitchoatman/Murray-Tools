@@ -3,6 +3,7 @@ layout:
   - CreateSheetFromView
   - DuplicateView
   - Create3DViews
+  - AlignViews
   - Rename_Sheets_Views
   - Set Revision On Sheets
   - SetCropRegion

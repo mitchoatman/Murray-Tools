@@ -2,14 +2,18 @@
 import clr
 clr.AddReference('System.Windows.Forms')
 clr.AddReference('System.Drawing')
+clr.AddReference('RevitAPI')
+clr.AddReference('RevitAPIUI')
+clr.AddReference('System.Collections')
 from System.Windows.Forms import (Form, Label, ComboBox, Button, ListBox, 
                                 CheckBox, DialogResult, FormBorderStyle, FormStartPosition, 
                                 SelectionMode, Control, ComboBoxStyle, TextBox, MessageBox)
 from System import Array
 from System.Drawing import Point, Size
+from System.Collections.Generic import List
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, FabricationConfiguration
-from pyrevit import revit
+from Autodesk.Revit.UI import UIDocument
 from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import (get_parameter_value_by_name_AsString, 
                                      get_parameter_value_by_name_AsValueString, 
@@ -81,7 +85,7 @@ class MultiPropertyFilterForm(Form):
     def __init__(self, property_options):
         self.property_options = property_options
         self.InitializeComponents()
-        self.selected_filters = {}  # {property: [(values, is_and), ...]}
+        self.selected_filters = {}
         if self.property_options:
             first_property = self.property_combo.Items[0]
             if first_property in self.property_options:
@@ -258,7 +262,7 @@ class MultiPropertyFilterForm(Form):
         else:
             filter_text = "Filters:\n"
             for prop, filter_list in self.selected_filters.items():
-                filter_text += "%s:\n    " % prop  # Property name on its own line, conditions indented
+                filter_text += "%s:\n    " % prop
                 conditions = []
                 for values, is_and in filter_list:
                     mode = "AND" if is_and else "OR"
@@ -294,7 +298,8 @@ def get_property_value(elem, property_name):
         'Comments': lambda x: get_parameter_value_by_name_AsString(x, 'Comments'),
         'Specification': lambda x: Config.GetSpecificationName(x.Specification),
         'Hanger Rod Size': lambda x: get_parameter_value_by_name_AsValueString(x, 'FP_Rod Size'),
-        'Valve Number': lambda x: get_parameter_value_by_name_AsString(x, 'FP_Valve Number')
+        'Valve Number': lambda x: get_parameter_value_by_name_AsString(x, 'FP_Valve Number'),
+        'Category': lambda x: x.Category.Name if x.Category else None,
     }
     try:
         return property_map.get(property_name, lambda x: None)(elem)
@@ -316,7 +321,7 @@ if not fab_elements:
     import sys
     sys.exit()
 
-# Build property options with all 18 properties (excluding 'Name' and 'Comments' for special handling)
+# Build property options with all properties (excluding 'Name', 'Comments', and 'Category' for special handling)
 property_options = {}
 for prop in ['CID', 'ServiceType', 'Service Name', 'Service Abbreviation', 'Size',
              'STRATUS Assembly', 'Line Number', 'STRATUS Status', 'Reference Level',
@@ -329,20 +334,14 @@ for prop in ['CID', 'ServiceType', 'Service Name', 'Service Abbreviation', 'Size
     except Exception, e:
         pass
 
-# Handle 'Name' and 'Comments' separately with all elements
-try:
-    name_values = set(filter(None, [get_property_value(elem, 'Name') for elem in all_elements]))
-    if name_values:
-        property_options['Name'] = sorted(name_values)
-except Exception, e:
-    pass
-
-try:
-    comments_values = set(filter(None, [get_property_value(elem, 'Comments') for elem in all_elements]))
-    if comments_values:
-        property_options['Comments'] = sorted(comments_values)
-except Exception, e:
-    pass
+# Handle 'Name', 'Comments', and 'Category' separately with all elements
+for prop in ['Name', 'Comments', 'Category']:
+    try:
+        values = set(filter(None, [get_property_value(elem, prop) for elem in all_elements]))
+        if values:
+            property_options[prop] = sorted(values)
+    except Exception, e:
+        pass
 
 if not property_options:
     MessageBox.Show('No properties found for the selected elements.')
@@ -354,7 +353,7 @@ form = MultiPropertyFilterForm(property_options)
 if form.ShowDialog() == DialogResult.OK and form.selected_filters:
     filtered_ids = []
     # Choose element set based on whether 'Name' or 'Comments' is in the filters
-    elements_to_filter = all_elements if ('Name' in form.selected_filters or 'Comments' in form.selected_filters) else fab_elements
+    elements_to_filter = all_elements if ('Name' in form.selected_filters or 'Comments' in form.selected_filters or 'Category' in form.selected_filters) else fab_elements
     for elem in elements_to_filter:
         matches = []
         for prop, filter_list in form.selected_filters.items():
@@ -374,4 +373,6 @@ if form.ShowDialog() == DialogResult.OK and form.selected_filters:
         if all(matches):
             filtered_ids.append(elem.Id)
 
-    revit.get_selection().set_to(filtered_ids)
+    # Set the selection using Revit API
+    element_id_list = List[DB.ElementId](filtered_ids)
+    uidoc.Selection.SetElementIds(element_id_list)

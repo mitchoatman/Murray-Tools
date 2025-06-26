@@ -1,0 +1,25 @@
+# highlight: new
+
+# bundle title
+title:
+  "Place\nAccessory"
+
+# bundle tooltip
+tooltip: |-
+  Populates Pipe Accessory Family on selected pipe(s).
+    1. Select each pipe on the outside of the rack.
+    3. Set family type and spacing rules.
+    4. Click ok and accessory will be placed.
+
+  Known limitations:
+  Function only operates in the X and Y direction.  NO ANGLED RACKS.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+help_url: "https://youtu.be/z014sgDpJRk"
+
+# bundle author
+author: Mitchell Oatman

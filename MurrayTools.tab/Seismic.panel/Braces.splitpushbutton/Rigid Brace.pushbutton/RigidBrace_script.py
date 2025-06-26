@@ -2,10 +2,13 @@ import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family, Structure, XYZ, FabricationPart, FabricationConfiguration, TransactionGroup, BuiltInParameter
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
-from Parameters.Get_Set_Params import get_parameter_value_by_name_AsValueString
+from Parameters.Get_Set_Params import get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsDouble, set_parameter_by_name, get_parameter_value_by_name_AsString
+from Parameters.Add_SharedParameters import Shared_Params
 import math
 import os
 import sys  # Added for sys.exit
+
+Shared_Params()
 
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
@@ -32,30 +35,29 @@ Fam_is_in_project = target_family is not None
 # Start of defining functions to use
 
 def stretch_brace():
-    # This section extends the brace fam to top of hanger rod elevation after its placed.
-    # Writes data to TOS Parameter
-    set_parameter_by_name(new_family_instance, "Top of Steel", valuenum)
-    # Reads brace angle
-    BraceAngle = get_parameter_value_by_name(new_family_instance, "BraceMainAngle")
-    sinofangle = math.sin(BraceAngle)
-    # Reads brace elevation
-    BraceElevation = get_parameter_value_by_name(new_family_instance, 'Offset from Host')
-    # Equation to get the new hypotenus
-    Height = ((valuenum - BraceElevation) - 0.2330)
-    newhypotenus = ((Height / sinofangle) - 0.2290)
-    if newhypotenus < 0:
-        newhypotenus = 1
-    # Writes new Brace length to parameter
-    set_parameter_by_name(new_family_instance, "BraceLength", newhypotenus)
-
-def set_parameter_by_name(element, parameterName, value):
-    element.LookupParameter(parameterName).Set(value)
-
-def get_parameter_value_by_name(element, parameterName):
-    return element.LookupParameter(parameterName).AsDouble()
-
-def get_parameter_value_by_name_AsDouble(element, parameterName):
-    return element.LookupParameter(parameterName).AsDouble()
+    try:
+        # This section extends the brace fam to top of hanger rod elevation after its placed.
+        # Writes data to TOS Parameter
+        set_parameter_by_name(new_family_instance, "Top of Steel", valuenum)
+        # Reads brace angle
+        BraceAngle = get_parameter_value_by_name_AsDouble(new_family_instance, "BraceMainAngle")
+        sinofangle = math.sin(BraceAngle)
+        # Reads brace elevation
+        BraceElevation = get_parameter_value_by_name_AsDouble(new_family_instance, 'Offset from Host')
+        # Equation to get the new hypotenus
+        Height = ((valuenum - BraceElevation) - 0.2330)
+        newhypotenus = ((Height / sinofangle) - 0.2290)
+        if newhypotenus < 0:
+            newhypotenus = 1
+        # Writes new Brace length to parameter
+        set_parameter_by_name(new_family_instance, "BraceLength", newhypotenus)
+        # Writes Level into Brace
+        set_parameter_by_name(new_family_instance, "ISAT Brace Level", HangerLevel)
+        # Only set FP_Service Name if parameter exists
+        if new_family_instance.LookupParameter("FP_Service Name"):
+            set_parameter_by_name(new_family_instance, "FP_Service Name", HangerService)
+    except:
+        pass
 
 class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):
@@ -119,6 +121,9 @@ if target_famtype:
     doc.Regenerate()
 
     for hanger in Fhangers:
+        HangerLevel = get_parameter_value_by_name_AsValueString(hanger, 'Reference Level')
+        HangerService = get_parameter_value_by_name_AsString(hanger, 'Fabrication Service Name')
+        
         STName = hanger.GetRodInfo().RodCount
         STName1 = hanger.GetRodInfo()
 

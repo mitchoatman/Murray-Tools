@@ -17,6 +17,8 @@ import re
 from math import atan2, degrees
 from fractions import Fraction
 import os
+from Parameters.Add_SharedParameters import Shared_Params
+Shared_Params()
 
 # Get file path information
 path, filename = os.path.split(__file__)

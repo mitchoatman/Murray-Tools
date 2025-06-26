@@ -1,5 +1,5 @@
 import clr
-from Autodesk.Revit.DB import Transaction, FabricationPart, ConnectorType, XYZ, Plane, SketchPlane, ViewType
+from Autodesk.Revit.DB import Transaction, FabricationPart, ConnectorType, XYZ, Plane, SketchPlane, ViewType, FilteredElementCollector, ReferencePlane, ElementId, TransactionGroup
 from Autodesk.Revit.UI.Selection import ObjectType
 from Autodesk.Revit.UI import TaskDialog, TaskDialogCommandLinkId, TaskDialogCommonButtons, TaskDialogResult
 
@@ -114,16 +114,48 @@ def select_fabrication_pipe_and_create_plane():
             # Create the plane with the chosen alignment
             plane = Plane.CreateByOriginAndBasis(plane_origin, x_vector, y_vector)
 
-            # Start a transaction to create the SketchPlane and set it active
-            t = Transaction(doc, 'Set WorkPlane')
-            t.Start()
-            sketch_plane = SketchPlane.Create(doc, plane)
+            tg = TransactionGroup(doc, "Create Planes")
+            tg.Start()
 
-            # Set the newly created sketch plane as the active work plane
-            curview = doc.ActiveView
-            curview.SketchPlane = sketch_plane
-            curview.ShowActiveWorkPlane()
-            t.Commit()
+            try:
+                t = Transaction(doc, 'Set WorkPlane')
+                t.Start()
+
+                sketch_plane = SketchPlane.Create(doc, plane)
+                curview.SketchPlane = sketch_plane
+                curview.ShowActiveWorkPlane()
+
+                t.Commit()
+
+                t = Transaction(doc, 'Delete RefPlane')
+                t.Start()
+
+                refs_to_delete = []
+                existing_refs = FilteredElementCollector(doc).OfClass(ReferencePlane).WhereElementIsNotElementType()
+                for rp in existing_refs:
+                    if rp.Name == "TEMPORARY":
+                        refs_to_delete.append(rp.Id)
+
+                for rid in refs_to_delete:
+                    doc.Delete(rid)
+
+                t.Commit()
+
+                t = Transaction(doc, 'Set RefPlane')
+                t.Start()
+
+                bubble_end = plane.Origin
+                free_end = plane.Origin + plane.XVec
+                cut_vec = plane.YVec
+
+                ref_plane = doc.Create.NewReferencePlane(bubble_end, free_end, cut_vec, curview)
+                ref_plane.Name = "TEMPORARY"
+
+                t.Commit()
+                tg.Assimilate()
+
+            except Exception as e:
+                tg.RollBack()
 
             # Notify the user
             # print("Success: Work plane created and set based on user choice.")

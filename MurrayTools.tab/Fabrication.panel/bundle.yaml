@@ -1,7 +1,7 @@
 layout:
   - SyncData
   - HideIsolate
-  - SelectFabFilter
+  - SelectFilter
   - Leveler
   - Location
   - SetStatus

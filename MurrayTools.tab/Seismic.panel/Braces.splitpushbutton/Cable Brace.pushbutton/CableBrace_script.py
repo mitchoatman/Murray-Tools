@@ -2,7 +2,7 @@ import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family, Structure, XYZ, FabricationPart, FabricationConfiguration, TransactionGroup, BuiltInParameter, Line, ElementTransformUtils
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
-from Parameters.Get_Set_Params import get_parameter_value_by_name_AsValueString
+from Parameters.Get_Set_Params import get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsDouble, set_parameter_by_name, get_parameter_value_by_name_AsString
 import math
 import os
 import sys  # Added for sys.exit
@@ -30,24 +30,23 @@ for f in families:
 Fam_is_in_project = target_family is not None
 
 def stretch_brace(family_instance, valuenum):
-    set_parameter_by_name(family_instance, "Top of Steel", valuenum)
-    BraceAngle = get_parameter_value_by_name(family_instance, "BraceMainAngle")
-    sinofangle = math.sin(BraceAngle)
-    BraceElevation = get_parameter_value_by_name(family_instance, 'Offset from Host')
-    Height = ((valuenum - BraceElevation) - 0.2330)
-    newhypotenus = ((Height / sinofangle) - 0.2290)
-    if newhypotenus < 0:
-        newhypotenus = 1
-    set_parameter_by_name(family_instance, "BraceLength", (newhypotenus + 0.083333))
-
-def set_parameter_by_name(element, parameterName, value):
-    element.LookupParameter(parameterName).Set(value)
-
-def get_parameter_value_by_name(element, parameterName):
-    return element.LookupParameter(parameterName).AsDouble()
-
-def get_parameter_value_by_name_AsDouble(element, parameterName):
-    return element.LookupParameter(parameterName).AsDouble()
+    try:
+        set_parameter_by_name(family_instance, "Top of Steel", valuenum)
+        BraceAngle = get_parameter_value_by_name_AsDouble(family_instance, "BraceMainAngle")
+        sinofangle = math.sin(BraceAngle)
+        BraceElevation = get_parameter_value_by_name_AsDouble(family_instance, 'Offset from Host')
+        Height = ((valuenum - BraceElevation) - 0.2330)
+        newhypotenus = ((Height / sinofangle) - 0.2290)
+        if newhypotenus < 0:
+            newhypotenus = 1
+        set_parameter_by_name(family_instance, "BraceLength", (newhypotenus + 0.083333))
+        # Writes Level into Brace
+        set_parameter_by_name(new_family_instance, "ISAT Brace Level", HangerLevel)
+        # Only set FP_Service Name if parameter exists
+        if new_family_instance.LookupParameter("FP_Service Name"):
+            set_parameter_by_name(new_family_instance, "FP_Service Name", HangerService)
+    except:
+        pass
 
 class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):
@@ -112,6 +111,8 @@ if target_famtype:
     doc.Regenerate()
 
     for hanger in Fhangers:
+        HangerLevel = get_parameter_value_by_name_AsValueString(hanger, 'Reference Level')
+        HangerService = get_parameter_value_by_name_AsString(hanger, 'Fabrication Service Name')
         STName = hanger.GetRodInfo().RodCount
         STName1 = hanger.GetRodInfo()
         if STName == 1:
@@ -142,12 +143,12 @@ if target_famtype:
             stretch_brace(new_family_instance, valuenum)
             
             # Second brace, rotated 180 degrees
-            new_family_instance2 = doc.Create.NewFamilyInstance(new_insertion_point, target_famtype, DB.Structure.StructuralType.NonStructural)
+            new_family_instance = doc.Create.NewFamilyInstance(new_insertion_point, target_famtype, DB.Structure.StructuralType.NonStructural)
             axis_start = new_insertion_point
             axis_end = XYZ(new_insertion_point.X, new_insertion_point.Y, new_insertion_point.Z + 1)
             rotation_axis = Line.CreateBound(axis_start, axis_end)
-            ElementTransformUtils.RotateElement(doc, new_family_instance2.Id, rotation_axis, math.pi)  # 180 degrees
-            stretch_brace(new_family_instance2, valuenum)
+            ElementTransformUtils.RotateElement(doc, new_family_instance.Id, rotation_axis, math.pi)  # 180 degrees
+            stretch_brace(new_family_instance, valuenum)
 
         if STName > 1:
             RackType = get_parameter_value_by_name_AsValueString(hanger, 'Family')
@@ -172,12 +173,12 @@ if target_famtype:
                 stretch_brace(new_family_instance, valuenum)
                 
                 # Second brace, rotated 180 degrees
-                new_family_instance2 = doc.Create.NewFamilyInstance(combined_xyz, target_famtype, DB.Structure.StructuralType.NonStructural)
+                new_family_instance = doc.Create.NewFamilyInstance(combined_xyz, target_famtype, DB.Structure.StructuralType.NonStructural)
                 axis_start = combined_xyz
                 axis_end = XYZ(combined_xyz.X, combined_xyz.Y, combined_xyz.Z + 1)
                 rotation_axis = Line.CreateBound(axis_start, axis_end)
-                ElementTransformUtils.RotateElement(doc, new_family_instance2.Id, rotation_axis, math.pi)  # 180 degrees
-                stretch_brace(new_family_instance2, valuenum)
+                ElementTransformUtils.RotateElement(doc, new_family_instance.Id, rotation_axis, math.pi)  # 180 degrees
+                stretch_brace(new_family_instance, valuenum)
 
     t.Commit()
 tg.Assimilate()

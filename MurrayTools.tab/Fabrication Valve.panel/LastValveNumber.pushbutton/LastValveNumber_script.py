@@ -1,16 +1,20 @@
 import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, FabricationPart
-
+from Autodesk.Revit.UI import TaskDialog
 DB = Autodesk.Revit.DB
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 
 # Collect all FabricationPart elements in the current view
-part_collector = FilteredElementCollector(doc, curview.Id).OfClass(FabricationPart) \
-                   .WhereElementIsNotElementType() \
-                   .ToElements()
+# part_collector = FilteredElementCollector(doc, curview.Id).OfClass(FabricationPart) \
+                   # .WhereElementIsNotElementType() \
+                   # .ToElements()
+
+part_collector = FilteredElementCollector(doc, curview.Id) \
+    .WhereElementIsNotElementType() \
+    .ToElements()
 
 def get_format_and_number(item_numbers):
     prefix_max_number = {}
@@ -72,7 +76,10 @@ result = get_format_and_number(fp_valve_numbers)
 
 # Print the results
 if result:
+    message = "Last Valve Numbers in View:\n\n"
     for prefix, max_number in result.items():
-        print("The last FP_Valve Number for prefix '{}': {}{}".format(prefix, prefix, max_number))
+        message += "Prefix  '{}'  :   {}{}\n".format(prefix, prefix, max_number)
+        #print("The last Valve Number in view for prefix '{}': {}{}".format(prefix, prefix, max_number))
+    TaskDialog.Show("Last Valve Number", message)
 else:
-    print("No valid FP_Valve Numbers found in the current view.")
+    TaskDialog.Show("Nothing Found", "No valid FP_Valve Numbers found in the current view.")

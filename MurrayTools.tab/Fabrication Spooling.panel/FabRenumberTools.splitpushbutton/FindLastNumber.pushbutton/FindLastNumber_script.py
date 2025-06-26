@@ -1,6 +1,7 @@
 import Autodesk
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import Transaction, FilteredElementCollector, BuiltInCategory, FabricationConfiguration, FabricationPart
+from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, FabricationPart
+from Autodesk.Revit.UI import TaskDialog
 
 DB = Autodesk.Revit.DB
 doc = __revit__.ActiveUIDocument.Document
@@ -16,6 +17,10 @@ def get_format_and_number(item_numbers):
 
     # Iterate through each item number
     for item_number in item_numbers:
+        # Skip if item_number is None or empty
+        if not item_number:
+            continue
+            
         # Check if the item number is purely numeric (no prefix)
         if item_number.isdigit():
             format_part = ''
@@ -32,6 +37,10 @@ def get_format_and_number(item_numbers):
         
         # Get the numeric part (with or without prefix)
         number_part = item_number[len(format_part):]
+
+        # Skip if number_part is empty or not numeric
+        if not number_part or not number_part.isdigit():
+            continue
 
         # Update the maximum number for the prefix
         if format_part not in prefix_max_number:
@@ -51,13 +60,20 @@ item_numbers = []
 # Iterate over all elements in the view
 for element in part_collector:
     # Retrieve the "Item Number" parameter
-    item_number = element.LookupParameter('Item Number').AsString()
-    item_numbers.append(element.LookupParameter('Item Number').AsString())
+    param = element.LookupParameter('Item Number')
+    if param and param.HasValue:
+        item_number = param.AsString()
+        if item_number:  # Ensure the value is not None or empty
+            item_numbers.append(item_number)
+
+# Get the maximum item number for each prefix
 result = get_format_and_number(item_numbers)
 
-for prefix, max_number in result.items():
-    print("The maximum value for format:  {}{}".format(prefix, max_number))
-
-
-
-
+# Display the results
+if result:
+    message = "Last Item Numbers in View:\n\n"
+    for prefix, max_number in result.items():
+        message += "Prefix  '{}'  :   {}{}\n".format(prefix, prefix, max_number)
+    TaskDialog.Show("Last Item Number", message)
+else:
+    TaskDialog.Show("Nothing Found", "No valid Item Numbers found in the current view.")

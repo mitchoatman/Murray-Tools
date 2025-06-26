@@ -6,6 +6,8 @@ import re
 from math import atan2, degrees
 from fractions import Fraction
 import os
+from Parameters.Add_SharedParameters import Shared_Params
+Shared_Params()
 
 doc = __revit__.ActiveUIDocument.Document
 
@@ -173,6 +175,8 @@ else:
         schedule_level_param.Set(level.Id)
 
 
+    from Autodesk.Revit.Exceptions import OperationCanceledException
+
     while True:
         try:
             t = Transaction(doc, 'Place Trimble Wall Sleeve Family')
@@ -183,7 +187,14 @@ else:
             
             t.Commit()
             
+        except OperationCanceledException:
+            if t.HasStarted() and not t.HasEnded():
+                t.RollBack()
+            break  # Silent exit on user cancel (Esc)
+
         except Exception as e:
             if t.HasStarted() and not t.HasEnded():
                 t.RollBack()
+            print("Error during operation: {}".format(e))
             break
+

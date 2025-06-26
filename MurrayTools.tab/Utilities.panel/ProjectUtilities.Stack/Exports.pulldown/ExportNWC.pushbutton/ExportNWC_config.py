@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import json
 import clr
@@ -26,7 +27,8 @@ default_options = {
     "ConvertElementProperties": True,
     "ExportUrls": False,
     "ConvertLinkedCADFormats": False,
-    "ExportLinks": False
+    "ExportLinks": False,
+    "SuccessMessage": True
 }
 
 # Load saved options if they exist
@@ -45,8 +47,8 @@ def save_options(options):
 class ExportOptionsForm(Form):
     def __init__(self):
         self.Text = "NWC Export Options"
-        self.Width = 400  # Increased width to accommodate wider checkboxes
-        self.Height = 350  # Increased height for new checkbox
+        self.Width = 400
+        self.Height = 380  # Increased height for new checkbox
         self.FormBorderStyle = FormBorderStyle.Sizable
         self.StartPosition = FormStartPosition.CenterScreen
         self.options = load_options()
@@ -55,7 +57,7 @@ class ExportOptionsForm(Form):
     def create_controls(self):
         y = 20
         spacing = 30
-        checkbox_width = 300  # Set width to prevent text wrapping
+        checkbox_width = 300
 
         # ComboBox for Coordinates
         self.combobox_coordinates = ComboBox()
@@ -63,7 +65,7 @@ class ExportOptionsForm(Form):
         self.combobox_coordinates.SelectedItem = self.options["Coordinates"]
         self.combobox_coordinates.Location = Point(20, y)
         self.combobox_coordinates.Size = Size(150, 20)
-        self.combobox_coordinates.DropDownStyle = ComboBoxStyle.DropDownList  # Prevent typing
+        self.combobox_coordinates.DropDownStyle = ComboBoxStyle.DropDownList
         self.Controls.Add(self.combobox_coordinates)
         y += spacing
 
@@ -116,19 +118,27 @@ class ExportOptionsForm(Form):
         self.Controls.Add(self.checkbox_divide_levels)
         y += spacing
 
+        self.checkbox_success_message = CheckBox()
+        self.checkbox_success_message.Text = "Show Success Message"
+        self.checkbox_success_message.Checked = self.options.get("SuccessMessage", True)
+        self.checkbox_success_message.Location = Point(20, y)
+        self.checkbox_success_message.Size = Size(checkbox_width, 20)
+        self.Controls.Add(self.checkbox_success_message)
+        y += spacing
+
         # Save button
         self.save_button = Button()
         self.save_button.Text = "Save"
         self.save_button.Location = Point(20, y + 20)
-        self.save_button.Size = Size(80, 25)  # Wider button
+        self.save_button.Size = Size(80, 25)
         self.save_button.Click += self.save_button_click
         self.Controls.Add(self.save_button)
 
         # Cancel button
         self.cancel_button = Button()
         self.cancel_button.Text = "Cancel"
-        self.cancel_button.Location = Point(110, y + 20)  # Adjusted position
-        self.cancel_button.Size = Size(80, 25)  # Wider button
+        self.cancel_button.Location = Point(110, y + 20)
+        self.cancel_button.Size = Size(80, 25)
         self.cancel_button.Click += self.cancel_button_click
         self.Controls.Add(self.cancel_button)
 
@@ -140,6 +150,7 @@ class ExportOptionsForm(Form):
         self.options["ExportUrls"] = self.checkbox_export_urls.Checked
         self.options["ConvertLinkedCADFormats"] = self.checkbox_linked_cad.Checked
         self.options["ExportLinks"] = self.checkbox_export_links.Checked
+        self.options["SuccessMessage"] = self.checkbox_success_message.Checked
         save_options(self.options)
         self.DialogResult = DialogResult.OK
         self.Close()

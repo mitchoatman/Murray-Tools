@@ -6,8 +6,8 @@ layout:
   - ToggleBeamHanger
   - TagHangerRod
   - RoundRackWidth
-  - SetBearerExtension
   - SelectALLHangers
   - SelectSingleHangers
   - DisconnectHangers
   - DuctHangerClearance
+  - ExtendAllThreadRod

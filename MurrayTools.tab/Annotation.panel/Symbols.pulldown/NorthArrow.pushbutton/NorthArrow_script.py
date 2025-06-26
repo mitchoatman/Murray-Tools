@@ -1,7 +1,14 @@
 
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family
-import os
+from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family, ViewType
+from Autodesk.Revit.UI import TaskDialog
+import os, sys
+
+# Check active view type
+view = __revit__.ActiveUIDocument.ActiveView
+if view.ViewType == ViewType.ThreeD:
+    TaskDialog.Show("Error", "Cannot use in 3D view.")
+    sys.exit()
 
 path, filename = os.path.split(__file__)
 NewFilename = '\\North Arrow.rfa'

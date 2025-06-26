@@ -17,20 +17,20 @@ def get_parameter_value_by_name(element, parameterName):
     return element.LookupParameter(parameterName).AsString()
 
 class CustomISelectionFilter(ISelectionFilter):
-    def __init__(self, nom_categorie):
-        self.nom_categorie = nom_categorie
+    def __init__(self, categories):
+        self.categories = categories
     def AllowElement(self, e):
-        if e.Category.Name == self.nom_categorie:
-            return True
-        else:
-            return False
+        return e.Category.Name in self.categories
     def AllowReference(self, ref, point):
         return True
 
 # Get selection
 pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
-    CustomISelectionFilter("MEP Fabrication Hangers"), 
-    "Select Fabrication Hangers")            
+    CustomISelectionFilter(["MEP Fabrication Hangers", "Structural Stiffeners"]), 
+    "Select Fabrication Hangers and Structural Stiffeners")
+# pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
+    # CustomISelectionFilter("MEP Fabrication Hangers"), 
+    # "Select Fabrication Hangers")            
 Fhangers = [doc.GetElement(elId) for elId in pipesel]
 
 view = doc.ActiveView
@@ -51,6 +51,7 @@ if solid_fill_id is None:
 # Create category list for filter
 categories = List[ElementId]()
 categories.Add(ElementId(BuiltInCategory.OST_FabricationHangers))
+categories.Add(ElementId(BuiltInCategory.OST_StructuralStiffener))
 
 # Start transaction
 t = Transaction(doc, 'Toggle Beam Hanger and Apply Filter')
@@ -59,10 +60,11 @@ t.Start()
 # Toggle parameter value
 for hanger in Fhangers:
     BHangerStatus = get_parameter_value_by_name(hanger, 'FP_Beam Hanger')
-    if BHangerStatus == None or BHangerStatus == 'No':
-        set_parameter_by_name(hanger, 'FP_Beam Hanger', 'Yes')
-    else:
-        set_parameter_by_name(hanger, 'FP_Beam Hanger', 'No')
+    if hanger.LookupParameter('FP_Beam Hanger'):
+        if BHangerStatus is None or BHangerStatus == 'No':
+            set_parameter_by_name(hanger, 'FP_Beam Hanger', 'Yes')
+        else:
+            set_parameter_by_name(hanger, 'FP_Beam Hanger', 'No')
 
 # Get view to modify (view or view template)
 view_template_id = view.ViewTemplateId

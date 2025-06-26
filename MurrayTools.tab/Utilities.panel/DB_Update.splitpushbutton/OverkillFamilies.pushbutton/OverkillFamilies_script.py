@@ -19,6 +19,7 @@ model_categories = {
     "Mechanical Equipment": BuiltInCategory.OST_MechanicalEquipment,
     "Duct Accessory": BuiltInCategory.OST_DuctAccessory,
     "Generic Models": BuiltInCategory.OST_GenericModel,
+    "Lines": BuiltInCategory.OST_Lines,
     # Add more model categories as needed
 }
 

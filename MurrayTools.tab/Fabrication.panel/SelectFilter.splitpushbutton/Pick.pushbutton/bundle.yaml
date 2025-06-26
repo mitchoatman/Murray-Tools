@@ -1,0 +1,24 @@
+#highlight: new
+
+# bundle title
+title:
+  "Pick\nFilter"
+
+# bundle tooltip
+tooltip: |-
+  Pre-Filter selection by category.
+  1. Execute command.
+  2. Select category filter.
+  3. Pick elements with rectangle (filtered).
+  4. Do what you will with selected elements...
+
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+help_url: "https://youtu.be/lSqrnCQ3Hng"
+
+# bundle author
+author: Mitchell Oatman

@@ -48,7 +48,7 @@ if Fam_is_in_project == False:
 t.Commit()
 
 #Family symbol name to place.
-symbName = 'Fabrication Duct - Size Tag'
+symbName = 'Fabrication Duct - Size Tag - Aligned'
 
 #create a filtered element collector set to Category OST_Mass and Class FamilySymbol
 collector = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_FabricationDuctworkTags).OfClass(FamilySymbol)

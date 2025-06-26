@@ -49,17 +49,50 @@ if selection:
     for x in selection:
         isfabpart = x.LookupParameter("Fabrication Service")
         if isfabpart:
-            set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) if x.ItemCustomId == 2041 else None
-            set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) if x.Category.Name == 'MEP Fabrication Ductwork' else None
-            set_parameter_by_name(x, 'FP_CID', x.ItemCustomId)
-            set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType))
-            set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'))
-            # Set the parameter only if it has a value
-            service_abbreviation = get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation')
-            if service_abbreviation:
-                set_parameter_by_name(x, 'FP_Service Abbreviation', service_abbreviation)
             try:
-                [set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Size'))]
+                if x.ItemCustomId != 838:
+                    set_parameter_by_name(x, 'FP_Part Material', get_parameter_value_by_name_AsValueString(x, 'Part Material'))
+            except:
+                pass
+
+            try:
+                    # Handle Centerline Length conditions
+                    if x.ItemCustomId == 2041 or x.Category.Name == 'MEP Fabrication Ductwork':
+                        set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength)
+            except:
+                pass
+
+            try:
+                set_parameter_by_name(x, 'FP_CID', x.ItemCustomId)
+            except:
+                pass
+
+            try:
+                set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType))
+            except:
+                pass
+
+            try:
+                set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'))
+            except:
+                pass
+
+            try:
+                service_abbreviation = get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation')
+                if service_abbreviation:
+                    set_parameter_by_name(x, 'FP_Service Abbreviation', service_abbreviation)
+            except:
+                pass
+
+            try:
+                if x.LookupParameter('Product Entry'):
+                    set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Product Entry'))
+                else:
+                    set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Size'))
+            except:
+                pass
+
+            try:
                 if x.Alias == 'TRM':
                     trimsize = get_parameter_value_by_name_AsString(x, 'Size')
                     trimangle = get_parameter_value_by_name_AsValueString(x, 'Angle')
@@ -212,7 +245,6 @@ else:
             for dta in ItmDims:
                 if dta.Name == 'Length A':
                     RLA = hanger.GetDimensionValue(dta)
-            set_parameter_by_name(hanger, 'FP_Rod Length', RLA)
             set_parameter_by_name(hanger, 'FP_Rod Length A', RLA)
 
         try:
@@ -266,6 +298,7 @@ else:
         lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength),
         lambda x: set_parameter_by_name(x, 'FP_Centerline Length', get_parameter_value_by_name_AsDouble(x, 'Length')),
         lambda x: set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Overall Size')), 
+        lambda x: set_parameter_by_name(x, 'FP_Part Material', get_parameter_value_by_name_AsValueString(x, 'Part Material')) if get_parameter_value_by_name_AsValueString(x, 'Part Material') else None,
        ]
 
     # Apply the actions to the respective element collections
@@ -282,6 +315,8 @@ else:
     safely_set_parameter(actions[10], duct_collector)
     safely_set_parameter(actions[11], flex_duct_collector)
     safely_set_parameter(actions[12], flex_duct_collector)
+    safely_set_parameter(actions[13], pipe_collector)
+    safely_set_parameter(actions[13], duct_collector)
 
     try:
         for x in AllElements:

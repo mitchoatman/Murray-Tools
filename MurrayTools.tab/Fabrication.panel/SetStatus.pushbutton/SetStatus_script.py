@@ -49,7 +49,7 @@ excluded_statuses = forms.SelectFromList.show(
 )
 
 if not excluded_statuses:
-    print "No statuses excluded. All elements can be selected."
+    # print "No statuses excluded. All elements can be selected."
     excluded_statuses = []
 
 # Custom selection filter to exclude elements with selected statuses

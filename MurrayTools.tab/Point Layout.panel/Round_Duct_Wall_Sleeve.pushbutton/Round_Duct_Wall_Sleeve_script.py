@@ -6,6 +6,8 @@ import re
 from math import atan2, degrees
 from fractions import Fraction
 import os
+from Parameters.Add_SharedParameters import Shared_Params
+Shared_Params()
 
 path, filename = os.path.split(__file__)
 NewFilename = '\RDS.rfa'
@@ -79,7 +81,7 @@ def get_parameter_value_by_name(element, parameterName):
 def get_parameter_value_by_name_AsDouble(element, parameterName):
     return element.LookupParameter(parameterName).AsDouble()
 
-def select_fabrication_pipe():
+def select_fabrication_duct():
     selection = uidoc.Selection
     pipe_ref = selection.PickObject(ObjectType.Element, "Select a round MEP Fabrication Duct")
     duct = doc.GetElement(pipe_ref.ElementId)
@@ -152,17 +154,26 @@ def place_and_modify_family(duct, famsymb):
     schedule_level_param.Set(level.Id)
 
 
+from Autodesk.Revit.Exceptions import OperationCanceledException
+
 while True:
     try:
         t = Transaction(doc, 'Place Trimble Wall Sleeve Family')
         t.Start()
         
-        duct = select_fabrication_pipe()
+        duct = select_fabrication_duct()
         place_and_modify_family(duct, famsymb)
         
         t.Commit()
         
+    except OperationCanceledException:
+        if t.HasStarted() and not t.HasEnded():
+            t.RollBack()
+        break  # Silent exit on user cancel (Esc)
+
     except Exception as e:
         if t.HasStarted() and not t.HasEnded():
             t.RollBack()
+        print("Error during operation: {}".format(e))
         break
+

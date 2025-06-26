@@ -93,7 +93,6 @@ def Sync_FP_Params_Entire_Model():
     t = Transaction(doc, "Update FP Parameters")
     t.Start()
 
-    # Existing logic for ducts
     for duct in duct_collector:
         try:
             TOPE = 0
@@ -110,7 +109,6 @@ def Sync_FP_Params_Entire_Model():
         except:
             pass
 
-    # Existing logic for hangers
     for hanger in hanger_collector:
         if (hanger.GetRodInfo().RodCount) < 2:
             hosted_info = hanger.GetHostedInfo().HostId
@@ -124,14 +122,15 @@ def Sync_FP_Params_Entire_Model():
                     set_parameter_by_name(hanger, 'FP_Hanger Shield', 'No')
                 else:
                     set_parameter_by_name(hanger, 'FP_Hanger Shield', 'Yes')
+
+                ItmDims = hanger.GetDimensions()
+                for dta in ItmDims:
+                    if dta.Name == 'Length A':
+                        RLA = hanger.GetDimensionValue(dta)
+                set_parameter_by_name(hanger, 'FP_Rod Length', RLA)
+                set_parameter_by_name(hanger, 'FP_Rod Length A', RLA)
             except:
                 pass
-            ItmDims = hanger.GetDimensions()
-            for dta in ItmDims:
-                if dta.Name == 'Length A':
-                    RLA = hanger.GetDimensionValue(dta)
-            set_parameter_by_name(hanger, 'FP_Rod Length', RLA)
-            set_parameter_by_name(hanger, 'FP_Rod Length A', RLA)
         try:
             if (hanger.GetRodInfo().RodCount) > 1:
                 ItmDims = hanger.GetDimensions()
@@ -156,7 +155,6 @@ def Sync_FP_Params_Entire_Model():
         except:
             pass
 
-    # Existing safely_set_parameter function
     def safely_set_parameter(action, elements):
         for element in elements:
             try:
@@ -164,7 +162,6 @@ def Sync_FP_Params_Entire_Model():
             except Exception as e:
                 pass
 
-    # Existing actions
     actions = [
         lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) if x.ItemCustomId == 2041 else None,
         lambda x: set_parameter_by_name(x, 'FP_CID', x.ItemCustomId),
@@ -201,7 +198,6 @@ def Sync_FP_Params_Entire_Model():
     safely_set_parameter(actions[13], pipe_collector)
     safely_set_parameter(actions[13], duct_collector)
 
-    # Existing connector info logic
     try:
         for x in AllElements:
             connector_info = get_fabrication_connector_info(x)

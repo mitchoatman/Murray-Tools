@@ -8,6 +8,9 @@ title:
 tooltip: |-
   Seaches view and returns the last valve number value for each prefix pattern.
 
+  [Shift]+Click:
+  Opens window that monitors view for valve number changes and updates accordingly.
+
 # context directives are listed under `context` key, the order does not matter
 # context:
   # - Selection

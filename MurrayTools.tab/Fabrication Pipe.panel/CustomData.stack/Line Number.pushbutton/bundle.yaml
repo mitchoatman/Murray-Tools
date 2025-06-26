@@ -9,12 +9,13 @@ tooltip: >-
     1. Select elements you want to assign a Valve Number.
     2. Run Script.
     3. Enter Valve Number value in the dialog.
+        3a. Optionally user can pick from existing numbers.
     4. Click Ok
 
 
 # context directives are listed under `context` key, the order does not matter
-context:
-  - Selection
+# context:
+  # - Selection
 
 # bundle help url
 help_url: "https://murraycompany.egnyte.com/navigate/file/72751570-620d-4af7-8c0f-c7a5cebd2e46"

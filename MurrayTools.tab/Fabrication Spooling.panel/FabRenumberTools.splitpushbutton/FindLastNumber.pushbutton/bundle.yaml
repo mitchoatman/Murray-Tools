@@ -1,4 +1,4 @@
-highlight: updated
+# highlight: updated
 
 # bundle title
 title:
@@ -6,7 +6,10 @@ title:
 
 # bundle tooltip
 tooltip: |-
-  Seaches view and returns the last number value for each pattern.
+  Seaches view and returns the last Fabrication Item Number for each pattern.
+
+  [Shift]+Click:
+  Opens window that monitors view for Fabrication Item Number changes and updates accordingly.
 
 # context directives are listed under `context` key, the order does not matter
 # context:

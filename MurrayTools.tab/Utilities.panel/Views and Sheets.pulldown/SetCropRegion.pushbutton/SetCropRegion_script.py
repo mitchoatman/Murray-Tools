@@ -1,40 +1,58 @@
 import Autodesk
-from Autodesk.Revit.DB import FilteredElementCollector, BoundingBoxXYZ, XYZ, Transaction
+from Autodesk.Revit.DB import FilteredElementCollector, BoundingBoxXYZ, XYZ, Transaction, Transform, BuiltInParameter
 from Autodesk.Revit.UI.Selection import PickBoxStyle
+from Autodesk.Revit.UI import TaskDialog
 
 # Define the active Revit document and view
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 
-# Check if the active view is a Floor Plan (you can modify for other view types if needed)
-if str(curview.ViewType) == 'FloorPlan' or str(curview.ViewType) == 'CeilingPlan':
+# Check if the active view is a Floor Plan or Ceiling Plan
+if str(curview.ViewType) in ['FloorPlan', 'CeilingPlan']:
     # Prompt the user to select a box area
     pickedBox = uidoc.Selection.PickBox(PickBoxStyle.Directional, "Select area for sketch")
-    Maxx = pickedBox.Max.X
-    Maxy = pickedBox.Max.Y
-    Minx = pickedBox.Min.X
-    Miny = pickedBox.Min.Y
+    newmax = pickedBox.Max
+    newmin = pickedBox.Min
 
-    # Ensure min and max coordinates are correctly ordered
-    newmaxx = max(Maxx, Minx)
-    newmaxy = max(Maxy, Miny)
-    newminx = min(Maxx, Minx)
-    newminy = min(Maxy, Miny)
+    # Check if view is set to True North
+    def is_true_north(view):
+        orient_param = view.get_Parameter(BuiltInParameter.PLAN_VIEW_NORTH)
+        return orient_param and orient_param.AsInteger() == 1  # 1 = True North
 
-    # Create a bounding box based on the selected area
-    bbox = BoundingBoxXYZ()
-    bbox.Max = XYZ(newmaxx, newmaxy, 0)
-    bbox.Min = XYZ(newminx, newminy, 0)
+    # Adjust crop box based on view orientation
+    def adjust_crop_box(view, max_pt, min_pt):
+        # Initialize min and max points
+        adj_max = XYZ(max_pt.X, max_pt.Y, 0)
+        adj_min = XYZ(min_pt.X, min_pt.Y, 0)
+        
+        if is_true_north(view) and view.CropBox.Transform:
+            # Transform view coordinates to model space using view's transform
+            transform = view.CropBox.Transform.Inverse
+            adj_max = transform.OfPoint(adj_max)
+            adj_min = transform.OfPoint(adj_min)
+        
+        # Ensure min/max ordering
+        corrected_min = XYZ(min(adj_min.X, adj_max.X), min(adj_min.Y, adj_max.Y), 0)
+        corrected_max = XYZ(max(adj_min.X, adj_max.X), max(adj_min.Y, adj_max.Y), 0)
+        
+        # Create adjusted bounding box
+        adjusted_bbox = BoundingBoxXYZ()
+        adjusted_bbox.Min = corrected_min
+        adjusted_bbox.Max = corrected_max
+        adjusted_bbox.Transform = Transform.Identity
+        
+        return adjusted_bbox
 
     # Start a transaction to apply the changes
     t = Transaction(doc, 'Set Crop Box for Active View')
     t.Start()
     
     # Set the crop box properties for the active view
-    curview.CropBox = bbox
+    adjusted_bbox = adjust_crop_box(curview, newmax, newmin)
+    curview.CropBox = adjusted_bbox
     curview.CropBoxActive = True
     curview.CropBoxVisible = True
     t.Commit()
 else:
-    print("Active view is not a Floor or Ceiling Plan view.")
+    TaskDialog.Show("Error", "Active view is not a Floor or Ceiling Plan view.")

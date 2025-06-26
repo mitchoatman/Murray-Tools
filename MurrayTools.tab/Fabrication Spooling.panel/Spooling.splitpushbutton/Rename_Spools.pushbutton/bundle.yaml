@@ -1,21 +1,29 @@
-highlight: new
-#highlight: updated
+# highlight: new
+highlight: updated
 
 # bundle title
 title:
   "Rename\nSpools"
 
 # bundle tooltip
-tooltip: >-
+tooltip: |-
+  Renames STRATUS spools and packages.
+      1. Run command.
+      2. Enter find/replace criteria
+      3. Select Assemblies in list to rename
+      4. Click Rename button.
+      5. Clear find field to show results.
+
+  [Shift]+Click:    
+  (Legacy Version)
   Renames selected spools and packages.
       1. Select fabrication elements.
       2. Run command.
       3. Enter find/replace criteria
       4. Click Rename Spools button.
-
 # context directives are listed under `context` key, the order does not matter
-context:
-  - Selection
+# context:
+  # - Selection
 
 # bundle help url
 #help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"

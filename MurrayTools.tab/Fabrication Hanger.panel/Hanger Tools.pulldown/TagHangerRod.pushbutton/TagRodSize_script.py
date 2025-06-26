@@ -3,6 +3,7 @@ from Autodesk.Revit.DB import IFamilyLoadOptions, FamilySource, Transaction, Fil
                               BuiltInCategory, FamilySymbol, BuiltInParameter, Reference, IndependentTag, TagMode, TagOrientation, \
                               ViewType
 from Parameters.Add_SharedParameters import Shared_Params
+from Autodesk.Revit.UI import TaskDialog
 import os
 import sys
 
@@ -18,7 +19,8 @@ curview = doc.ActiveView
 
 # Check if the active view is a FloorPlan or Section, print message and exit if not
 if curview.ViewType not in [ViewType.FloorPlan, ViewType.AreaPlan, ViewType.Section]:
-    print("This script can only run in a Floor Plan or Section view.")
+    TaskDialog.Show("Error", "This script can only run in a Floor Plan or Section view.")
+    # print("This script can only run in a Floor Plan or Section view.")
     sys.exit()
 
 # Search project for all Families

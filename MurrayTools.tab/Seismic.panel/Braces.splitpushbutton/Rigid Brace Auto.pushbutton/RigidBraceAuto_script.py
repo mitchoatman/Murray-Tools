@@ -1,7 +1,7 @@
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family, Structure, XYZ, FabricationPart, FabricationConfiguration, TransactionGroup, BuiltInParameter, ElementTransformUtils, Line
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
-from Parameters.Get_Set_Params import get_parameter_value_by_name_AsValueString
+from Parameters.Get_Set_Params import get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsDouble, set_parameter_by_name, get_parameter_value_by_name_AsString
 import math
 import os
 import sys
@@ -30,31 +30,18 @@ Fam_is_in_project = target_family is not None
 
 def stretch_brace(family_instance, valuenum):
     set_parameter_by_name(family_instance, "Top of Steel", valuenum)
-    BraceAngle = get_parameter_value_by_name(family_instance, "BraceMainAngle")
+    BraceAngle = get_parameter_value_by_name_AsDouble(new_family_instance, "BraceMainAngle")
     sinofangle = math.sin(BraceAngle)
-    BraceElevation = get_parameter_value_by_name(family_instance, 'Offset from Host')
+    BraceElevation = get_parameter_value_by_name_AsDouble(new_family_instance, 'Offset from Host')
     Height = ((valuenum - BraceElevation) - 0.2330)
     newhypotenus = ((Height / sinofangle) - 0.2290)
     if newhypotenus < 0:
         newhypotenus = 1
-    set_parameter_by_name(family_instance, "BraceLength", newhypotenus)
-
-def set_parameter_by_name(element, parameterName, value):
-    try:
-        param = element.LookupParameter(parameterName)
-        if param and not param.IsReadOnly:
-            param.Set(value)
-    except Exception:
-        pass
-
-def get_parameter_value_by_name(element, parameterName):
-    try:
-        param = element.LookupParameter(parameterName)
-        if param:
-            return param.AsDouble()
-        return 0.0
-    except Exception:
-        return 0.0
+    # Writes new Brace length to parameter
+    set_parameter_by_name(new_family_instance, "BraceLength", newhypotenus)
+    # Writes Level into Brace
+    set_parameter_by_name(new_family_instance, "ISAT Brace Level", HangerLevel)
+    set_parameter_by_name(new_family_instance, "FP_Service Name", HangerService)
 
 def calculate_distance(point1, point2):
     return math.sqrt((point2.X - point1.X)**2 + (point2.Y - point1.Y)**2)
@@ -183,6 +170,8 @@ if target_famtype and len(Fhangers) > 1:
 
     hanger_positions = []
     for hanger in Fhangers:
+        HangerLevel = get_parameter_value_by_name_AsValueString(hanger, 'Reference Level')
+        HangerService = get_parameter_value_by_name_AsString(hanger, 'Fabrication Service Name')
         bounding_box = hanger.get_BoundingBox(None)
         if bounding_box:
             middle_top_point = XYZ((bounding_box.Min.X + bounding_box.Max.X) / 2,

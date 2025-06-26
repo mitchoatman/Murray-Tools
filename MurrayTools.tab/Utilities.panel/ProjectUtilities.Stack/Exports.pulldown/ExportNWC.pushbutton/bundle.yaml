@@ -8,9 +8,13 @@ title:
 # bundle tooltip
 tooltip: |-
   Exports an NWC file of the Active view. It creates and applies
-  materials to fabrication parts so they have color in Navis by default.
+  materials to fabrication parts matching filter colors so fabrication elements
+  have color in Navis without needing to use search filters and appearance profiler.
       1. Run command.
       2. Choose save location and file name.
+      
+      If multiple views are pre-selected prior to running command
+      all selected views will be exported to user specified folder named per view names.
 
   [Shift]+Click:    
   Opens NWC Export Settings.

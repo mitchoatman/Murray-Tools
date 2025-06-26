@@ -90,119 +90,53 @@ def needs_tagging(element, rod_count, existing_tags):
     return len(existing_tags) < rod_count
 
 
-# Shift-click mode: Manual selection of hangers
-if __shiftclick__:
-    file_name = doc.Title  # Get document title
-    
-    # Custom filter for selecting only MEP Fabrication Hangers
-    class CustomISelectionFilter(ISelectionFilter):
-        def __init__(self, nom_categorie):
-            self.nom_categorie = nom_categorie
-        def AllowElement(self, e):
-            return e.Category.Name == self.nom_categorie
-        def AllowReference(self, ref, point):
-            return True
-
-    # Prompt user to select hangers
-    fhangers = uidoc.Selection.PickObjects(ObjectType.Element,
-        CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers")
-    Hanger_collector = [doc.GetElement(elId) for elId in fhangers]  # Convert selections to elements
-
-    # Collect all family symbols for hanger tags
-    familyTypes = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_FabricationHangerTags)\
-                                               .OfClass(FamilySymbol)\
-                                               .ToElements()
-
-    # Start transaction group for manual tagging
-    tg = TransactionGroup(doc, "Selected Pointload Tags")
-    tg.Start()
-
-    # Load family if not present
-    t = Transaction(doc, 'Load PointLoad Family')
-    t.Start()
-    if not Fam_is_in_project:
-        fload_handler = FamilyLoaderOptionsHandler()
-        family = doc.LoadFamily(family_pathCC, fload_handler)  # Load the tag family
-    t.Commit()
-
-    ItmList1 = list()  # List to store rod counts
-
-    # Tag creation transaction
-    t = Transaction(doc, 'Tag Pointloads')
-    t.Start()
-    # Activate the correct family symbol
-    for famtype in familyTypes:
-        typeName = famtype.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
-        if famtype.Family.Name == FamilyName and typeName == FamilyType:
-            if not famtype.IsActive:
-                famtype.Activate()
-                doc.Regenerate()
-
-    # Tag each hanger's rods if not already fully tagged
-    for e in Hanger_collector:
-        R = Reference(e)
-        STName = e.GetRodInfo().RodCount  # Number of rods in hanger
-        ItmList1.append(STName)
-        existing_tags = get_existing_tags(e)
-        
-        if needs_tagging(e, STName, existing_tags):
-            STName1 = e.GetRodInfo()
-            remaining_tags = STName - len(existing_tags)
-            for n in range(remaining_tags):
-                rodloc = STName1.GetRodEndPosition(n)  # Position of each rod
-                IndependentTag.Create(doc, curview.Id, R, False, TagMode.TM_ADDBY_CATEGORY, 
-                                    TagOrientation.Horizontal, rodloc)  # Create tag
-    t.Commit()
-    tg.Assimilate()  # Complete transaction group
-
 # Automatic mode: Tag all hangers in current view
-else:
-    # Start transaction group for automatic tagging
-    tg = TransactionGroup(doc, "Add Pointload Tags")
-    tg.Start()
 
-    # Load family if not present
-    t = Transaction(doc, 'Load PointLoad Family')
-    t.Start()
-    if not Fam_is_in_project:
-        fload_handler = FamilyLoaderOptionsHandler()
-        family = doc.LoadFamily(family_pathCC, fload_handler)
-    t.Commit()
+tg = TransactionGroup(doc, "Add Pointload Tags")
+tg.Start()
 
-    # Collect all hangers in current view
-    Hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers)\
-                                                               .WhereElementIsNotElementType()
-    # Collect all family symbols for hanger tags
-    familyTypes = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_FabricationHangerTags)\
-                                               .OfClass(FamilySymbol)\
-                                               .ToElements()
+# Load family if not present
+t = Transaction(doc, 'Load PointLoad Family')
+t.Start()
+if not Fam_is_in_project:
+    fload_handler = FamilyLoaderOptionsHandler()
+    family = doc.LoadFamily(family_pathCC, fload_handler)
+t.Commit()
 
-    ItmList1 = list()
+# Collect all hangers in current view
+Hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers)\
+                                                           .WhereElementIsNotElementType()
+# Collect all family symbols for hanger tags
+familyTypes = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_FabricationHangerTags)\
+                                           .OfClass(FamilySymbol)\
+                                           .ToElements()
 
-    # Tag creation transaction
-    t = Transaction(doc, 'Tag Pointloads')
-    t.Start()
-    # Activate the correct family symbol
-    for famtype in familyTypes:
-        typeName = famtype.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
-        if famtype.Family.Name == FamilyName and typeName == FamilyType:
-            if not famtype.IsActive:
-                famtype.Activate()
-                doc.Regenerate()
+ItmList1 = list()
 
-    # Tag each hanger's rods if not already fully tagged
-    for e in Hanger_collector:
-        R = Reference(e)
-        STName = e.GetRodInfo().RodCount
-        ItmList1.append(STName)
-        existing_tags = get_existing_tags(e)
-        
-        if needs_tagging(e, STName, existing_tags):
-            STName1 = e.GetRodInfo()
-            remaining_tags = STName - len(existing_tags)
-            for n in range(remaining_tags):
-                rodloc = STName1.GetRodEndPosition(n)
-                IndependentTag.Create(doc, curview.Id, R, False, TagMode.TM_ADDBY_CATEGORY, 
-                                    TagOrientation.Horizontal, rodloc)
-    t.Commit()
-    tg.Assimilate()
+# Tag creation transaction
+t = Transaction(doc, 'Tag Pointloads')
+t.Start()
+# Activate the correct family symbol
+for famtype in familyTypes:
+    typeName = famtype.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
+    if famtype.Family.Name == FamilyName and typeName == FamilyType:
+        if not famtype.IsActive:
+            famtype.Activate()
+            doc.Regenerate()
+
+# Tag each hanger's rods if not already fully tagged
+for e in Hanger_collector:
+    R = Reference(e)
+    STName = e.GetRodInfo().RodCount
+    ItmList1.append(STName)
+    existing_tags = get_existing_tags(e)
+    
+    if needs_tagging(e, STName, existing_tags):
+        STName1 = e.GetRodInfo()
+        remaining_tags = STName - len(existing_tags)
+        for n in range(remaining_tags):
+            rodloc = STName1.GetRodEndPosition(n)
+            IndependentTag.Create(doc, curview.Id, R, False, TagMode.TM_ADDBY_CATEGORY, 
+                                TagOrientation.Horizontal, rodloc)
+t.Commit()
+tg.Assimilate()

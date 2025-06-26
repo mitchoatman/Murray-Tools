@@ -1,15 +1,15 @@
 import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory
-from pyrevit import revit
-
+from System.Collections.Generic import List
 
 #define the active Revit application and document
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 
-selection = revit.get_selection()
+selected_ids = uidoc.Selection.GetElementIds()
+selection = [doc.GetElement(eid) for eid in selected_ids]
 
 # Creating collector instance and collecting all the fabrication hangers from the model
 pipe_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationPipework) \
@@ -18,6 +18,6 @@ pipe_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCat
 
 
 elementlist = [valve.Id for valve in pipe_collector if valve.ServiceType == 53]
-selection.set_to(elementlist)
+uidoc.Selection.SetElementIds(List[DB.ElementId](elementlist))
 
 

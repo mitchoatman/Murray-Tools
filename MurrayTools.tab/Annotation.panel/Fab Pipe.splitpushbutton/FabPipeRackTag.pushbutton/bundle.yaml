@@ -9,9 +9,6 @@ tooltip: |-
   This will Insert the Fabrication Fab Pipe Size Tag Family (stacked) for a selected rack of pipes.
   Always stacks tags in top to bottom / left to right order.
 
-  # [Shift]+Click:    
-  # Inserts the ALIGNED version of the family so it will rotate with pipe.
-
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Selection

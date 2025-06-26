@@ -9,6 +9,9 @@ title:
 tooltip: |-
   This will Insert the Flow Arrow Family into the Active View.
 
+  [Shift]+Click:    
+  Prompts for selection and places Flow Arrow in the middle of selected elements. [CHECK FLOW DIRECTION]
+
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Selection

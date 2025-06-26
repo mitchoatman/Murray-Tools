@@ -10,116 +10,124 @@ args = __eventargs__
 doc = args.GetDocument()
 Config = FabricationConfiguration.GetFabricationConfiguration(doc)
 
-# Convert the Revit-specific collections to Python lists
+# Convert Revit collections to Python lists
 modified_el_ids = list(args.GetModifiedElementIds())
 deleted_el_ids = list(args.GetDeletedElementIds())
 new_el_ids = list(args.GetAddedElementIds())
 
-# Use list comprehension to get valid elements only
+for e_id in new_el_ids:
+    element = doc.GetElement(e_id)
+    if element:
+        category_name = element.Category.Name if element.Category else "None"
+
+
+# Combine modified and new element IDs, filtering valid elements
 combined_el_ids = [doc.GetElement(e_id) for e_id in modified_el_ids + new_el_ids if doc.GetElement(e_id) is not None]
 
-# IUpdater aiming modified elements
+# Allowed categories
 allowed_cats = [ElementId(BuiltInCategory.OST_FabricationHangers), ElementId(BuiltInCategory.OST_FabricationDuctwork), ElementId(BuiltInCategory.OST_FabricationPipework)]
 
-
-# Function to get fabrication connector names and track their IDs
+# Function to get fabrication connector info
 def get_fabrication_connector_info(fabPart):
-    # Create a dictionary to store connector names with their IDs
     connector_info = {}
-    # Check if the element is a fabrication part
     if isinstance(fabPart, FabricationPart):
         connectors = fabPart.ConnectorManager.Connectors
-        # Loop through each connector
         for connector in connectors:
             try:
-                # Get FabricationConnectorInfo from the connector
                 fab_connector_info = connector.GetFabricationConnectorInfo()
-                # Extract the BodyConnectorId
                 fabrication_connector_id = fab_connector_info.BodyConnectorId
-                # Use GetFabricationConnectorName with the correct fabrication configuration and connector ID
-                connector_name = FabricationConfiguration.GetFabricationConfiguration(doc).GetFabricationConnectorName(fabrication_connector_id)
-                # Store the connector ID and name in the dictionary
-                connector_info[connector.Id] = connector_name  # Directly use connector.Id
+                connector_name = Config.GetFabricationConnectorName(fabrication_connector_id)
+                connector_info[connector.Id] = connector_name
             except:
-                pass
+                print "Failed to get connector info for element {}".format(fabPart.Id)
     return connector_info
 
-
+# Process elements
 for x in combined_el_ids:
-    # Check if the element is a FabricationPart and has a valid Category
-    if isinstance(x, FabricationPart) and hasattr(x, 'Category') and hasattr(x.Category, 'Id'):
-        if x.Category.Id in allowed_cats:
-            set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) if x.ItemCustomId == 2041 else None
-            set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) if x.Category.Name == 'MEP Fabrication Ductwork' else None
-            set_parameter_by_name(x, 'FP_CID', x.ItemCustomId)
-            set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType))
-            set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'))
-            set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation'))
-            try:
-                [set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Size'))]
-                if x.Alias == 'TRM':
-                    trimsize = get_parameter_value_by_name_AsString(x, 'Size')
-                    trimangle = get_parameter_value_by_name_AsValueString(x, 'Angle')
-                    set_parameter_by_name(x, 'FP_Product Entry', trimsize + ' x ' + trimangle)
-            except:
-                pass
-            try:
-                if x.ItemCustomId == 838:
-                    set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No')
-                    [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
-                    ProductEntry = x.LookupParameter('Product Entry')
-                    if ProductEntry:
-                        if (x.GetRodInfo().RodCount) < 2:
-                            # Get the host element's size
-                            hosted_info = x.GetHostedInfo().HostId
-                            HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
-                            # Get the hanger's size
-                            HangerSize = get_parameter_value_by_name_AsString(x, 'Product Entry')
-                            set_parameter_by_name(x, 'FP_Product Entry', HangerSize)
-                            # Set the 'FP_Hanger Shield' parameter based on whether the host and hanger sizes match
-                            if HostSize == HangerSize:
-                                set_parameter_by_name(x, 'FP_Hanger Shield', 'No')
-                            else:
-                                set_parameter_by_name(x, 'FP_Hanger Shield', 'Yes')
-                                set_parameter_by_name(x, 'Comments', HostSize)
-                                set_parameter_by_name(x, 'FP_Hanger Host Diameter', HostSize)
+    if not isinstance(x, FabricationPart):
+        continue
+    if not hasattr(x, 'Category') or not x.Category or not hasattr(x.Category, 'Id'):
+        continue
+    if x.Category.Id not in allowed_cats:
+        continue
 
-                            ItmDims = x.GetDimensions()
-                            for dta in ItmDims:
-                                if dta.Name == 'Length A':
-                                    RLA = x.GetDimensionValue(dta)
-                                if dta.Name == 'Length B':
-                                    RLB = x.GetDimensionValue(dta)
-                            set_parameter_by_name(x, 'FP_Rod Length', RLA)
-                            set_parameter_by_name(x, 'FP_Rod Length A', RLA)
-                            set_parameter_by_name(x, 'FP_Rod Length B', RLB)
+    try:
+        # Set parameters for specific conditions
+        if x.ItemCustomId == 2041 or x.Category.Name == 'MEP Fabrication Ductwork':
+            set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength)
+        set_parameter_by_name(x, 'FP_CID', x.ItemCustomId)
+        set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType))
+        set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'))
+        set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation'))
 
-                    else:
-                        ItmDims = x.GetDimensions()
-                        for dta in ItmDims:
-                            if dta.Name == 'Length A':
-                                RLA = x.GetDimensionValue(dta)
-                            if dta.Name == 'Length B':
-                                RLB = x.GetDimensionValue(dta)
-                            if dta.Name == 'Width':
-                                TrapWidth = x.GetDimensionValue(dta)
-                            if dta.Name == 'Bearer Extn':
-                                TrapExtn = x.GetDimensionValue(dta)
-                            if dta.Name == 'Right Rod Offset':
-                                TrapRRod = x.GetDimensionValue(dta)
-                            if dta.Name == 'Left Rod Offset':
-                                TrapLRod = x.GetDimensionValue(dta)
-                        BearerLength = TrapWidth + TrapExtn + TrapExtn
-                        set_parameter_by_name(x, 'FP_Bearer Length', BearerLength)
-                        set_parameter_by_name(x, 'FP_Rod Length', RLA)
-                        set_parameter_by_name(x, 'FP_Rod Length A', RLA)
-                        set_parameter_by_name(x, 'FP_Rod Length B', RLB)
-            except:
-                pass
-            try:
-                connector_info = get_fabrication_connector_info(x)
-                for connector_id, name in connector_info.items():
-                    param_name = "FP_Connector C{}".format(connector_id + 1)  # Offset by 1
-                    set_parameter_by_name(x, param_name, name)
-            except:
-                pass
+        # Product Entry
+        product_entry_param = x.LookupParameter('Product Entry')
+        product_entry_value = get_parameter_value_by_name_AsString(x, 'Product Entry') if product_entry_param else get_parameter_value_by_name_AsString(x, 'Size')
+        set_parameter_by_name(x, 'FP_Product Entry', product_entry_value)
+        if x.Alias == 'TRM':
+            trimsize = get_parameter_value_by_name_AsString(x, 'Size')
+            trimangle = get_parameter_value_by_name_AsValueString(x, 'Angle')
+            set_parameter_by_name(x, 'FP_Product Entry', trimsize + ' x ' + trimangle)
+
+        # Hanger-specific logic
+        if x.ItemCustomId == 838:
+            rod_attached = 'Yes' if x.GetRodInfo().IsAttachedToStructure else 'No'
+            set_parameter_by_name(x, 'FP_Rod Attached', rod_attached)
+            for n in x.GetPartAncillaryUsage():
+                if n.AncillaryWidthOrDiameter > 0:
+                    set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter)
+            if product_entry_param:
+                if x.GetRodInfo().RodCount < 2:
+                    hosted_info = x.GetHostedInfo().HostId
+                    host_size = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
+                    hanger_size = get_parameter_value_by_name_AsString(x, 'Product Entry')
+                    set_parameter_by_name(x, 'FP_Product Entry', hanger_size)
+                    hanger_shield = 'No' if host_size == hanger_size else 'Yes'
+                    set_parameter_by_name(x, 'FP_Hanger Shield', hanger_shield)
+                    if host_size != hanger_size:
+                        set_parameter_by_name(x, 'Comments', host_size)
+                        set_parameter_by_name(x, 'FP_Hanger Host Diameter', host_size)
+                    itm_dims = x.GetDimensions()
+                    for dta in itm_dims:
+                        if dta.Name == 'Length A':
+                            rla = x.GetDimensionValue(dta)
+                        if dta.Name == 'Length B':
+                            rlb = x.GetDimensionValue(dta)
+                    set_parameter_by_name(x, 'FP_Rod Length', rla)
+                    set_parameter_by_name(x, 'FP_Rod Length A', rla)
+                    set_parameter_by_name(x, 'FP_Rod Length B', rlb)
+                else:
+                    itm_dims = x.GetDimensions()
+                    for dta in itm_dims:
+                        if dta.Name == 'Length A':
+                            rla = x.GetDimensionValue(dta)
+                        if dta.Name == 'Length B':
+                            rlb = x.GetDimensionValue(dta)
+                        if dta.Name == 'Width':
+                            trap_width = x.GetDimensionValue(dta)
+                        if dta.Name == 'Bearer Extn':
+                            trap_extn = x.GetDimensionValue(dta)
+                        if dta.Name == 'Right Rod Offset':
+                            trap_rrod = x.GetDimensionValue(dta)
+                        if dta.Name == 'Left Rod Offset':
+                            trap_lrod = x.GetDimensionValue(dta)
+                    bearer_length = trap_width + trap_extn + trap_extn
+                    set_parameter_by_name(x, 'FP_Bearer Length', bearer_length)
+                    set_parameter_by_name(x, 'FP_Rod Length', rla)
+                    set_parameter_by_name(x, 'FP_Rod Length A', rla)
+                    set_parameter_by_name(x, 'FP_Rod Length B', rlb)
+
+        # Connector info
+        connector_info = get_fabrication_connector_info(x)
+        for connector_id, name in connector_info.items():
+            param_name = "FP_Connector C" + str(connector_id + 1)
+            set_parameter_by_name(x, param_name, name)
+    except Exception, e:
+        print "Error processing element {}: {}".format(x.Id, str(e))
+
+# Check worksharing status for new elements
+for e_id in new_el_ids:
+    element = doc.GetElement(e_id)
+    if element:
+        owner = WorksharingUtils.GetCheckoutStatus(doc, e_id)
+        print "Element ID: {}, Checkout Status: {}".format(e_id, owner)

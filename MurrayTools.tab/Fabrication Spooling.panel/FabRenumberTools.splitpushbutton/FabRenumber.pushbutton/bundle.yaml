@@ -1,4 +1,4 @@
-highlight: updated
+# highlight: updated
 
 # bundle title
 title:
@@ -13,6 +13,8 @@ tooltip: |-
     3. Select any fabrication fields you wish to exclude when determining identical elements.
     4. Enter starting number sequence.
 
+  [Shift]+Click:    
+  Re-Numbers selected fabrication parts (Picked Individually) per user defined sequence.
 
 # context directives are listed under `context` key, the order does not matter
 # context:

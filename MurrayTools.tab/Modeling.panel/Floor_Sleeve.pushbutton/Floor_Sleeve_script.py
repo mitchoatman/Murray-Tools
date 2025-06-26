@@ -9,6 +9,7 @@ from Autodesk.Revit.DB import (
     XYZ,
     ViewType
 )
+from Autodesk.Revit.UI import TaskDialog
 from math import atan2
 from fractions import Fraction
 import re
@@ -73,10 +74,11 @@ def get_diameter_from_size(pipe_diameter):
 
 def get_pipe_centerline(pipe):
     """Get pipe centerline from its connectors"""
-    connectors = list(pipe.ConnectorManager.Connectors)
-    if len(connectors) >= 2:
-        return Line.CreateBound(connectors[0].Origin, connectors[1].Origin)
-    return None
+    if pipe.ItemCustomId == 2041:
+        connectors = list(pipe.ConnectorManager.Connectors)
+        if len(connectors) >= 2:
+            return Line.CreateBound(connectors[0].Origin, connectors[1].Origin)
+        return None
 
 def get_pipe_intersections(pipe, level):
     """Find intersection points between vertical pipe and level using manual calculation"""
@@ -104,11 +106,12 @@ def get_pipe_intersections(pipe, level):
 
 def is_vertical_pipe(pipe):
     """Check if pipe is vertical using connectors"""
-    connectors = list(pipe.ConnectorManager.Connectors)
-    if len(connectors) < 2:
-        return False
-    direction = (connectors[1].Origin - connectors[0].Origin).Normalize()
-    return abs(direction.Z) > 0.99  # Nearly vertical (cosine close to 1)
+    if pipe.ItemCustomId == 2041:
+        connectors = list(pipe.ConnectorManager.Connectors)
+        if len(connectors) < 2:
+            return False
+        direction = (connectors[1].Origin - connectors[0].Origin).Normalize()
+        return abs(direction.Z) > 0.99  # Nearly vertical (cosine close to 1)
 
 def is_duplicate_sleeve(intersection_point, existing_sleeves, tolerance=0.001):
     """Check if a sleeve already exists at the intersection point within tolerance"""
@@ -176,9 +179,9 @@ def place_sleeve_at_intersection(pipe, intersection_point, family_symbol, level,
                 set_parameter_by_name(new_instance, fam_param, param_value)
             else:
                 set_parameter_by_name(new_instance, fam_param, "")
-                print("Warning: Pipe missing '{0}', set '{1}' to empty string".format(pipe_param, fam_param))
+                TaskDialog.Show("Warning", "Pipe missing '{0}', set '{1}' to empty string".format(pipe_param, fam_param))
         except Exception as e:
-            print("Error setting '{0}' from '{1}': {2}".format(fam_param, pipe_param, str(e)))
+            TaskDialog.Show("Error", "Error setting '{0}' from '{1}': {2}".format(fam_param, pipe_param, str(e)))
             set_parameter_by_name(new_instance, fam_param, "")
     
     return new_instance
@@ -202,7 +205,7 @@ def main():
     """Main execution: place sleeves at vertical pipe-level intersections based on view type or selection"""
     family_symbol = load_family()
     if not family_symbol:
-        print("Failed to load family symbol, load the family manually from here:\n{0}".format(family_path))
+        TaskDialog.Show("Error", "Failed to load family symbol, load the family manually from here:\n{0}".format(family_path))
         return
     
     # Check for pre-selected elements
@@ -222,7 +225,7 @@ def main():
         if selected_ids.Count > 0 and curview.ViewType == ViewType.FloorPlan:
             upper_level = get_upper_level(curview, all_levels)
             if not upper_level:
-                print("No upper level found above the current floor plan view")
+                TaskDialog.Show("Error", "No upper level found above the current floor plan view")
                 t.Commit()
                 return
             for element_id in selected_ids:
@@ -323,7 +326,7 @@ def main():
         elif curview.ViewType == ViewType.FloorPlan:
             upper_level = get_upper_level(curview, all_levels)
             if not upper_level:
-                print("No upper level found above the current view's level")
+                TaskDialog.Show("Error", "No upper level found above the current view's level")
                 t.Commit()
                 return
             pipes = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationPipework).WhereElementIsNotElementType().ToElements()
@@ -337,7 +340,7 @@ def main():
                         placed_count += 1
         
         else:
-            print("Script only runs in 3D or Floor Plan views, or with pre-selected pipes in supported views")
+            TaskDialog.Show("Error", "Script only runs in 3D or Floor Plan views, or with pre-selected pipes in supported views")
             t.Commit()
             return
         

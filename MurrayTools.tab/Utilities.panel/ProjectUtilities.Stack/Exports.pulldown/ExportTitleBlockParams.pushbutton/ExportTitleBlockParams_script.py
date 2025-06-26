@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-from pyrevit import revit, DB, forms, script
+import Autodesk
 import clr
 clr.AddReference('System.Windows.Forms')
 clr.AddReference('System.Drawing')
 from System.Windows.Forms import (Form, Label, ListBox, Button, FormBorderStyle, 
                                 FormStartPosition, SelectionMode, MessageBox, 
-                                MessageBoxButtons, DialogResult)
+                                MessageBoxButtons, MessageBoxIcon, DialogResult, SaveFileDialog)
 from System import Array
 from System.Drawing import Point, Size
 import os
@@ -17,6 +17,17 @@ last_export_dir = os.path.expanduser("~") + "\\Desktop"
 
 def export_titleblocks_to_excel(title_blocks, filepath, selected_params):
     global last_export_dir
+    # Check if file exists and delete it to avoid Excel COM prompt
+    if os.path.exists(filepath):
+        try:
+            os.remove(filepath)
+        except Exception as e:
+            MessageBox.Show("Failed to delete existing file:\n{}".format(str(e)), 
+                           "Error", 
+                           MessageBoxButtons.OK, 
+                           MessageBoxIcon.Error)
+            return
+    
     excel = ApplicationClass()
     excel.Visible = False
     wb = excel.Workbooks.Add()
@@ -45,7 +56,7 @@ def export_titleblocks_to_excel(title_blocks, filepath, selected_params):
             ws.Name = safe_name
         
         # Write headers
-        headers = ["ElementId", "Sheet Number"] + selected_params
+        headers = ["ElementId"] + selected_params
         for col, header in enumerate(headers, 1):
             ws.Cells[1, col].Value2 = header
         
@@ -53,22 +64,22 @@ def export_titleblocks_to_excel(title_blocks, filepath, selected_params):
         row = 2
         for tb in tbs:
             ws.Cells[row, 1].Value2 = str(tb.Id.IntegerValue)
-            sheet_number_param = tb.LookupParameter("Sheet Number")
-            ws.Cells[row, 2].Value2 = sheet_number_param.AsString() if sheet_number_param else "N/A"
             
-            col = 3
+            col = 2
             for param_name in selected_params:
                 param = tb.LookupParameter(param_name)
                 value = ""
                 if param:
-                    if param.StorageType == DB.StorageType.String:
+                    from Autodesk.Revit.DB import StorageType
+                    if param.StorageType == StorageType.String:
                         value = param.AsString() if param.AsString() is not None else ""
-                    elif param.StorageType == DB.StorageType.Double:
+                    elif param.StorageType == StorageType.Double:
                         value = param.AsDouble()
-                    elif param.StorageType == DB.StorageType.Integer:
+                    elif param.StorageType == StorageType.Integer:
                         value = param.AsInteger()
                 ws.Cells[row, col].Value2 = value
                 col += 1
+
             row += 1
         
         # Auto-fit columns
@@ -79,63 +90,6 @@ def export_titleblocks_to_excel(title_blocks, filepath, selected_params):
     wb.Close()
     excel.Quit()
     last_export_dir = os.path.dirname(filepath)
-
-def import_changes_from_excel(filepath):
-    if not os.path.exists(filepath):
-        forms.alert("Excel file not found at:\n{}".format(filepath))
-        return
-    
-    excel = ApplicationClass()
-    excel.Visible = False
-    wb = excel.Workbooks.Open(filepath)
-    ws = wb.Worksheets[1]
-    
-    headers = []
-    col = 1
-    while ws.Cells[1, col].Value2:
-        headers.append(ws.Cells[1, col].Value2)
-        col += 1
-    header_map = {h: i+1 for i, h in enumerate(headers)}
-
-    row_count = ws.UsedRange.Rows.Count
-    if row_count <= 1:
-        wb.Close()
-        excel.Quit()
-        forms.alert("No data found in Excel file.")
-        return
-    
-    updated_count = 0
-    with revit.Transaction("Update Title Blocks from Excel"):
-        for row in range(2, row_count + 1):
-            elem_id = ws.Cells[row, header_map["ElementId"]].Value2
-            if elem_id:
-                try:
-                    elem_id = int(float(elem_id))
-                    element = revit.doc.GetElement(DB.ElementId(elem_id))
-                    if element:
-                        for header, col_idx in header_map.items():
-                            if header != "ElementId":
-                                param = element.LookupParameter(header)
-                                if param and not param.IsReadOnly:
-                                    value = ws.Cells[row, col_idx].Value2
-                                    if value is not None:
-                                        try:
-                                            if param.StorageType == DB.StorageType.String:
-                                                param.Set(str(value))
-                                            elif param.StorageType == DB.StorageType.Double:
-                                                param.Set(float(value) if isinstance(value, (int, float)) else 0.0)
-                                            elif param.StorageType == DB.StorageType.Integer:
-                                                param.Set(int(float(value)) if isinstance(value, (int, float)) else 0)
-                                            updated_count += 1
-                                        except Exception, e:
-                                            print "Failed to set param {} for ElementId {}: {}".format(header, elem_id, e)
-                except Exception, e:
-                    print "Failed to process ElementId {}: {}".format(elem_id, e)
-                    continue
-    
-    wb.Close()
-    excel.Quit()
-    forms.alert("Import complete")
 
 class TitleBlockSelectionDialog(Form):
     def __init__(self, title_blocks):
@@ -268,11 +222,17 @@ class ParameterSelectionDialog(Form):
         for item in selected_items:
             if item not in self.selected_listbox.Items:
                 self.selected_listbox.Items.Add(item)
+                self.available_listbox.Items.Remove(item)
 
     def remove_selected(self, sender, args):
         selected_items = list(self.selected_listbox.SelectedItems)
         for item in selected_items:
             self.selected_listbox.Items.Remove(item)
+            self.available_listbox.Items.Add(item)
+        # Re-sort the available listbox to maintain alphabetical order
+        sorted_items = sorted([self.available_listbox.Items[i] for i in range(self.available_listbox.Items.Count)])
+        self.available_listbox.Items.Clear()
+        self.available_listbox.Items.AddRange(Array[object](sorted_items))
 
     def move_up(self, sender, args):
         selected_indices = list(self.selected_listbox.SelectedIndices)
@@ -314,7 +274,7 @@ def get_all_parameters(title_blocks):
             
             # Get shared parameters from family
             if tb.Symbol.Family:
-                family_doc = revit.doc.EditFamily(tb.Symbol.Family)
+                family_doc = __revit__.ActiveUIDocument.Document.EditFamily(tb.Symbol.Family)
                 if family_doc:
                     for param in family_doc.FamilyManager.Parameters:
                         param_names.add(param.Definition.Name)
@@ -323,51 +283,56 @@ def get_all_parameters(title_blocks):
     return sorted(param_names)
 
 def main():
-    options = ["Export Title Blocks", "Import Title Blocks"]
-    choice = forms.alert("Select an action:", options=options, title="Title Block Manager")
-    
-    if choice == "Export Title Blocks":
-        title_blocks = list(DB.FilteredElementCollector(revit.doc)
-            .OfCategory(DB.BuiltInCategory.OST_TitleBlocks)
-            .WhereElementIsNotElementType()
-            .ToElements())
+    title_blocks = list(Autodesk.Revit.DB.FilteredElementCollector(__revit__.ActiveUIDocument.Document)
+        .OfCategory(Autodesk.Revit.DB.BuiltInCategory.OST_TitleBlocks)
+        .WhereElementIsNotElementType()
+        .ToElements())
 
-        if not title_blocks:
-            forms.alert("No title blocks found in the project.")
-            return
+    if not title_blocks:
+        MessageBox.Show("No title blocks found in the project.", 
+                       "Error", 
+                       MessageBoxButtons.OK, 
+                       MessageBoxIcon.Error)
+        return
 
-        tb_dialog = TitleBlockSelectionDialog(title_blocks)
-        tb_dialog.ShowDialog()
+    tb_dialog = TitleBlockSelectionDialog(title_blocks)
+    tb_dialog.ShowDialog()
 
-        if not tb_dialog.selected_title_blocks:
-            forms.alert("No title blocks selected for export.")
-            return
+    if not tb_dialog.selected_title_blocks:
+        MessageBox.Show("No title blocks selected for export.", 
+                       "Error", 
+                       MessageBoxButtons.OK, 
+                       MessageBoxIcon.Error)
+        return
 
-        # Get all parameters including shared ones
-        param_names = get_all_parameters(tb_dialog.selected_title_blocks)
+    # Get all parameters including shared ones
+    param_names = get_all_parameters(tb_dialog.selected_title_blocks)
 
-        param_dialog = ParameterSelectionDialog(param_names)
-        param_dialog.ShowDialog()
+    param_dialog = ParameterSelectionDialog(param_names)
+    param_dialog.ShowDialog()
 
-        if not param_dialog.selected_params:
-            forms.alert("No parameters selected for export.")
-            return
+    if not param_dialog.selected_params:
+        MessageBox.Show("No parameters selected for export.", 
+                       "Error", 
+                       MessageBoxButtons.OK, 
+                       MessageBoxIcon.Error)
+        return
 
-        default_file_name = tb_dialog.selected_family_name if tb_dialog.selected_family_name else "TitleBlockExport"
-        filepath = forms.save_file(file_ext="xlsx", default_name=default_file_name, init_dir=last_export_dir)
-        if filepath:
-            export_titleblocks_to_excel(tb_dialog.selected_title_blocks, filepath, param_dialog.selected_params)
-            
-            result = MessageBox.Show("Export complete. Would you like to open the file?", 
-                                   "Open File", 
-                                   MessageBoxButtons.OKCancel)
-            if result == DialogResult.OK:
-                os.startfile(filepath)
-    
-    elif choice == "Import Title Blocks":
-        filepath = forms.pick_file(file_ext="xlsx", init_dir=last_export_dir, title="Select Excel File to Import")
-        if filepath:
-            import_changes_from_excel(filepath)
+    default_file_name = tb_dialog.selected_family_name if tb_dialog.selected_family_name else "TitleBlockExport"
+    save_dialog = SaveFileDialog()
+    save_dialog.Filter = "Excel Files (*.xlsx)|*.xlsx"
+    save_dialog.InitialDirectory = last_export_dir
+    save_dialog.FileName = default_file_name
+    save_dialog.OverwritePrompt = True
+    if save_dialog.ShowDialog() == DialogResult.OK:
+        filepath = save_dialog.FileName
+        export_titleblocks_to_excel(tb_dialog.selected_title_blocks, filepath, param_dialog.selected_params)
+        
+        result = MessageBox.Show("Export complete. Would you like to open the file?", 
+                               "Open File", 
+                               MessageBoxButtons.OKCancel)
+        if result == DialogResult.OK:
+            os.startfile(filepath)
 
 if __name__ == "__main__":
     main()

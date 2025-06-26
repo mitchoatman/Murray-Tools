@@ -6,10 +6,10 @@ title:
 
 # bundle tooltip
 tooltip: |-
-  This will Insert the Fabrication Fab Pipe Size Tag Family into the Active View.(If the Family is already loaded into the project)
+  This will Insert the Fabrication Fab Pipe Size - ALIGNED Tag Family into the Active View.(If the Family is already loaded into the project)
 
   [Shift]+Click:    
-  Inserts the ALIGNED version of the family so it will rotate with pipe.
+  Inserts the NON ALIGNED version of the family so it will rotate with pipe.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

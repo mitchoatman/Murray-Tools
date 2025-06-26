@@ -14,6 +14,9 @@ tooltip: |-
       4. Choose parameters and their order to export.
       5. Choose file location.
 
+  [Shift]+Click:    
+  Imports modifications to exported Excel file to feed changes back into borders.
+
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Walls

@@ -19,10 +19,6 @@ doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 fec = FilteredElementCollector
-app = doc.Application
-RevitVersion = app.VersionNumber
-RevitINT = float(RevitVersion)
-
 
 folder_name = "c:\\Temp"
 filepath = os.path.join(folder_name, 'Ribbon_CreateSketch.txt')
@@ -42,7 +38,7 @@ with open(filepath, 'r') as file:
 class TXT_Form(Form):
     def __init__(self):
         self.Text = 'Sketch Data'
-        self.Size = Size(275, 200)
+        self.Size = Size(275, 260)
         self.StartPosition = FormStartPosition.CenterScreen
         self.TopMost = True
         self.ShowIcon = False
@@ -52,39 +48,45 @@ class TXT_Form(Form):
 
         self.snumber = None
 
+        # Label for Sheet Number
         self.label_textbox = Label()
         self.label_textbox.Text = 'Sheet Number:'
         self.label_textbox.ForeColor = System.Drawing.Color.Black
         self.label_textbox.Font = Font("Arial", 12, FontStyle.Bold)
-        self.label_textbox.Location = Point(5, 20)
-        self.label_textbox.Size = Size(125, 40)
+        self.label_textbox.Location = Point(15, 20)
+        self.label_textbox.AutoSize = True
         self.Controls.Add(self.label_textbox)
 
+        # TextBox for Sheet Number
+        self.textBox1 = TextBox()
+        self.textBox1.Text = lines[0]
+        self.textBox1.Location = Point(15, 50)
+        self.textBox1.Size = Size(150, 20)
+        self.Controls.Add(self.textBox1)
+
+        # Label for Sheet Name
         self.label_textbox2 = Label()
         self.label_textbox2.Text = 'Sheet Name:'
         self.label_textbox2.ForeColor = System.Drawing.Color.Black
         self.label_textbox2.Font = Font("Arial", 12, FontStyle.Bold)
-        self.label_textbox2.Location = Point(5, 70)
-        self.label_textbox2.Size = Size(125, 40)
+        self.label_textbox2.Location = Point(15, 85)
+        self.label_textbox2.AutoSize = True
         self.Controls.Add(self.label_textbox2)
 
-        self.textBox1 = TextBox()
-        self.textBox1.Text = lines[0]
-        self.textBox1.Location = Point(130, 20)
-        self.textBox1.Size = Size(120, 40)
-        self.Controls.Add(self.textBox1)
-
+        # TextBox for Sheet Name
         self.textBox2 = TextBox()
         self.textBox2.Text = lines[1]
-        self.textBox2.Location = Point(130, 70)
-        self.textBox2.Size = Size(120, 40)
+        self.textBox2.Location = Point(15, 115)
+        self.textBox2.Size = Size(150, 20)
         self.Controls.Add(self.textBox2)
 
+        # Button
         self.button = Button()
         self.button.Text = 'Set Sketch Data'
-        self.button.Location = Point(80, 120)
-        self.button.Size = Size(100, 30)
+        self.button.AutoSize = True
         self.Controls.Add(self.button)
+        # Center the button after adding to controls
+        self.button.Location = Point((self.ClientSize.Width - self.button.Width) // 2, 160)
 
         self.button.Click += self.on_click
 
@@ -93,14 +95,11 @@ class TXT_Form(Form):
         self.sname = self.textBox2.Text
         self.Close()
 
-#Show the Form
+# Show the Form
 form = TXT_Form()
-# form.Show()
 Application.Run(form)
 
-# if form.value is not None:
 if form.snumber is not None:
-
     snumber = form.snumber
     sname = form.sname
 
@@ -122,7 +121,6 @@ if form.snumber is not None:
     if not selected_titleblocks:
         print("Error", "No title block selected.")
         sys.exit()
-
 
     if str(curview.ViewType) == 'FloorPlan':
         # Prompt user for box and make sure mins are mins and maxs are maxs
