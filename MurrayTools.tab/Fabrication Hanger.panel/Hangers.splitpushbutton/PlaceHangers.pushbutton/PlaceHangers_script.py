@@ -4,11 +4,12 @@ from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 import math
 import os
 import clr
-clr.AddReference("System.Windows.Forms")
-clr.AddReference("System.Drawing")
-clr.AddReference("System")
-from System.Windows.Forms import Form, Label, ComboBox, TextBox, CheckBox, Button, DialogResult, FormStartPosition, FormBorderStyle, ComboBoxStyle
-from System.Drawing import Point, Size, Font
+clr.AddReference("PresentationCore")
+clr.AddReference("PresentationFramework")
+clr.AddReference("WindowsBase")
+from System.Windows import Window, Thickness, WindowStartupLocation, ResizeMode, HorizontalAlignment
+from System.Windows.Controls import StackPanel, Label, ComboBox, TextBox, CheckBox, Button, Orientation
+from System.Windows.Media import FontFamily
 from System import Array
 
 doc = __revit__.ActiveUIDocument.Document
@@ -168,91 +169,104 @@ def analyze_run(selected_elements, start_element, start_connector):
     }
 
 # Windows Forms dialog for hanger and spacing
-class HangerSpacingDialog(Form):
+class HangerSpacingDialog(Window):
     def __init__(self, button_names, lines):
-        self.Text = "Hanger and Spacing"
-        self.Size = Size(400, 355)
-        self.StartPosition = FormStartPosition.CenterScreen
-        self.FormBorderStyle = FormBorderStyle.FixedDialog
+        super(HangerSpacingDialog, self).__init__()
+        self.Title = "Hanger and Spacing"
+        self.Width = 390
+        self.Height = 300
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
+        self.ResizeMode = ResizeMode.NoResize
 
-        # Choose Hanger Label
+        stack = StackPanel()
+        stack.Orientation = Orientation.Vertical
+        stack.Margin = Thickness(10)
+
         label_hanger = Label()
-        label_hanger.Text = "Choose Hanger:"
-        label_hanger.Location = Point(10, 10)
-        label_hanger.AutoSize = True
-        label_hanger.Font = Font("Arial", 10)
-        self.Controls.Add(label_hanger)
+        label_hanger.Content = "Choose Hanger:"
+        label_hanger.FontSize = 12
+        label_hanger.FontFamily = FontFamily("Arial")
+        label_hanger.Margin = Thickness(0, 0, 0, 0)
+        stack.Children.Add(label_hanger)
 
-        # Hanger ComboBox
         self.combobox_hanger = ComboBox()
-        self.combobox_hanger.Location = Point(10, 36)
-        self.combobox_hanger.Size = Size(350, 20)
-        self.combobox_hanger.DropDownStyle = ComboBoxStyle.DropDownList
-        self.combobox_hanger.Items.AddRange(Array[object](button_names))
+        self.combobox_hanger.Width = 350
+        self.combobox_hanger.Height = 20
+        self.combobox_hanger.FontSize = 12
+        self.combobox_hanger.FontFamily = FontFamily("Arial")
+        self.combobox_hanger.ItemsSource = Array[object](button_names)
         if lines[0] in button_names:
             self.combobox_hanger.SelectedItem = lines[0]
         else:
             self.combobox_hanger.SelectedItem = button_names[0]
-        self.Controls.Add(self.combobox_hanger)
+        self.combobox_hanger.Margin = Thickness(0, 0, 0, 10)
+        self.combobox_hanger.HorizontalAlignment = HorizontalAlignment.Left
+        stack.Children.Add(self.combobox_hanger)
 
-        # Distance from End Label
         label_end_dist = Label()
-        label_end_dist.Text = "Distance from End (Ft):"
-        label_end_dist.Font = Font("Arial", 10)
-        label_end_dist.Location = Point(10, 70)
-        label_end_dist.AutoSize = True
-        self.Controls.Add(label_end_dist)
+        label_end_dist.Content = "Distance from End (Ft):"
+        label_end_dist.FontSize = 12
+        label_end_dist.FontFamily = FontFamily("Arial")
+        label_end_dist.Margin = Thickness(0, 0, 0, 0)
+        stack.Children.Add(label_end_dist)
 
-        # Distance from End TextBox
         self.textbox_end_dist = TextBox()
-        self.textbox_end_dist.Location = Point(10, 95)
-        self.textbox_end_dist.Size = Size(350, 20)
+        self.textbox_end_dist.Width = 200
+        self.textbox_end_dist.Height = 20
+        self.textbox_end_dist.FontSize = 12
+        self.textbox_end_dist.FontFamily = FontFamily("Arial")
         self.textbox_end_dist.Text = lines[1]
-        self.Controls.Add(self.textbox_end_dist)
+        self.textbox_end_dist.Margin = Thickness(0, 0, 0, 10)
+        self.textbox_end_dist.HorizontalAlignment = HorizontalAlignment.Left
+        stack.Children.Add(self.textbox_end_dist)
 
-        # Hanger Spacing Label
         label_spacing = Label()
-        label_spacing.Text = "Hanger Spacing (Ft):"
-        label_spacing.Font = Font("Arial", 10)
-        label_spacing.Location = Point(10, 130)
-        label_spacing.AutoSize = True
-        self.Controls.Add(label_spacing)
+        label_spacing.Content = "Hanger Spacing (Ft):"
+        label_spacing.FontSize = 12
+        label_spacing.FontFamily = FontFamily("Arial")
+        label_spacing.Margin = Thickness(0, 0, 0, 0)
+        stack.Children.Add(label_spacing)
 
-        # Hanger Spacing TextBox
         self.textbox_spacing = TextBox()
-        self.textbox_spacing.Location = Point(10, 155)
-        self.textbox_spacing.Size = Size(350, 20)
+        self.textbox_spacing.Width = 200
+        self.textbox_spacing.Height = 20
+        self.textbox_spacing.FontSize = 12
+        self.textbox_spacing.FontFamily = FontFamily("Arial")
         self.textbox_spacing.Text = lines[2]
-        self.Controls.Add(self.textbox_spacing)
+        self.textbox_spacing.Margin = Thickness(0, 0, 0, 10)
+        self.textbox_spacing.HorizontalAlignment = HorizontalAlignment.Left
+        stack.Children.Add(self.textbox_spacing)
 
-        # Attach to Structure CheckBox
         self.checkbox_atos = CheckBox()
-        self.checkbox_atos.Text = "Attach to Structure"
-        self.checkbox_atos.Font = Font("Arial", 10)
-        self.checkbox_atos.Location = Point(10, 190)
-        self.checkbox_atos.AutoSize = True
-        self.checkbox_atos.Checked = True
-        self.Controls.Add(self.checkbox_atos)
+        self.checkbox_atos.Content = "Attach to Structure"
+        self.checkbox_atos.FontSize = 12
+        self.checkbox_atos.FontFamily = FontFamily("Arial")
+        self.checkbox_atos.IsChecked = True
+        self.checkbox_atos.Margin = Thickness(0, 0, 0, 5)
+        stack.Children.Add(self.checkbox_atos)
 
-        # Support Joints CheckBox
         self.checkbox_support_joints = CheckBox()
-        self.checkbox_support_joints.Text = "Support Joints"
-        self.checkbox_support_joints.Font = Font("Arial", 10)
-        self.checkbox_support_joints.Location = Point(10, 225)
-        self.checkbox_support_joints.AutoSize = True
-        self.checkbox_support_joints.Checked = lines[3].lower() == 'true'
-        self.Controls.Add(self.checkbox_support_joints)
+        self.checkbox_support_joints.Content = "Support Joints"
+        self.checkbox_support_joints.FontSize = 12
+        self.checkbox_support_joints.FontFamily = FontFamily("Arial")
+        self.checkbox_support_joints.IsChecked = lines[3].lower() == 'true'
+        self.checkbox_support_joints.Margin = Thickness(0, 0, 0, 10)
+        stack.Children.Add(self.checkbox_support_joints)
 
-        # OK Button
         self.button_ok = Button()
-        self.button_ok.Text = "OK"
-        self.button_ok.Font = Font("Arial", 10)
-        self.button_ok.Location = Point((self.Width / 2) - 37, 270)
+        self.button_ok.Content = "OK"
+        self.button_ok.FontSize = 12
+        self.button_ok.FontFamily = FontFamily("Arial")
+        self.button_ok.Width = 74
+        self.button_ok.Height = 25
+        self.button_ok.HorizontalAlignment = HorizontalAlignment.Center
         self.button_ok.Click += self.ok_button_clicked
-        self.Controls.Add(self.button_ok)
+        stack.Children.Add(self.button_ok)
+
+        self.Content = stack
 
     def ok_button_clicked(self, sender, event):
-        self.DialogResult = DialogResult.OK
+        self.DialogResult = True
         self.Close()
 
 try:
@@ -335,12 +349,12 @@ try:
 
     # Show the Windows Forms dialog
     form = HangerSpacingDialog(buttonnames, lines)
-    if form.ShowDialog() == DialogResult.OK:
-        Selectedbutton = form.combobox_hanger.Text
+    if form.ShowDialog():
+        Selectedbutton = form.combobox_hanger.SelectedItem
         distancefromend = float(form.textbox_end_dist.Text)
         Spacing = float(form.textbox_spacing.Text)
-        AtoS = form.checkbox_atos.Checked
-        SupportJoint = form.checkbox_support_joints.Checked
+        AtoS = form.checkbox_atos.IsChecked
+        SupportJoint = form.checkbox_support_joints.IsChecked
 
         # Write values to text file for future retrieval
         with open(filepath, 'w') as the_file:

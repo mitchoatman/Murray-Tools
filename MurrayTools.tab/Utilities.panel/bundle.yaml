@@ -3,6 +3,8 @@ layout:
   - ProjectUtilities
   - SaveViews
   - Views and Sheets[title:Views\nand Sheets]
+  - ZoomToElement
+  - IssueTracker
 
 collapsed: false
 

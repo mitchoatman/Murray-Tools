@@ -8,8 +8,8 @@ title:
 # bundle tooltip
 tooltip: |-
   Exports an NWC file of the Active view. It creates and applies
-  materials to fabrication parts matching filter colors so fabrication elements
-  have color in Navis without needing to use search filters and appearance profiler.
+  materials to fabrication parts matching filter colors so fabrication
+  elements have color in Navis without needing to use search filters and appearance profiler.
       1. Run command.
       2. Choose save location and file name.
       

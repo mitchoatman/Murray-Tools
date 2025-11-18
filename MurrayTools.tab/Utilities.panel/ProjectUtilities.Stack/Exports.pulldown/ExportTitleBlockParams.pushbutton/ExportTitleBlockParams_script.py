@@ -17,6 +17,7 @@ last_export_dir = os.path.expanduser("~") + "\\Desktop"
 
 def export_titleblocks_to_excel(title_blocks, filepath, selected_params):
     global last_export_dir
+    from Autodesk.Revit.DB import StorageType
     # Check if file exists and delete it to avoid Excel COM prompt
     if os.path.exists(filepath):
         try:
@@ -60,9 +61,28 @@ def export_titleblocks_to_excel(title_blocks, filepath, selected_params):
         for col, header in enumerate(headers, 1):
             ws.Cells[1, col].Value2 = header
         
+        # Sort tbs by the first selected parameter, secondarily by ElementId
+        if selected_params:
+            first_param = selected_params[0]
+            def get_key(tb):
+                param = tb.LookupParameter(first_param)
+                element_id = tb.Id.IntegerValue
+                if not param:
+                    return (element_id, element_id)
+                if param.StorageType == StorageType.String:
+                    return (param.AsString() or "", element_id)
+                elif param.StorageType == StorageType.Double:
+                    return (param.AsDouble(), element_id)
+                elif param.StorageType == StorageType.Integer:
+                    return (param.AsInteger(), element_id)
+                return (0, element_id)
+            sorted_tbs = sorted(tbs, key=get_key)
+        else:
+            sorted_tbs = sorted(tbs, key=lambda tb: tb.Id.IntegerValue)
+        
         # Write data for each title block in this family
         row = 2
-        for tb in tbs:
+        for tb in sorted_tbs:
             ws.Cells[row, 1].Value2 = str(tb.Id.IntegerValue)
             
             col = 2
@@ -70,7 +90,6 @@ def export_titleblocks_to_excel(title_blocks, filepath, selected_params):
                 param = tb.LookupParameter(param_name)
                 value = ""
                 if param:
-                    from Autodesk.Revit.DB import StorageType
                     if param.StorageType == StorageType.String:
                         value = param.AsString() if param.AsString() is not None else ""
                     elif param.StorageType == StorageType.Double:
@@ -79,7 +98,6 @@ def export_titleblocks_to_excel(title_blocks, filepath, selected_params):
                         value = param.AsInteger()
                 ws.Cells[row, col].Value2 = value
                 col += 1
-
             row += 1
         
         # Auto-fit columns
@@ -262,6 +280,9 @@ class ParameterSelectionDialog(Form):
 
 def get_all_parameters(title_blocks):
     param_names = set()
+    processed_families = set()  # Track processed family IDs
+    doc = __revit__.ActiveUIDocument.Document
+
     for tb in title_blocks:
         # Get parameters from the element
         for param in tb.Parameters:
@@ -272,13 +293,17 @@ def get_all_parameters(title_blocks):
             for param in tb.Symbol.Parameters:
                 param_names.add(param.Definition.Name)
             
-            # Get shared parameters from family
-            if tb.Symbol.Family:
-                family_doc = __revit__.ActiveUIDocument.Document.EditFamily(tb.Symbol.Family)
-                if family_doc:
-                    for param in family_doc.FamilyManager.Parameters:
-                        param_names.add(param.Definition.Name)
-                    family_doc.Close(False)  # False means don't save
+            # Get shared parameters from family, but only once per family
+            if tb.Symbol.Family and tb.Symbol.Family.Id.IntegerValue not in processed_families:
+                try:
+                    family_doc = doc.EditFamily(tb.Symbol.Family)
+                    if family_doc:
+                        for param in family_doc.FamilyManager.Parameters:
+                            param_names.add(param.Definition.Name)
+                        family_doc.Close(False)  # False means don't save
+                    processed_families.add(tb.Symbol.Family.Id.IntegerValue)
+                except:
+                    pass  # Skip if family cannot be opened
     
     return sorted(param_names)
 

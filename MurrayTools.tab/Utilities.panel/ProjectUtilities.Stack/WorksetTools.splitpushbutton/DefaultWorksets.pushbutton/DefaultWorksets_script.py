@@ -1,51 +1,67 @@
 from __future__ import print_function
-from Autodesk.Revit.DB import Workset, Transaction, BuiltInCategory, FilteredWorksetCollector
+from Autodesk.Revit.DB import Workset, Transaction, FilteredWorksetCollector
 from pyrevit import revit
 
 doc = __revit__.ActiveUIDocument.Document
 
-WorksetNames = []
-LevelNames = []
-
-AllWorksets = FilteredWorksetCollector(doc)
-for c in AllWorksets:
-	WorksetNames.append(c.Name)
-
-WorksetToAdd = []
-WorksetToAdd.append('MURRAY Levels and Grids')
-WorksetToAdd.append('LINK - ARCH')
-WorksetToAdd.append('LINK - STRUCT')
-WorksetToAdd.append('LINK - MEP')
-WorksetToAdd.append('POINTLAYOUT')
+WorksetToAdd = [
+    'MURRAY Levels and Grids',
+    'LINKS',
+    'POINTLAYOUT'
+]
 
 worksetaddedlist = []
 
-if not revit.doc.IsWorkshared and revit.doc.CanEnableWorksharing:
-    revit.doc.EnableWorksharing('Workset1','Workset1')
-
-t = Transaction(doc)
-t.Start('Create Worksets')
-try:
-    WorksetList = list(set(WorksetToAdd).difference(set(WorksetNames)))
-    if len(WorksetList) > 0:
-        for wset in WorksetList:
-            Workset.Create(doc, str(wset))
-            worksetaddedlist.append(wset)
-        print ('Added Workset(s):')
-        print (*worksetaddedlist,sep='\n')
-    else:
-        print ('Worksets already exist')
-except:
-    pass
-t.Commit()
-
-if doc.IsModelInCloud:
-    t = Transaction(doc)
-    t.Start('Create Worksets')
+# Step 1: Enable worksharing if not already enabled (outside any transaction)
+worksharing_enabled = False
+if not doc.IsWorkshared:
     try:
-        # Enable worksharing
-        WorksharingUtils.EnableWorksharing(doc, "Workset1", "Workset1")
-        print("Worksharing enabled successfully.")
-    except:
-        pass
-    t.Commit()
+        if doc.IsModelInCloud:
+            if doc.CanEnableCloudWorksharing():
+                doc.EnableCloudWorksharing()
+                print("Cloud worksharing enabled successfully.")
+                worksharing_enabled = True
+            else:
+                print("Cloud worksharing cannot be enabled for this model.")
+                raise Exception("Worksharing enablement prerequisites not met.")
+        elif doc.CanEnableWorksharing():
+            doc.EnableWorksharing('Workset1', 'Workset1')
+            print("Local worksharing enabled successfully.")
+            worksharing_enabled = True
+        else:
+            print("Worksharing cannot be enabled for this model.")
+            raise Exception("Worksharing enablement prerequisites not met.")
+    except Exception as e:
+        print("Error enabling worksharing: {}".format(str(e)))
+        # Halt script execution if worksharing is required
+else:
+    worksharing_enabled = True
+    print("Worksharing is already enabled.")
+
+# Step 2: Verify worksharing is active before proceeding
+if not doc.IsWorkshared:
+    print("Worksharing enablement failed; cannot create worksets.")
+else:
+    # Collect current workset names (refreshed after potential enablement)
+    WorksetNames = []
+    AllWorksets = FilteredWorksetCollector(doc)
+    for c in AllWorksets:
+        WorksetNames.append(c.Name)
+
+    # Step 3: Create additional worksets if needed
+    t = Transaction(doc, 'Create Worksets')
+    t.Start()
+    try:
+        WorksetList = list(set(WorksetToAdd).difference(set(WorksetNames)))
+        if len(WorksetList) > 0:
+            for wset in WorksetList:
+                Workset.Create(doc, str(wset))
+                worksetaddedlist.append(wset)
+            print('Added Workset(s):')
+            print(*worksetaddedlist, sep='\n')
+        else:
+            print('Specified worksets already exist')
+        t.Commit()
+    except Exception as e:
+        t.RollBack()
+        print("Error creating worksets: {}".format(str(e)))

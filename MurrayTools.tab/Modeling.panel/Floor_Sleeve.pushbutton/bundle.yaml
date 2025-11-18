@@ -25,7 +25,7 @@ tooltip: |-
   1.  Click the button.
   2.  Pipe Risers are placed on pipes in the active view that cross a level line.
 
-  Floorplan View - pipe risers are placed on level above.
+  Floorplan View - pipe risers are placed on level below.
   3D View - visible pipes crossing level lines are populated with pipe riser.
   
   Pre-Selected - sleeves are placed on the selected element(s) only.

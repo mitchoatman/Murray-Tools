@@ -15,9 +15,6 @@ doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 active_view = doc.ActiveView
 
-# Get the associated level of the active view
-level = active_view.GenLevel
-
 class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):
         overwriteParameterValues.Value = False
@@ -94,6 +91,9 @@ def project_point_on_curve(point, curve):
 def place_and_modify_family(pipe, famsymb):
     centerline_curve = get_pipe_centerline(pipe)
     picked_point = pick_point()
+
+    # Get reference level from pipe
+    level = doc.GetElement(pipe.LevelId)
     
     # Project the picked point onto the pipe centerline to get the Z coordinate
     projected_point = project_point_on_curve(picked_point, centerline_curve)

@@ -96,11 +96,14 @@ if not elevation_symbol.IsActive:
 try:
     class FabricationPipeFilter(ISelectionFilter):
         def AllowElement(self, element):
-            return element.Category.Id.IntegerValue == int(BuiltInCategory.OST_FabricationPipework)
+            if element.Category.Id.IntegerValue == int(BuiltInCategory.OST_FabricationPipework):
+                param = element.ItemCustomId
+                return param == 2041
+            return False
         def AllowReference(self, reference, point):
             return False
 
-    selected_refs = uidoc.Selection.PickObjects(ObjectType.Element, FabricationPipeFilter(), "Select fabrication pipes")
+    selected_refs = uidoc.Selection.PickObjects(ObjectType.Element, FabricationPipeFilter(), "Select fabrication pipes CID 2041")
     selected_pipes = [doc.GetElement(ref.ElementId) for ref in selected_refs]
     
     if not selected_pipes:

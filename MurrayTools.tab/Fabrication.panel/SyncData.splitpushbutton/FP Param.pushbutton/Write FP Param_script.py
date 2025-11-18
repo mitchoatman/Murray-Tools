@@ -1,6 +1,6 @@
-
 import Autodesk
-from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, Transaction, FabricationPart, FabricationConfiguration, BuiltInParameter
+from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, Transaction, FabricationPart, FabricationConfiguration, BuiltInParameter, WorksharingUtils
+from System.Collections.Generic import List
 from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsInteger, get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsDouble
 
@@ -13,36 +13,77 @@ curview = doc.ActiveView
 fec = FilteredElementCollector
 app = doc.Application
 RevitVersion = app.VersionNumber
-RevitINT = float (RevitVersion)
+RevitINT = float(RevitVersion)
 Config = FabricationConfiguration.GetFabricationConfiguration(doc)
 
 # Function to get fabrication connector names and track their IDs
 def get_fabrication_connector_info(fabPart):
-    # Create a dictionary to store connector names with their IDs
     connector_info = {}
-    # Check if the element is a fabrication part
     if isinstance(fabPart, FabricationPart):
         connectors = fabPart.ConnectorManager.Connectors
-        # Loop through each connector
         for connector in connectors:
             try:
-                # Get FabricationConnectorInfo from the connector
                 fab_connector_info = connector.GetFabricationConnectorInfo()
-                # Extract the BodyConnectorId
                 fabrication_connector_id = fab_connector_info.BodyConnectorId
-                # Use GetFabricationConnectorName with the correct fabrication configuration and connector ID
                 connector_name = FabricationConfiguration.GetFabricationConfiguration(doc).GetFabricationConnectorName(fabrication_connector_id)
-                # Store the connector ID and name in the dictionary
-                connector_info[connector.Id] = connector_name  # Directly use connector.Id
+                connector_info[connector.Id] = connector_name
             except:
                 pass
     return connector_info
 
+# Function to check out elements in one operation
+def checkout_elements(element_ids):
+    if not doc.IsWorkshared or not element_ids:
+        return
+    try:
+        # Convert to List[ElementId] for CheckoutElements
+        id_list = List[DB.ElementId](element_ids)
+        WorksharingUtils.CheckoutElements(doc, id_list)
+    except:
+        pass  # If checkout fails, proceed with editable elements only
+
+# Collect all elements that will be modified and check for checkout
+all_elements_to_modify = []
+selection = [doc.GetElement(id) for id in __revit__.ActiveUIDocument.Selection.GetElementIds()]
+if selection:
+    all_elements_to_modify.extend(selection)
+else:
+    hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers) \
+                       .WhereElementIsNotElementType() \
+                       .ToElements()
+    pipe_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationPipework) \
+                       .WhereElementIsNotElementType() \
+                       .ToElements()
+    duct_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationDuctwork) \
+                       .WhereElementIsNotElementType() \
+                       .ToElements()
+    AllElements = FilteredElementCollector(doc, curview.Id).OfClass(FabricationPart) \
+                       .WhereElementIsNotElementType() \
+                       .ToElements()
+    flex_duct_collector = FilteredElementCollector(doc, curview.Id) \
+                            .OfCategory(BuiltInCategory.OST_FlexDuctCurves) \
+                            .WhereElementIsNotElementType() \
+                            .ToElements()
+    all_elements_to_modify.extend(hanger_collector)
+    all_elements_to_modify.extend(pipe_collector)
+    all_elements_to_modify.extend(duct_collector)
+    all_elements_to_modify.extend(AllElements)
+    all_elements_to_modify.extend(flex_duct_collector)
+
+# Identify non-editable elements and attempt to check them out
+non_editable_ids = []
+if doc.IsWorkshared:
+    for elem in all_elements_to_modify:
+        try:
+            tooltip_info = WorksharingUtils.GetWorksharingTooltipInfo(doc, elem.Id)
+            if not tooltip_info.Editable:
+                non_editable_ids.append(elem.Id)
+        except:
+            pass
+if non_editable_ids:
+    checkout_elements(non_editable_ids)
 
 # --------------SELECTED ELEMENTS-------------------
-
-selection = [doc.GetElement(id) for id in __revit__.ActiveUIDocument.Selection.GetElementIds()]
-
 if selection:
     t = Transaction(doc, "Update FP Parameters")
     t.Start()
@@ -56,9 +97,8 @@ if selection:
                 pass
 
             try:
-                    # Handle Centerline Length conditions
-                    if x.ItemCustomId == 2041 or x.Category.Name == 'MEP Fabrication Ductwork':
-                        set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength)
+                if x.ItemCustomId == 2041 or x.Category.Name == 'MEP Fabrication Ductwork':
+                    set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength)
             except:
                 pass
 
@@ -100,7 +140,6 @@ if selection:
             except:
                 pass
             try:
-                #------#
                 ItmDims = x.GetDimensions()
                 for dta in ItmDims:
                     if dta.Name == 'Top Extension':
@@ -118,14 +157,11 @@ if selection:
                     ProductEntry = x.LookupParameter('Product Entry')
                     if ProductEntry:
                         if (x.GetRodInfo().RodCount) < 2:
-                            # Get the host element's size
                             hosted_info = x.GetHostedInfo().HostId
                             try:
                                 HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size').strip('"')
-                                # Get the hanger's size
                                 HangerSize = get_parameter_value_by_name_AsString(x, 'Product Entry')
                                 set_parameter_by_name(x, 'FP_Product Entry', HangerSize)
-                                # Set the 'FP_Hanger Shield' parameter based on whether the host and hanger sizes match
                                 if HostSize == HangerSize:
                                     set_parameter_by_name(x, 'FP_Hanger Shield', 'No')
                                 else:
@@ -171,37 +207,26 @@ if selection:
                 if isinstance(x, FabricationPart):
                     connector_info = get_fabrication_connector_info(x)
                     for connector_id, name in connector_info.items():
-                        param_name = "FP_Connector C{}".format(connector_id + 1)  # Offset by 1
+                        param_name = "FP_Connector C{}".format(connector_id + 1)
                         set_parameter_by_name(x, param_name, name)
             except:
                 pass
     t.Commit()
 
-# --------------SELECTED ELEMENTS-------------------
+# --------------ACTIVE VIEW-------------------
 else:
-    # --------------ACTIVE VIEW-------------------
-
-    # Creating collector instance and collecting all the fabrication hangers from the model
     hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers) \
                        .WhereElementIsNotElementType() \
                        .ToElements()
-
-    # Creating collector instance and collecting all the fabrication hangers from the model
     pipe_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationPipework) \
                        .WhereElementIsNotElementType() \
                        .ToElements()
-
-    # Creating collector instance and collecting all the fabrication hangers from the model
     duct_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationDuctwork) \
                        .WhereElementIsNotElementType() \
                        .ToElements()
-
-    # Create a FilteredElementCollector to get all FabricationPart elements
     AllElements = FilteredElementCollector(doc, curview.Id).OfClass(FabricationPart) \
                        .WhereElementIsNotElementType() \
                        .ToElements()
-
-    # Creating a collector for Flex Ducts in the active view
     flex_duct_collector = FilteredElementCollector(doc, curview.Id) \
                             .OfCategory(BuiltInCategory.OST_FlexDuctCurves) \
                             .WhereElementIsNotElementType() \
@@ -225,16 +250,13 @@ else:
 
     for hanger in hanger_collector:
         if (hanger.GetRodInfo().RodCount) < 2:
-            # Get the host element's size
             hosted_info = hanger.GetHostedInfo().HostId
             try:
                 HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size').strip('"')
-                # Get the hanger's size
                 HangerSize = get_parameter_value_by_name_AsString(hanger, 'Product Entry')
                 set_parameter_by_name(hanger, 'FP_Product Entry', HangerSize)
                 set_parameter_by_name(hanger, 'Comments', HostSize)
                 set_parameter_by_name(hanger, 'FP_Hanger Host Diameter', HostSize)
-                # Set the 'FP_Hanger Shield' parameter based on whether the host and hanger sizes match
                 if HostSize == HangerSize:
                     set_parameter_by_name(hanger, 'FP_Hanger Shield', 'No')
                 else:
@@ -276,10 +298,8 @@ else:
             try:
                 action(element)
             except Exception as e:
-                # Log the exception if needed
                 pass
 
-    # Define the actions as lambda functions
     actions = [
         lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) if x.ItemCustomId == 2041 else None,
         lambda x: set_parameter_by_name(x, 'FP_CID', x.ItemCustomId),
@@ -289,19 +309,16 @@ else:
         lambda x: set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No'),
         lambda x: [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0],
         lambda x: set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else None,
-
         lambda x: set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') \
         else set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Size')),
-
-        lambda x: set_parameter_by_name(x, 'FP_Product Entry', (get_parameter_value_by_name_AsString(x, 'Size') or '') + ' x ' + (get_parameter_value_by_name_AsValueString(x, 'Angle') or '')) \
-        if x.Alias and x.Alias.upper() == 'TRM' else set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Size')),
+        lambda x: set_parameter_by_name(x, 'FP_Product Entry', (get_parameter_value_by_name_AsString(x, 'Size') or '') + ' x ' + (get_parameter_value_by_name_AsValueString(x, 'Angle') \
+        or '')) if x.Alias and x.Alias.upper() == 'TRM' else get_parameter_value_by_name_AsString(x, 'Size'),
         lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength),
         lambda x: set_parameter_by_name(x, 'FP_Centerline Length', get_parameter_value_by_name_AsDouble(x, 'Length')),
-        lambda x: set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Overall Size')), 
+        lambda x: set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Overall Size')),
         lambda x: set_parameter_by_name(x, 'FP_Part Material', get_parameter_value_by_name_AsValueString(x, 'Part Material')) if get_parameter_value_by_name_AsValueString(x, 'Part Material') else None,
-       ]
+    ]
 
-    # Apply the actions to the respective element collections
     safely_set_parameter(actions[0], AllElements)
     safely_set_parameter(actions[1], AllElements)
     safely_set_parameter(actions[2], AllElements)
@@ -322,11 +339,9 @@ else:
         for x in AllElements:
             connector_info = get_fabrication_connector_info(x)
             for connector_id, name in connector_info.items():
-                param_name = "FP_Connector C{}".format(connector_id + 1)  # Offset by 1
+                param_name = "FP_Connector C{}".format(connector_id + 1)
                 set_parameter_by_name(x, param_name, name)
     except:
         pass
 
     t.Commit()
-    
-    # --------------ACTIVE VIEW-------------------

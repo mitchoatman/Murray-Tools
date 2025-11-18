@@ -1,8 +1,8 @@
 layout:
   - APL
+  - FixtureCL
   - Pipe Wall Sleeve
-  - Round_Duct_Wall_Sleeve
-  - Rect_Duct_Wall_Sleeve
+  - Duct Wall Sleeve
   - PointLayoutConfig
   
 background:

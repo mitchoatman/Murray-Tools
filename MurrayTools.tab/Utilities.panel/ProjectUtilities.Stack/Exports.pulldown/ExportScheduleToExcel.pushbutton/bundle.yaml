@@ -13,7 +13,8 @@ tooltip: |-
       3. Choose save location.
 
 # context directives are listed under `context` key, the order does not matter
-#context:
+context:
+  - version<=2024
 #  - Walls
 #  - Text Notes
 

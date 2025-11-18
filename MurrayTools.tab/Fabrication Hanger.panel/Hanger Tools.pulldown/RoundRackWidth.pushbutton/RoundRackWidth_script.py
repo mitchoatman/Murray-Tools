@@ -1,5 +1,4 @@
-
-#Imports
+# Imports
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import *
 from rpw.ui.forms import TextInput
@@ -21,18 +20,24 @@ class CustomISelectionFilter(ISelectionFilter):
         else:
             return False
     def AllowReference(self, ref, point):
-        return true
+        return True
 
-pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
-CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers")            
-Hanger = [doc.GetElement( elId ) for elId in pipesel]
-
+Hanger = []
 Dimensions = []
 
 def myround(x, multiple):
-    return multiple * math.ceil(x/multiple)
+    return multiple * math.ceil(x / multiple)
 
 bvalue_abvstd = 0.0
+
+try:
+    pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
+                                          CustomISelectionFilter("MEP Fabrication Hangers"),
+                                          "Select Fabrication Hangers")
+    Hanger = [doc.GetElement(elId) for elId in pipesel]
+except:
+    # Exit quietly on selection cancellation
+    pass
 
 t = Transaction(doc, "Round Trapeze Width")
 t.Start()

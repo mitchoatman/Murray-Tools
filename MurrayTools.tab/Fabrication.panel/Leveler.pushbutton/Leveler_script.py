@@ -1,109 +1,118 @@
+# -*- coding: utf-8 -*-
 import clr
-clr.AddReference('System.Windows.Forms')
-clr.AddReference('System.Drawing')
+clr.AddReference('PresentationFramework')
+clr.AddReference('PresentationCore')
+clr.AddReference('WindowsBase')
+clr.AddReference('RevitAPIUI')
+
 import System
-from Autodesk.Revit.DB import BoundingBoxXYZ, FilteredElementCollector, Transaction, BuiltInCategory, FabricationPart, Level, LogicalOrFilter, ElementCategoryFilter
-from System.Windows.Forms import Form, Label, ComboBox, Button, FormStartPosition
-from System.Drawing import Point, Size
+from Autodesk.Revit.DB import BoundingBoxXYZ, FilteredElementCollector, Transaction, BuiltInCategory, FabricationPart, LogicalOrFilter, ElementCategoryFilter
+from Autodesk.Revit.UI import TaskDialog
 from System import Array
 import math
+
+from System.Windows import Window, WindowStartupLocation
+from System.Windows.Controls import Label, ComboBox, Button, TextBlock, Grid, StackPanel
+from System.Windows import Thickness, HorizontalAlignment, VerticalAlignment
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 
-# Create a collector to get all Level elements in the document
+# Collect levels
 level_collector = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Levels).WhereElementIsNotElementType()
-
-# Store level names and ElementIds in a dictionary
-level_elevations = {"(None)": None}  # Add (None) option with None as value
-level_ids = {}  # Dictionary to store level names and their ElementId
+level_elevations = {"(None)": None}
+level_ids = {}
 for level in level_collector:
     level_elevations[level.Name] = level.Elevation
-    level_ids[level.Name] = level.Id  # Store the ElementId of each level
+    level_ids[level.Name] = level.Id
 
-# Sort levels by elevation to find the lowest and the next level
-sorted_levels = sorted(level_elevations.items(), key=lambda x: x[1] if x[1] is not None else float('inf'))  # Sort by elevation, handle None
+sorted_levels = sorted(level_elevations.items(), key=lambda x: x[1] if x[1] is not None else float('inf'))
 
-# Pre-set the lowest level as Bottom and the next level up as Top
 if len(sorted_levels) > 1:
-    pre_set_bottom_level = sorted_levels[0][0]  # Lowest level
-    pre_set_top_level = sorted_levels[1][0]     # Level above the lowest
+    pre_set_bottom_level = sorted_levels[0][0]
+    pre_set_top_level = sorted_levels[1][0]
 else:
     pre_set_bottom_level = sorted_levels[0][0] if sorted_levels else "(None)"
     pre_set_top_level = "(None)"
 
-# Function to get the bottom point Z elevation of a fabrication part's bounding box
 def get_bottom_point_z(ele):
     bBox = doc.GetElement(ele).get_BoundingBox(None)
     if bBox is None:
         return None
-    return bBox.Min.Z  # Return the Z coordinate of the bottom point
+    return bBox.Min.Z
 
-# Create WinForms dialog
-class LevelSelectionForm(Form):
+# WPF Grid Dialog with OK/Cancel
+class LevelSelectionWindow(Window):
     def __init__(self, levels, default_top, default_bottom):
-        self.Text = "Select Levels"
-        self.Size = Size(400, 300)
-        self.StartPosition = FormStartPosition.CenterScreen
-        self.levels = levels
+        self.Title = "Select Levels"
+        self.Width = 400
+        self.Height = 270
+        self.ResizeMode = System.Windows.ResizeMode.NoResize
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
 
-        # Top Level Label
-        self.top_label = Label()
-        self.top_label.Text = "Choose Top Level:"
-        self.top_label.Location = Point(20, 20)
-        self.top_label.Size = Size(150, 20)
-        self.Controls.Add(self.top_label)
+        grid = Grid()
+        grid.Margin = Thickness(15)
 
-        # Top Level ComboBox
+        # Define rows
+        for i in range(8):
+            grid.RowDefinitions.Add(System.Windows.Controls.RowDefinition())
+        grid.ColumnDefinitions.Add(System.Windows.Controls.ColumnDefinition())
+        grid.ColumnDefinitions.Add(System.Windows.Controls.ColumnDefinition())
+
+        # Top Level
+        lbl_top = Label(Content="Choose Top Level:")
+        Grid.SetRow(lbl_top, 0); Grid.SetColumn(lbl_top, 0)
+        grid.Children.Add(lbl_top)
+
         self.top_combo = ComboBox()
-        self.top_combo.Location = Point(180, 20)
-        self.top_combo.Size = Size(150, 20)
-        self.top_combo.Items.AddRange(Array[object](sorted(levels.keys())))
+        for l in sorted(levels.keys()):
+            self.top_combo.Items.Add(l)
         self.top_combo.SelectedItem = default_top
-        self.Controls.Add(self.top_combo)
+        self.top_combo.ToolTip = "Set this to (None) for Roof level"
+        Grid.SetRow(self.top_combo, 0); Grid.SetColumn(self.top_combo, 1)
+        grid.Children.Add(self.top_combo)
 
-        # Bottom Level Label
-        self.bottom_label = Label()
-        self.bottom_label.Text = "Choose Bottom Level:"
-        self.bottom_label.Location = Point(20, 60)
-        self.bottom_label.Size = Size(150, 20)
-        self.Controls.Add(self.bottom_label)
+        # Bottom Level
+        lbl_bot = Label(Content="Choose Bottom Level:")
+        Grid.SetRow(lbl_bot, 1); Grid.SetColumn(lbl_bot, 0)
+        grid.Children.Add(lbl_bot)
 
-        # Bottom Level ComboBox
         self.bottom_combo = ComboBox()
-        self.bottom_combo.Location = Point(180, 60)
-        self.bottom_combo.Size = Size(150, 20)
-        self.bottom_combo.Items.AddRange(Array[object](sorted(levels.keys())))
+        for l in sorted(levels.keys()):
+            self.bottom_combo.Items.Add(l)
         self.bottom_combo.SelectedItem = default_bottom
-        self.Controls.Add(self.bottom_combo)
+        self.bottom_combo.ToolTip = "Set this to (None) for Underground level"
+        Grid.SetRow(self.bottom_combo, 1); Grid.SetColumn(self.bottom_combo, 1)
+        grid.Children.Add(self.bottom_combo)
 
-        # Instruction Labels
-        self.inst1 = Label()
-        self.inst1.Text = "Parts are assigned to Bottom when both levels are set."
-        self.inst1.Location = Point(20, 100)
-        self.inst1.Size = Size(350, 20)
-        self.Controls.Add(self.inst1)
+        # Instructions
+        inst1 = TextBlock(Text="Parts are assigned to Bottom when both levels are set.")
+        inst2 = TextBlock(Text="Parts are assigned to Bottom if Top is (None) ROOF.")
+        inst3 = TextBlock(Text="Parts are assigned to Top if Bottom is (None) UG.")
 
-        self.inst2 = Label()
-        self.inst2.Text = "Parts are assigned to Bottom if Top is (None) ROOF."
-        self.inst2.Location = Point(20, 120)
-        self.inst2.Size = Size(350, 20)
-        self.Controls.Add(self.inst2)
+        Grid.SetRow(inst1, 2); Grid.SetColumnSpan(inst1, 2)
+        # Grid.SetRow(inst2, 3); Grid.SetColumnSpan(inst2, 2)
+        # Grid.SetRow(inst3, 4); Grid.SetColumnSpan(inst3, 2)
+        grid.Children.Add(inst1) #; grid.Children.Add(inst2); grid.Children.Add(inst3)
 
-        self.inst3 = Label()
-        self.inst3.Text = "Parts are assigned to Top if Bottom is (None) UG."
-        self.inst3.Location = Point(20, 140)
-        self.inst3.Size = Size(350, 20)
-        self.Controls.Add(self.inst3)
+        # Buttons Panel
+        btn_panel = StackPanel(Orientation=System.Windows.Controls.Orientation.Horizontal,
+                               HorizontalAlignment=HorizontalAlignment.Center,
+                               Margin=Thickness(0, 0, 0, 0))
 
-        # OK Button
-        self.ok_button = Button()
-        self.ok_button.Text = "Ok"
-        self.ok_button.Location = Point(150, 200)
+        self.ok_button = Button(Content="Ok", Width=80, Height=25, Margin=Thickness(5,0,5,0))
         self.ok_button.Click += self.on_ok
-        self.Controls.Add(self.ok_button)
+        btn_panel.Children.Add(self.ok_button)
 
+        self.cancel_button = Button(Content="Cancel", Width=80, Height=25, Margin=Thickness(5,0,5,0))
+        self.cancel_button.Click += self.on_cancel
+        btn_panel.Children.Add(self.cancel_button)
+
+        Grid.SetRow(btn_panel, 6); Grid.SetColumnSpan(btn_panel, 2)
+        grid.Children.Add(btn_panel)
+
+        self.Content = grid
         self.result = None
 
     def on_ok(self, sender, event):
@@ -111,71 +120,57 @@ class LevelSelectionForm(Form):
             "TopLevel": self.top_combo.SelectedItem,
             "BotLevel": self.bottom_combo.SelectedItem
         }
-        self.DialogResult = System.Windows.Forms.DialogResult.OK
+        self.DialogResult = True
+        self.Close()
+
+    def on_cancel(self, sender, event):
+        self.result = None
+        self.DialogResult = False
         self.Close()
 
 try:
-    # Display WinForms dialog
-    form = LevelSelectionForm(level_elevations, pre_set_top_level, pre_set_bottom_level)
-    if form.ShowDialog() == System.Windows.Forms.DialogResult.OK and form.result:
-        # Convert dialog input into variables for top and bottom levels
+    form = LevelSelectionWindow(level_elevations, pre_set_top_level, pre_set_bottom_level)
+    if form.ShowDialog() and form.result:
         TopLevelName = form.result["TopLevel"]
         BotLevelName = form.result["BotLevel"]
 
-        # Get the Z elevations of the selected levels (None if "(None)" is selected)
         TopLevelElev = level_elevations[TopLevelName]
         BotLevelElev = level_elevations[BotLevelName]
-
-        # Get the ElementIds of the selected levels (None if "(None)" is selected)
         TopLevelId = level_ids.get(TopLevelName, None)
         BotLevelId = level_ids.get(BotLevelName, None)
 
-        # Create a category filter for Fabrication Pipework and Fabrication Ductwork
         pipework_filter = ElementCategoryFilter(BuiltInCategory.OST_FabricationPipework)
         ductwork_filter = ElementCategoryFilter(BuiltInCategory.OST_FabricationDuctwork)
-
-        # Combine the filters with LogicalOrFilter
         combined_filter = LogicalOrFilter(pipework_filter, ductwork_filter)
 
-        # Create a FilteredElementCollector to get all MEP Fabrication Pipework and Ductwork elements in the current view
         fabrication_elements = FilteredElementCollector(doc, curview.Id) \
                                .OfClass(FabricationPart) \
                                .WherePasses(combined_filter) \
                                .WhereElementIsNotElementType() \
                                .ToElements()
 
-        # Start a transaction to modify the document
         t = Transaction(doc, "Assign Levels to Fabrication Parts")
         t.Start()
-
-        # Iterate over the fabrication parts and check their bottom Z elevation
         for elem in fabrication_elements:
             try:
-                bottom_z = get_bottom_point_z(elem.Id)  # Get the Z bottom point of the fabrication part
+                bottom_z = get_bottom_point_z(elem.Id)
                 if bottom_z is None:
                     continue
 
-                # If both levels are selected (not None), check if the bottom Z is between the levels
                 if BotLevelElev is not None and TopLevelElev is not None:
                     if BotLevelElev <= bottom_z <= TopLevelElev:
                         elem.LookupParameter("Reference Level").Set(BotLevelId)
-                        # print("Assigned {} to element {}".format(BotLevelName, elem.Id))
 
-                # If Top Level is None, assign Bottom Level to all elements above the Bottom Level
                 elif TopLevelElev is None and BotLevelElev is not None:
                     if bottom_z >= BotLevelElev:
                         elem.LookupParameter("Reference Level").Set(BotLevelId)
-                        # print("Assigned {} to element {}".format(BotLevelName, elem.Id))
 
-                # If Bottom Level is None, assign Top Level to all elements below the Top Level
                 elif BotLevelElev is None and TopLevelElev is not None:
                     if bottom_z <= TopLevelElev:
                         elem.LookupParameter("Reference Level").Set(TopLevelId)
-                        # print("Assigned {} to element {}".format(TopLevelName, elem.Id))
 
             except Exception as e:
-                print("Error processing element {}: {}".format(elem.Id, str(e)))
-        # Commit the transaction after processing all elements
+                TaskDialog.Show("Error", "Error processing element {}: {}".format(elem.Id, str(e)))
         t.Commit()
 except Exception as e:
-    print("Script failed: {}".format(str(e)))
+    TaskDialog.Show("Script Failed", "Script failed: {}".format(str(e)))

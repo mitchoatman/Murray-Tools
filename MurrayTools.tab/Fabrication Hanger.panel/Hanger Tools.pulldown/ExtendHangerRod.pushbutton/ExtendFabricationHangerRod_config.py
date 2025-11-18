@@ -5,7 +5,6 @@ from Autodesk.Revit.UI import *
 from Autodesk.Revit.UI.Selection import *
 from rpw.ui.forms import FlexForm, Label, ComboBox, TextBox, Separator, Button, CheckBox
 from pyrevit import script
-from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, FamilySymbol, Structure, Transaction, BuiltInParameter, \
                                 Family, TransactionGroup, FamilyInstance
 import os
@@ -81,14 +80,8 @@ if len(Hanger) > 0:
         for n in range(STName):
             rodlen = STName1.GetRodLength(n)
             rodpos = STName1.GetRodEndPosition(n)
-            # Turns rodpos into string and removes ( ) to clean it up.
-            stringrodpos = str(rodpos).replace('(', '').replace(')', '')
-            length = len(stringrodpos)
-
-            # Looks for "," to locate where Z coordinate starts
-            zcoordloc = stringrodpos.rfind(', ', 0, length)
-            # Removes x and y coordinate data and returns only z converted back to number.
-            zcoord = float((stringrodpos[zcoordloc + 2:length]))
+            # Directly access Z-coordinate from XYZ object
+            zcoord = rodpos.Z
             STName1.SetRodLength(n, rodlen + (valuenum - zcoord))
     t.Commit()
 else:

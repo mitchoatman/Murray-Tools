@@ -3,7 +3,7 @@
 title:
   "Set\nLocation"
 
-tooltip: >-
+tooltip: |-
   Writes User Defined Location data to the FP_Location Parameter and to Fabrication Custom Data Field so data will follow MAJ export.
 
     1. Select elements you want to assign a Location.
@@ -11,6 +11,14 @@ tooltip: >-
     3. Enter Location value in the dialog.
     4. Click Ok
 
+  [Shift]+Click:    
+  Automatically assigns location to elements based on their proximity to Scope Box bounding box (in active view only).
+  Works on:
+  - Fabrication Parts
+  - Pipe Accessories
+  - Duct Accessories
+  - Plumbing Fixtures
+  - Structural Stiffeners
 
 # context directives are listed under `context` key, the order does not matter
 # context:

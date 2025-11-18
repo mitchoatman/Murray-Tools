@@ -1,0 +1,19 @@
+#highlight: new
+
+# bundle title
+title:
+  "Zoom To\nElement"
+
+# bundle tooltip
+tooltip: |-
+  Zooms to selected element in active view.
+  
+  1. Pick element in one view.
+  2. Navigate to a corresponding view.
+  3. Run command and you will be navigated to element.
+
+# bundle help url
+help_url: "https://youtu.be/AvDcEcJ7OFk"
+
+# bundle author
+author: Mitchell Oatman

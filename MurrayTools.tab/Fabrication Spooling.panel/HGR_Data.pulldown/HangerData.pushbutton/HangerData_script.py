@@ -1,9 +1,13 @@
 import clr
 clr.AddReference('System.Windows.Forms')
 clr.AddReference('System.Drawing')
+clr.AddReference('PresentationFramework')
+clr.AddReference('PresentationCore')
+clr.AddReference('WindowsBase')
 import System
-from System.Windows.Forms import Form, Label, TextBox, Button, DialogResult, FormStartPosition, FormBorderStyle
-from System.Drawing import Point, Size
+from System.Windows import Window, Thickness
+from System.Windows.Controls import Label, TextBox, Button, Grid, RowDefinition, ColumnDefinition
+from System.Windows.Media import Brushes
 import Autodesk
 from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, Transaction, TransactionGroup, FabricationPart, FabricationConfiguration
 from Autodesk.Revit.UI import TaskDialog
@@ -42,80 +46,94 @@ with open((filepath), 'r') as file:
 def set_customdata_by_custid(fabpart, custid, value):
     fabpart.SetPartCustomDataText(custid, value)
 
-# WinForms dialog
-class HangerDataForm(Form):
+# WPF dialog
+class HangerDataForm(Window):
     def __init__(self, job_number, map_name):
-        self.Text = "Hanger Data"
-        self.scale_factor = self.get_dpi_scale()
-        self.padding = 5
+        self.Title = "Hanger Data"
+        self.Width = 300
+        self.Height = 220
+        self.ResizeMode = System.Windows.ResizeMode.NoResize
+        self.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen
+        self.result = System.Windows.Forms.DialogResult.Cancel
         self.InitializeComponents(job_number, map_name)
 
-    def get_dpi_scale(self):
-        screen = System.Windows.Forms.Screen.PrimaryScreen
-        graphics = self.CreateGraphics()
-        dpi_x = graphics.DpiX
-        graphics.Dispose()
-        return dpi_x / 96.0
-
-    def scale_value(self, value):
-        return int(value * self.scale_factor)
-
     def InitializeComponents(self, job_number, map_name):
-        self.FormBorderStyle = FormBorderStyle.FixedSingle
-        self.MaximizeBox = False
-        self.MinimizeBox = False
-        self.StartPosition = FormStartPosition.CenterScreen
-
-        self.Width = self.scale_value(300)
-        self.Height = self.scale_value(200)
+        grid = Grid()
+        grid.Margin = Thickness(10)
+        
+        # Define rows
+        row1 = RowDefinition()
+        row1.Height = System.Windows.GridLength.Auto
+        row2 = RowDefinition()
+        row2.Height = System.Windows.GridLength.Auto
+        row3 = RowDefinition()
+        row3.Height = System.Windows.GridLength.Auto
+        row4 = RowDefinition()
+        row4.Height = System.Windows.GridLength.Auto
+        row5 = RowDefinition()
+        row5.Height = System.Windows.GridLength.Auto
+        grid.RowDefinitions.Add(row1)
+        grid.RowDefinitions.Add(row2)
+        grid.RowDefinitions.Add(row3)
+        grid.RowDefinitions.Add(row4)
+        grid.RowDefinitions.Add(row5)
 
         # Label for Job Number
         self.job_label = Label()
-        self.job_label.Text = "Enter Job Number:"
-        self.job_label.Location = Point(self.scale_value(20), self.scale_value(10))
-        self.job_label.Size = Size(self.scale_value(260), self.scale_value(20))
-        self.Controls.Add(self.job_label)
+        self.job_label.Content = "Enter Job Number:"
+        self.job_label.Margin = Thickness(0, 0, 0, 5)
+        Grid.SetRow(self.job_label, 0)
+        grid.Children.Add(self.job_label)
 
         # TextBox for Job Number
         self.job_textbox = TextBox()
         self.job_textbox.Text = job_number
-        self.job_textbox.Location = Point(self.scale_value(20), self.scale_value(31))
-        self.job_textbox.Size = Size(self.scale_value(240), self.scale_value(20))
-        self.Controls.Add(self.job_textbox)
+        self.job_textbox.Margin = Thickness(0, 0, 0, 10)
+        self.job_textbox.Height = 20
+        Grid.SetRow(self.job_textbox, 1)
+        grid.Children.Add(self.job_textbox)
 
         # Label for Map Name
         self.map_label = Label()
-        self.map_label.Text = "Hanger Map Name:"
-        self.map_label.Location = Point(self.scale_value(20), self.scale_value(60))
-        self.map_label.Size = Size(self.scale_value(260), self.scale_value(20))
-        self.Controls.Add(self.map_label)
+        self.map_label.Content = "Hanger Map Name:"
+        self.map_label.Margin = Thickness(0, 0, 0, 5)
+        Grid.SetRow(self.map_label, 2)
+        grid.Children.Add(self.map_label)
 
         # TextBox for Map Name
         self.map_textbox = TextBox()
         self.map_textbox.Text = map_name
-        self.map_textbox.Location = Point(self.scale_value(20), self.scale_value(81))
-        self.map_textbox.Size = Size(self.scale_value(240), self.scale_value(20))
-        self.Controls.Add(self.map_textbox)
+        self.map_textbox.Margin = Thickness(0, 0, 0, 10)
+        self.map_textbox.Height = 20
+        Grid.SetRow(self.map_textbox, 3)
+        grid.Children.Add(self.map_textbox)
 
         # OK Button
-        button_width = self.scale_value(75)
-        button_height = self.scale_value(30)
-        button_y = self.scale_value(120)
-
         self.ok_button = Button()
-        self.ok_button.Text = "OK"
-        self.ok_button.Size = Size(button_width, button_height)
-        self.ok_button.Location = Point(self.scale_value(112), button_y)  # Centered
-        self.ok_button.DialogResult = DialogResult.OK
-        self.Controls.Add(self.ok_button)
+        self.ok_button.Content = "OK"
+        self.ok_button.Width = 75
+        self.ok_button.Height = 30
+        self.ok_button.HorizontalAlignment = System.Windows.HorizontalAlignment.Center
+        self.ok_button.Click += self.ok_button_click
+        Grid.SetRow(self.ok_button, 4)
+        grid.Children.Add(self.ok_button)
 
-        self.AcceptButton = self.ok_button
+        self.Content = grid
+
+        # Set focus and highlight all text in job number textbox
+        self.job_textbox.Focus()
+        self.job_textbox.SelectAll()
+
+    def ok_button_click(self, sender, args):
+        self.result = System.Windows.Forms.DialogResult.OK
+        self.Close()
 
 # Display dialog
 form = HangerDataForm(lines[0], lines[1])
+form.ShowDialog()
 try:
     # Convert dialog input into variable
-    if form.ShowDialog() == DialogResult.OK:
+    if form.result == System.Windows.Forms.DialogResult.OK:
         JobNumber = form.job_textbox.Text
         MapName = form.map_textbox.Text
     else:

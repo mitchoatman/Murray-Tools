@@ -1,0 +1,20 @@
+highlight: new
+title:
+  "Blockout"
+
+tooltip: |-
+  Place blockout family on selected pipes at wall locations for point layout purposes.
+  
+  1.  Select the pipes to place blockout on.
+  2.  Click finish.
+  3.  Pick a point at face of wall.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://youtu.be/2464K7fS2iY"
+
+# bundle author
+author: Mitchell Oatman

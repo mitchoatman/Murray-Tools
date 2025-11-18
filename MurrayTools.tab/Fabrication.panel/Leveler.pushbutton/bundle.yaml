@@ -8,8 +8,8 @@ title:
 tooltip: |-
   Assigns levels to Fabrication parts (in active view only) based on their position.
   1. Run Command.
-  2. Set top and bottom levels.
-  3. Elements will be selected.
+  2. Set top and bottom levels to define space.
+  3. Elements will be selected between the specified levels.
   4. Fabrication elements will be assigned a level.
 
   -----

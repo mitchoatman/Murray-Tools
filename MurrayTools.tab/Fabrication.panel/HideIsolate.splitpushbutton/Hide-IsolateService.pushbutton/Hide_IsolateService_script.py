@@ -1,228 +1,192 @@
-import Autodesk
+# -*- coding: UTF-8 -*-
 from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, BuiltInParameter, \
-    ParameterValueProvider, ElementId, FilterStringBeginsWith, Transaction, FilterStringEquals, \
-    FilterStringLessOrEqual, FilterStringRule, ElementParameterFilter, ParameterValueProvider, LogicalOrFilter, TemporaryViewMode
+    ParameterValueProvider, ElementId, Transaction, FilterStringEquals, \
+    FilterStringRule, ElementParameterFilter, LogicalOrFilter, TemporaryViewMode
 from Parameters.Get_Set_Params import get_parameter_value_by_name_AsString
-
-# Add Windows Forms references
-import clr
-clr.AddReference('System.Windows.Forms')
-clr.AddReference('System.Drawing')
-import System
-from System.Windows.Forms import (Form, Label, Button, DialogResult, 
-                                 FormBorderStyle, FormStartPosition, Control, AnchorStyles, FlowLayoutPanel, TextBox)
-from System import Array
-from System.Drawing import Point, Size, Color, Font
+import clr, sys
+from Autodesk.Revit.UI import TaskDialog
+clr.AddReference('PresentationCore')
+clr.AddReference('PresentationFramework')
+clr.AddReference('WindowsBase')
+clr.AddReference('System')
+from System.Windows import Application, Window, Thickness, HorizontalAlignment, \
+    VerticalAlignment, ResizeMode, WindowStartupLocation, GridLength, GridUnitType
+from System.Windows.Controls import Button, TextBox, CheckBox, Grid, RowDefinition, \
+    ColumnDefinition, Label, StackPanel, ScrollViewer, Orientation, ScrollBarVisibility
+from System.Windows.Media import Brushes, FontFamily
+from System.Windows.Controls.Primitives import UniformGrid
 
 doc = __revit__.ActiveUIDocument.Document
-DB = Autodesk.Revit.DB
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float(RevitVersion)
 
-hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers) \
-                   .WhereElementIsNotElementType() \
-                   .ToElements()
-
-pipe_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationPipework) \
-                   .WhereElementIsNotElementType() \
-                   .ToElements()
-
-duct_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationDuctwork) \
-                   .WhereElementIsNotElementType() \
-                   .ToElements()
+hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers).WhereElementIsNotElementType().ToElements()
+pipe_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationPipework).WhereElementIsNotElementType().ToElements()
+duct_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationDuctwork).WhereElementIsNotElementType().ToElements()
 
 def create_filter_2023_newer(key_parameter, element_value):
-    """Function to create a filter from builtinParameter and Value."""
     f_parameter = ParameterValueProvider(ElementId(key_parameter))
-    f_parameter_value = element_value
-    f_rule = FilterStringRule(f_parameter, FilterStringEquals(), f_parameter_value)
-    my_filter = ElementParameterFilter(f_rule)
-    return my_filter
+    f_rule = FilterStringRule(f_parameter, FilterStringEquals(), element_value)
+    return ElementParameterFilter(f_rule)
 
 def create_filter_2022_older(key_parameter, element_value):
-    """Function to create a filter from builtinParameter and Value."""
     f_parameter = ParameterValueProvider(ElementId(key_parameter))
-    f_parameter_value = element_value
     caseSensitive = False
-    f_rule = FilterStringRule(f_parameter, FilterStringEquals(), f_parameter_value, caseSensitive)
-    my_filter = ElementParameterFilter(f_rule)
-    return my_filter
+    f_rule = FilterStringRule(f_parameter, FilterStringEquals(), element_value, caseSensitive)
+    return ElementParameterFilter(f_rule)
 
-# Define the WinForms dialog class with DPI scaling, auto-size buttons, checkboxes, search bar, and toggle check all
-class ServiceSelectionForm(Form):
+class ServiceSelectionForm(object):
     def __init__(self, service_list):
         self.selected_services = []
         self.service_list = sorted(service_list)
-        self.padding = 10  # Base padding constant
-        self.button_spacing = 10  # Base space between buttons
-        self.scale_factor = self.get_dpi_scale()  # Get DPI scaling factor
-        self.checkboxes = []  # To store checkbox controls
-        self.check_all_state = False  # Track toggle state
+        self.checkboxes = []
+        self.check_all_state = False
         self.InitializeComponents()
 
-    def get_dpi_scale(self):
-        """Calculate the DPI scaling factor based on the primary screen."""
-        screen = System.Windows.Forms.Screen.PrimaryScreen
-        graphics = self.CreateGraphics()  # Create a graphics object to get DPI
-        dpi_x = graphics.DpiX
-        graphics.Dispose()  # Clean up
-        return dpi_x / 96.0  # 96 DPI is the default (100%)
-
-    def scale_value(self, value):
-        """Scale a value based on the DPI scaling factor."""
-        return int(value * self.scale_factor)
-
     def InitializeComponents(self):
-        self.Text = "Service Visibility"
-        self.FormBorderStyle = FormBorderStyle.Sizable
-        self.MaximizeBox = True
-        self.MinimizeBox = True
-        self.StartPosition = FormStartPosition.CenterScreen
+        self._window = Window()
+        self._window.Title = "Service Visibility"
+        self._window.Width = 400
+        self._window.Height = 400
+        self._window.MinWidth = self._window.Width
+        self._window.MinHeight = self._window.Height
+        self._window.ResizeMode = ResizeMode.NoResize
+        self._window.WindowStartupLocation = WindowStartupLocation.CenterScreen
 
-        # Instruction label
+        grid = Grid()
+        grid.Margin = Thickness(5)
+        grid.VerticalAlignment = VerticalAlignment.Stretch
+        grid.HorizontalAlignment = HorizontalAlignment.Stretch
+
+        for i in range(4):
+            row = RowDefinition()
+            if i == 2:
+                row.Height = GridLength(1, GridUnitType.Star)
+            else:
+                row.Height = GridLength.Auto
+            grid.RowDefinitions.Add(row)
+        grid.ColumnDefinitions.Add(ColumnDefinition())
+
         self.label = Label()
-        self.label.Text = "Search and select services:"
-        self.label.Location = Point(self.scale_value(self.padding), self.scale_value(self.padding))
-        self.label.AutoSize = True
-        self.label.Font = Font("Arial", self.scale_value(8))
-        self.label.Anchor = AnchorStyles.Top | AnchorStyles.Left
+        self.label.Content = "Search and select services:"
+        self.label.FontFamily = FontFamily("Arial")
+        self.label.FontSize = 16
+        self.label.Margin = Thickness(0)
+        Grid.SetRow(self.label, 0)
+        grid.Children.Add(self.label)
 
-        # Search TextBox
         self.search_box = TextBox()
-        self.search_box.Location = Point(self.scale_value(self.padding), self.scale_value(self.padding + 20))
-        self.search_box.Font = Font("Arial", self.scale_value(8))
-        self.search_box.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+        self.search_box.Height = 20
+        self.search_box.Margin = Thickness(0)
+        self.search_box.FontFamily = FontFamily("Arial")
+        self.search_box.FontSize = 12
         self.search_box.TextChanged += self.search_changed
+        Grid.SetRow(self.search_box, 1)
+        grid.Children.Add(self.search_box)
 
-        # FlowLayoutPanel for checkboxes
-        self.checkbox_panel = FlowLayoutPanel()
-        self.checkbox_panel.Location = Point(self.scale_value(self.padding), self.scale_value(self.padding + 40))
-        self.checkbox_panel.AutoScroll = True  # Enable scrolling if content overflows
-        self.checkbox_panel.FlowDirection = System.Windows.Forms.FlowDirection.TopDown
-        self.checkbox_panel.WrapContents = False
-        self.checkbox_panel.Font = Font("Arial", self.scale_value(8))
-        self.checkbox_panel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
+        self.checkbox_panel = StackPanel()
+        self.checkbox_panel.Orientation = Orientation.Vertical
+        scroll_viewer = ScrollViewer()
+        scroll_viewer.Content = self.checkbox_panel
+        scroll_viewer.VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        scroll_viewer.Margin = Thickness(0, 1, 0, 1)
+        scroll_viewer.VerticalAlignment = VerticalAlignment.Stretch
+        Grid.SetRow(scroll_viewer, 2)
+        grid.Children.Add(scroll_viewer)
 
-        # Add checkboxes for each service
         self.update_checkboxes(self.service_list)
 
-        # Reset Button
+        # ✅ Anchored button panel at absolute bottom
+        button_container = Grid()
+        button_container.HorizontalAlignment = HorizontalAlignment.Stretch
+        button_container.VerticalAlignment = VerticalAlignment.Bottom
+
+        button_panel = UniformGrid()
+        button_panel.Columns = 4
+        button_panel.HorizontalAlignment = HorizontalAlignment.Center
+        button_panel.VerticalAlignment = VerticalAlignment.Bottom
+        button_panel.Margin = Thickness(0, 10, 0, 10)
+
+        # Buttons
         self.reset_button = Button()
-        self.reset_button.Text = "Reset View"
-        self.reset_button.AutoSize = True
-        self.reset_button.BackColor = Color.FromArgb(128, 255, 0, 0)
+        self.reset_button.Content = "Reset View"
+        self.reset_button.Background = Brushes.Red
+        self.reset_button.FontFamily = FontFamily("Arial")
+        self.reset_button.FontSize = 12
+        self.reset_button.Height = 25
+        self.reset_button.Margin = Thickness(5, 0, 5, 0)  # Gap on left and right
         self.reset_button.Click += self.reset_clicked
-        self.reset_button.Font = Font("Arial", self.scale_value(8))
-        self.reset_button.Anchor = AnchorStyles.Bottom | AnchorStyles.Left
+        button_panel.Children.Add(self.reset_button)
 
-        # Hide Button
         self.hide_button = Button()
-        self.hide_button.Text = "Hide"
-        self.hide_button.AutoSize = True
+        self.hide_button.Content = "Hide"
+        self.hide_button.FontFamily = FontFamily("Arial")
+        self.hide_button.FontSize = 12
+        self.hide_button.Height = 25
+        self.hide_button.Margin = Thickness(5, 0, 5, 0)  # Gap on left and right
         self.hide_button.Click += self.hide_clicked
-        self.hide_button.Font = Font("Arial", self.scale_value(8))
-        self.hide_button.Anchor = AnchorStyles.Bottom | AnchorStyles.Left
+        button_panel.Children.Add(self.hide_button)
 
-        # Isolate Button
         self.isolate_button = Button()
-        self.isolate_button.Text = "Isolate"
-        self.isolate_button.AutoSize = True
+        self.isolate_button.Content = "Isolate"
+        self.isolate_button.FontFamily = FontFamily("Arial")
+        self.isolate_button.FontSize = 12
+        self.isolate_button.Height = 25
+        self.isolate_button.Margin = Thickness(5, 0, 5, 0)  # Gap on left and right
         self.isolate_button.Click += self.isolate_clicked
-        self.isolate_button.Font = Font("Arial", self.scale_value(8))
-        self.isolate_button.Anchor = AnchorStyles.Bottom | AnchorStyles.Left
+        button_panel.Children.Add(self.isolate_button)
 
-        # Check All Button (on the right with same spacing)
         self.check_all_button = Button()
-        self.check_all_button.Text = "Check All"
-        self.check_all_button.AutoSize = True  # Auto-size to fit text
+        self.check_all_button.Content = "All / None"
+        self.check_all_button.FontFamily = FontFamily("Arial")
+        self.check_all_button.FontSize = 12
+        self.check_all_button.Height = 25
+        self.check_all_button.Margin = Thickness(5, 0, 5, 0)  # Gap on left and right
         self.check_all_button.Click += self.check_all_clicked
-        self.check_all_button.Font = Font("Arial", self.scale_value(8))
-        self.check_all_button.Anchor = AnchorStyles.Bottom | AnchorStyles.Right
+        button_panel.Children.Add(self.check_all_button)
 
-        self.Controls.AddRange(Array[Control]([
-            self.label, self.search_box, self.checkbox_panel, self.reset_button, 
-            self.hide_button, self.isolate_button, self.check_all_button
-        ]))
+        button_container.Children.Add(button_panel)
+        Grid.SetRow(button_container, 3)
+        grid.Children.Add(button_container)
 
-        # Calculate minimum width based on buttons
-        total_button_width = (
-            self.reset_button.Width + 
-            self.hide_button.Width + 
-            self.isolate_button.Width + 
-            self.check_all_button.Width + 
-            self.scale_value(3 * self.button_spacing) +  # Three gaps between four buttons
-            self.scale_value(2 * self.padding)  # 10pt padding on left and right
-        )
-        min_width = max(self.scale_value(400), total_button_width)
-        self.Size = Size(min_width, self.scale_value(400))
-        self.MinimumSize = Size(min_width, self.scale_value(400))
+        self._window.Content = grid
+        self._window.SizeChanged += self.on_resize
 
-        # Handle resize event
-        self.Resize += self.on_resize
-        self.UpdateLayout()
 
     def update_checkboxes(self, services):
-        """Update the checkbox panel with filtered services."""
-        self.checkbox_panel.Controls.Clear()
+        self.checkbox_panel.Children.Clear()
         self.checkboxes = []
         for service in services:
-            checkbox = System.Windows.Forms.CheckBox()
-            checkbox.Text = service
-            checkbox.AutoSize = True
-            checkbox.Click += self.checkbox_clicked
-            # Restore checked state if previously selected
-            if service in self.selected_services:
-                checkbox.Checked = True
-            self.checkbox_panel.Controls.Add(checkbox)
+            checkbox = CheckBox()
+            checkbox.Content = service
+            checkbox.FontFamily = FontFamily("Arial")
+            checkbox.FontSize = 12
+            checkbox.Margin = Thickness(2)
+            checkbox.IsChecked = service in self.selected_services
+            checkbox.Checked += self.checkbox_changed
+            checkbox.Unchecked += self.checkbox_changed
+            self.checkbox_panel.Children.Add(checkbox)
             self.checkboxes.append(checkbox)
 
     def search_changed(self, sender, args):
-        """Filter checkboxes based on search input."""
         search_text = self.search_box.Text.lower()
         filtered_services = [s for s in self.service_list if search_text in s.lower()]
         self.update_checkboxes(filtered_services)
 
     def check_all_clicked(self, sender, args):
-        """Toggle between checking all and unchecking all visible checkboxes."""
-        self.check_all_state = not self.check_all_state  # Toggle state
+        self.check_all_state = not self.check_all_state
         for checkbox in self.checkboxes:
-            checkbox.Checked = self.check_all_state
-        self.selected_services = [cb.Text for cb in self.checkboxes if cb.Checked]
-
-    def UpdateLayout(self):
-        # Update search box width
-        self.search_box.Size = Size(
-            self.ClientSize.Width - self.scale_value(2 * self.padding),
-            self.scale_value(20)
-        )
-        # Update checkbox panel size
-        self.checkbox_panel.Size = Size(
-            self.ClientSize.Width - self.scale_value(2 * self.padding),
-            self.ClientSize.Height - self.scale_value(self.padding + 40 + self.padding + 23 + self.padding)
-        )
-        # Position buttons dynamically
-        start_x = self.scale_value(self.padding)
-        button_y = self.ClientSize.Height - self.scale_value(self.padding + 23)
-        
-        # Left-aligned buttons
-        self.reset_button.Location = Point(start_x, button_y)
-        self.hide_button.Location = Point(start_x + self.reset_button.Width + self.scale_value(self.button_spacing), button_y)
-        self.isolate_button.Location = Point(start_x + self.reset_button.Width + self.hide_button.Width + self.scale_value(2 * self.button_spacing), button_y)
-        # Right-aligned Check All button with consistent spacing
-        self.check_all_button.Location = Point(
-            start_x + self.reset_button.Width + self.hide_button.Width + self.isolate_button.Width + self.scale_value(3 * self.button_spacing),
-            button_y
-        )
+            checkbox.IsChecked = self.check_all_state
+        self.selected_services = [cb.Content for cb in self.checkboxes if cb.IsChecked]
 
     def on_resize(self, sender, args):
-        self.UpdateLayout()
+        pass
 
-    def checkbox_clicked(self, sender, args):
-        # Update selected_services based on checked state
-        self.selected_services = [cb.Text for cb in self.checkboxes if cb.Checked]
+    def checkbox_changed(self, sender, args):
+        self.selected_services = [cb.Content for cb in self.checkboxes if cb.IsChecked]
 
     def reset_clicked(self, sender, args):
         try:
@@ -230,93 +194,57 @@ class ServiceSelectionForm(Form):
             t.Start()
             curview.DisableTemporaryViewMode(TemporaryViewMode.TemporaryHideIsolate)
             t.Commit()
-            self.Close()
+            self._window.Close()
         except Exception as e:
             print("Reset Error: {}".format(str(e)))
 
     def hide_clicked(self, sender, args):
-        self.selected_services = [cb.Text for cb in self.checkboxes if cb.Checked]
+        self.selected_services = [cb.Content for cb in self.checkboxes if cb.IsChecked]
         if self.selected_services:
             try:
-                list_of_filters = list()
-                if RevitINT > 2022:
-                    for fp_servicename in self.selected_services:
-                        cat_filter = create_filter_2023_newer(
-                            key_parameter=BuiltInParameter.FABRICATION_SERVICE_NAME, 
-                            element_value=str(fp_servicename)
-                        )
-                        list_of_filters.append(cat_filter)
-                else:
-                    for fp_servicename in self.selected_services:
-                        cat_filter = create_filter_2022_older(
-                            key_parameter=BuiltInParameter.FABRICATION_SERVICE_NAME, 
-                            element_value=str(fp_servicename)
-                        )
-                        list_of_filters.append(cat_filter)
-
-                if list_of_filters:
-                    multiple_filters = LogicalOrFilter(list_of_filters)
-                    analyticalCollector = FilteredElementCollector(doc).WherePasses(multiple_filters).ToElementIds()
-                    
-                    t = Transaction(doc, "Hide Services")
-                    t.Start()
-                    curview.HideElementsTemporary(analyticalCollector)
-                    t.Commit()
-                    self.Close()
+                filters = []
+                for name in self.selected_services:
+                    f = create_filter_2023_newer(BuiltInParameter.FABRICATION_SERVICE_NAME, name) if RevitINT > 2022 else create_filter_2022_older(BuiltInParameter.FABRICATION_SERVICE_NAME, name)
+                    filters.append(f)
+                collector = FilteredElementCollector(doc).WherePasses(LogicalOrFilter(filters)).ToElementIds()
+                t = Transaction(doc, "Hide Services")
+                t.Start()
+                curview.HideElementsTemporary(collector)
+                t.Commit()
+                self._window.Close()
             except Exception as e:
                 print("Hide Error: {}".format(str(e)))
 
     def isolate_clicked(self, sender, args):
-        self.selected_services = [cb.Text for cb in self.checkboxes if cb.Checked]
+        self.selected_services = [cb.Content for cb in self.checkboxes if cb.IsChecked]
         if self.selected_services:
             try:
-                list_of_filters = list()
-                if RevitINT > 2022:
-                    for fp_servicename in self.selected_services:
-                        cat_filter = create_filter_2023_newer(
-                            key_parameter=BuiltInParameter.FABRICATION_SERVICE_NAME, 
-                            element_value=str(fp_servicename)
-                        )
-                        list_of_filters.append(cat_filter)
-                else:
-                    for fp_servicename in self.selected_services:
-                        cat_filter = create_filter_2022_older(
-                            key_parameter=BuiltInParameter.FABRICATION_SERVICE_NAME, 
-                            element_value=str(fp_servicename)
-                        )
-                        list_of_filters.append(cat_filter)
-
-                if list_of_filters:
-                    multiple_filters = LogicalOrFilter(list_of_filters)
-                    analyticalCollector = FilteredElementCollector(doc).WherePasses(multiple_filters).ToElementIds()
-                    
-                    t = Transaction(doc, "Isolate Services")
-                    t.Start()
-                    curview.IsolateElementsTemporary(analyticalCollector)
-                    t.Commit()
-                    self.Close()
+                filters = []
+                for name in self.selected_services:
+                    f = create_filter_2023_newer(BuiltInParameter.FABRICATION_SERVICE_NAME, name) if RevitINT > 2022 else create_filter_2022_older(BuiltInParameter.FABRICATION_SERVICE_NAME, name)
+                    filters.append(f)
+                collector = FilteredElementCollector(doc).WherePasses(LogicalOrFilter(filters)).ToElementIds()
+                t = Transaction(doc, "Isolate Services")
+                t.Start()
+                curview.IsolateElementsTemporary(collector)
+                t.Commit()
+                self._window.Close()
             except Exception as e:
                 print("Isolate Error: {}".format(str(e)))
 
-# Collect services
-SrvcList = list()
-for Item in hanger_collector:
-    servicename = get_parameter_value_by_name_AsString(Item, 'Fabrication Service Name')
-    SrvcList.append(servicename)
+    def ShowDialog(self):
+        self._window.ShowDialog()
 
-for Item in pipe_collector:
-    servicename = get_parameter_value_by_name_AsString(Item, 'Fabrication Service Name')
-    SrvcList.append(servicename)
+# Collect unique services
+SrvcList = []
+for item in list(hanger_collector) + list(pipe_collector) + list(duct_collector):
+    name = get_parameter_value_by_name_AsString(item, 'Fabrication Service Name')
+    if name:
+        SrvcList.append(name)
 
-for Item in duct_collector:
-    servicename = get_parameter_value_by_name_AsString(Item, 'Fabrication Service Name')
-    SrvcList.append(servicename)
-
-# Remove duplicates and show form
 unique_services = set(SrvcList)
 if not unique_services:
-    print("No fabrication services found in the current view.")
-    import sys
+    TaskDialog.Show("Error", "No fabrication services found in the current view.")
     sys.exit()
 
 form = ServiceSelectionForm(unique_services)

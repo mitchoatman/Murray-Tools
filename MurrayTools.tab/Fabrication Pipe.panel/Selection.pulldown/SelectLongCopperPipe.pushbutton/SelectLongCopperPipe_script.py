@@ -1,18 +1,22 @@
-# -*- coding: utf-8 -*-
-import clr
-
 from Autodesk.Revit.DB import (
     FilteredElementCollector, BuiltInCategory, BuiltInParameter,
     ElementParameterFilter, FilterStringRule, ParameterValueProvider, FilterStringEndsWith,
     ElementId
 )
 from Autodesk.Revit.UI import TaskDialog
-
-clr.AddReference("System.Windows.Forms")
-clr.AddReference("System.Drawing")
-from System.Windows.Forms import Application, Form, ListBox, Label, FormStartPosition, FormBorderStyle
-from System.Drawing import Point, Size
 from System.Collections.Generic import List
+
+import clr
+clr.AddReference('PresentationFramework')
+clr.AddReference('PresentationCore')
+clr.AddReference('WindowsBase')
+from System.Windows import Application, Window, Thickness, WindowStyle, ResizeMode, WindowStartupLocation, GridLength
+from System.Windows.Controls import Label, ListBox, Grid, RowDefinition
+from System.Windows.Media import Brushes
+
+import System
+from System import Action
+import System.Windows.Threading
 
 uidoc = __revit__.ActiveUIDocument
 doc = uidoc.Document
@@ -27,7 +31,7 @@ def get_parameter_value_by_name_AsValueString(elem, param_name):
         return param.AsValueString() or param.AsString()
     return ""
 
-# --- Filter for pipes with material "Copper:" ---
+# --- Filter for pipes with material "Copper" ---
 param_id = ElementId(BuiltInParameter.FABRICATION_PART_MATERIAL)
 provider = ParameterValueProvider(param_id)
 evaluator = FilterStringEndsWith()
@@ -51,7 +55,7 @@ for pipe in pipe_collector:
         if CID == 2041:
             pipelen = pipe.get_Parameter(BuiltInParameter.FABRICATION_PART_LENGTH).AsDouble()
             pipesize = get_parameter_value_by_name_AsValueString(pipe, 'Product Entry')
-            if pipelen > 20.0:
+            if pipelen > 20.002:
                 family_name = get_parameter_value_by_name_AsValueString(pipe, 'Family')
                 text = "{}: {:.2f}   DIA. {}".format(family_name, pipelen, pipesize)
                 pipe_data.append((family_name, pipelen, text, pipe.Id))
@@ -64,36 +68,48 @@ pipe_data.sort(key=lambda x: (x[0], x[1]))
 # Update pipe_data to keep only (text, pipe.Id) after sorting
 pipe_data = [(item[2], item[3]) for item in pipe_data]
 
-# --- WinForm UI ---
-class PipeListForm(Form):
+# --- WPF Window ---
+class PipeListForm(Window):
     def __init__(self, pipe_data, doc, uidoc):
-        self.Text = "Filtered Copper Pipe List"
-        self.Size = Size(400, 400)
-        self.StartPosition = FormStartPosition.CenterScreen
-        self.TopMost = True
-        self.ShowIcon = False
-        self.MaximizeBox = False
-        self.MinimizeBox = False
-        self.FormBorderStyle = FormBorderStyle.FixedDialog
-        self.doc = doc  # Store doc
-        self.uidoc = uidoc  # Store uidoc
+        self.Title = "Filtered Pipe List"
+        self.Width = 400
+        self.Height = 400
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
+        self.WindowStyle = WindowStyle.SingleBorderWindow
+        self.ResizeMode = ResizeMode.CanResize
+        self.Topmost = True
 
-        self.label = Label()
-        self.label.Text = "Double Click a pipe to zoom to it:"
-        self.label.Location = Point(10, 10)
-        self.label.Size = Size(380, 20)
-        self.Controls.Add(self.label)
+        self.doc = doc
+        self.uidoc = uidoc
+
+        grid = Grid()
+        grid.Margin = Thickness(10)
+
+        # Define layout: label + tight spacer + listbox
+        grid.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))  # Label row
+        grid.RowDefinitions.Add(RowDefinition(Height=GridLength(2)))    # Spacer
+        grid.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))  # ListBox row
+
+        self.Content = grid
+
+        label = Label()
+        label.Content = "Double Click a pipe to zoom to it:"
+        label.Margin = Thickness(0)
+        label.Foreground = Brushes.Black
+        Grid.SetRow(label, 0)
+        grid.Children.Add(label)
 
         self.listbox = ListBox()
-        self.listbox.Location = Point(10, 40)
-        self.listbox.Size = Size(365, 300)
+        self.listbox.Margin = Thickness(0)
+        self.listbox.Height = 300
         for (text, eid) in pipe_data:
             self.listbox.Items.Add(text)
-        self.Controls.Add(self.listbox)
+        Grid.SetRow(self.listbox, 2)
+        grid.Children.Add(self.listbox)
 
-        # Store mapping of text to element ID
+        # Map text to element id
         self.element_map = {text: eid for (text, eid) in pipe_data}
-        self.listbox.DoubleClick += self.select_element
+        self.listbox.MouseDoubleClick += self.select_element
 
     def select_element(self, sender, args):
         selected_text = self.listbox.SelectedItem
@@ -103,15 +119,16 @@ class PipeListForm(Form):
             if element:
                 self.uidoc.Selection.SetElementIds(List[ElementId]([eid]))
                 self.uidoc.ShowElements(eid)
-                self.Close()  # Close the dialog after selecting and zooming
+                self.Close()
             else:
                 TaskDialog.Show("Error", "Element not found.")
 
-# --- Show form or fallback message ---
+# --- Launch UI ---
 if pipe_data:
     form = PipeListForm(pipe_data, doc, uidoc)
-    form.Show()  # Non-modal display
-    while form.Visible:
-        Application.DoEvents()
+    form.Show()
+    while form.IsVisible:
+        Dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher
+        Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Background, Action(lambda: None))
 else:
-    TaskDialog.Show("No Matches", "No long copper pipes found.")
+    TaskDialog.Show("No Matches", "No long pipes found.")

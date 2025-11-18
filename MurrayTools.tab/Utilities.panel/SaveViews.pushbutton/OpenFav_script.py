@@ -1,12 +1,14 @@
 
 from Autodesk.Revit.DB import FilteredElementCollector, View
 from Autodesk.Revit.UI import TaskDialog
-import System
-import os
-import re
+import System, os, re
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+curview = doc.ActiveView
+app = doc.Application
+RevitVersion = app.VersionNumber
+RevitINT = float(RevitVersion)
 file_path = doc.PathName
 file_name = System.IO.Path.GetFileNameWithoutExtension(file_path)
 
@@ -31,12 +33,20 @@ if os.path.isfile(filepath):
     saved_view_ids = [int(re.search(r'\[(\d+)\]', line).group(1)) for line in lines[1][1:-1].split(', ')]
 
     if lines[0] == str(file_name):
-        for view in AllViews:
-            # Check if the view's Id is in the saved list
-            if view.Id.IntegerValue in saved_view_ids:
-                if not view.IsTemplate and view.CanBePrinted:  # Check if the view is not a template and can be printed
-                    ViewToOpen = doc.GetElement(view.Id)  # Use the Id property of the view
-                    uidoc.RequestViewChange(ViewToOpen)
+        if RevitINT > 2025:
+            for view in AllViews:
+                # Check if the view's Id is in the saved list
+                if view.Id.Value in saved_view_ids:
+                    if not view.IsTemplate and view.CanBePrinted:  # Check if the view is not a template and can be printed
+                        ViewToOpen = doc.GetElement(view.Id)  # Use the Id property of the view
+                        uidoc.RequestViewChange(ViewToOpen)
+        else:
+            for view in AllViews:
+                # Check if the view's Id is in the saved list
+                if view.Id.IntegerValue in saved_view_ids:
+                    if not view.IsTemplate and view.CanBePrinted:  # Check if the view is not a template and can be printed
+                        ViewToOpen = doc.GetElement(view.Id)  # Use the Id property of the view
+                        uidoc.RequestViewChange(ViewToOpen)
     else:
         TaskDialog.Show("Invalid Views", 'Saved views are not from this project')
 else:

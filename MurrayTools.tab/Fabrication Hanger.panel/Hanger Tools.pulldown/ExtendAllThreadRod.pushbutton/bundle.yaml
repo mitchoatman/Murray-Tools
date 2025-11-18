@@ -6,9 +6,9 @@ title:
 
 # bundle tooltip
 tooltip: |-
-  Extends All Thread Hanger Rod(s) to a reference plane.
+  Extends Selected Thread Hanger Rod(s) to a reference plane.
     1. Run Command.
-    2. Select Fabrication Hangers (Using Window Selection).
+    2. Select Fabrication Hangers.
     3. Pick Reference plane to extend rods to.
 
 

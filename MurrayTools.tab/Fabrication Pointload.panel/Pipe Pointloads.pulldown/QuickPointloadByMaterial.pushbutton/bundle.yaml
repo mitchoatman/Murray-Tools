@@ -7,16 +7,19 @@ title:
 
 # bundle tooltip
 tooltip: |-
-  Calculates pointload values for all hangers based on material.
+  Calculates pointload values for all hangers in view based on the material of their host.
   It rounds the values to a power of 10x.
-  Example: 1 = 0-10.lbs  2 = 11-20.lbs  3 = 21-30.lbs  4 = 31-40.lbs
+  Example: 1 = 0-10lbs  2 = 11-20lbs  3 = 21-30.lbs  4 = 31-40lbs
     1. Run command.
-    2. Data is written to all hangers visible in view based on the material of their host.
-        Loads are calculated using standard hanger spacing rules.
-        Cast Iron
-        Copper
-        Carbon Steel
-        Stainless Steel
+    2. Data added to Hangers in view.
+
+    Loads are calculated using standard hanger spacing rules.
+    Cast Iron
+    Copper
+    Carbon Steel
+    Stainless Steel
+    PVC
+    PolyPropylene (sizes 2-15)
 
   Hangers NOT attached to pipe will not have loads written to them.
 

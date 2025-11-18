@@ -13,6 +13,8 @@ tooltip: |-
     
     DOES NOT ALIGN TO THE ANGLE OF SLOPING PIPE!
 
+  [Shift]+Click:    
+  Turn off workplane in active view.
 
 # context directives are listed under `context` key, the order does not matter
 # context:

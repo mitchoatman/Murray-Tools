@@ -1,0 +1,11 @@
+#highlight: new
+# bundle title
+title:
+  "DiRoots Documentation"
+
+# bundle tooltip
+tooltip: >-
+  Will open a web page to a form where user can submit feedback.
+
+hyperlink: "https://docs.dirootsone.diroots.com/"
+context: zero-doc

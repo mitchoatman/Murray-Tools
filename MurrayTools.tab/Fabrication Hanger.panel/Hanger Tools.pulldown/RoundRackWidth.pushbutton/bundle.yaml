@@ -8,12 +8,12 @@ title:
 tooltip: |-
   Adjusts selected trapeze rack widths up to the nearest 2" increment.
     1. Run Command.
-    2. Select Fabrication Hangers (Using Window Selection).
+    2. Select Fabrication Trapeze Hangers.
 
   [Shift]+Click:   
-  Sets the Trapeze extension length..
+  Sets the Trapeze EXTENSION length..
     1. Run Command.
-    2. Select Fabrication Hangers (Using Window Selection).
+    2. Select Fabrication Trapeze Hangers.
     3. Enter length in the dialog.
 
 # context directives are listed under `context` key, the order does not matter

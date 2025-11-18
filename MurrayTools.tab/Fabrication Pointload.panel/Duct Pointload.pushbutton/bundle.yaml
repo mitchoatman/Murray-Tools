@@ -12,8 +12,7 @@ tooltip: |-
   It rounds the values to a power of 10x.
   Example: 1 = 0-10.lbs  2 = 11-20.lbs  3 = 21-30.lbs  4 = 31-40.lbs
     1. Run Command.
-    2. Select Fabrication Ducts to collect weight from.
-    3. Select Fabrication Hangers to distribute weight across.
+    2. Select Fabrication Ducts and Hangers to collect weight from.
     Muti-point supports weights are reduced automatically.
 
   [Shift]+Click:

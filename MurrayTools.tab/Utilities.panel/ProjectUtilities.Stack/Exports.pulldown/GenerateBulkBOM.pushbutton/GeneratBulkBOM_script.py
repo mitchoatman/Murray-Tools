@@ -155,6 +155,11 @@ if RevitINT < 2025:
                     if cell_value == "0' - 0\"":
                         cell.Value = ''
 
+            # Add AutoFilter starting from row 16
+            if last_row >= 17:
+                filter_range = ws.Range(ws.Cells(16, 1), ws.Cells(last_row, 7))
+                filter_range.AutoFilter()
+
             # Suppress Excel overwrite prompt and save as new file
             excel.DisplayAlerts = False
             wb.SaveAs(output_filepath)

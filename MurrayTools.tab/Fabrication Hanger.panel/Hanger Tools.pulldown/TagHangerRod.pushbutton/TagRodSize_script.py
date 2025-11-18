@@ -1,7 +1,7 @@
 import Autodesk
 from Autodesk.Revit.DB import IFamilyLoadOptions, FamilySource, Transaction, FilteredElementCollector, Family, TransactionGroup, \
                               BuiltInCategory, FamilySymbol, BuiltInParameter, Reference, IndependentTag, TagMode, TagOrientation, \
-                              ViewType
+                              ViewType, View3D
 from Parameters.Add_SharedParameters import Shared_Params
 from Autodesk.Revit.UI import TaskDialog
 import os
@@ -17,10 +17,29 @@ doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 
-# Check if the active view is a FloorPlan or Section, print message and exit if not
-if curview.ViewType not in [ViewType.FloorPlan, ViewType.AreaPlan, ViewType.Section]:
+# Handle 3D view locking with validation
+if curview.ViewType == ViewType.ThreeD:
+    v3d = curview  # Safe cast as ViewType confirms View3D
+    if v3d.IsPerspective:
+        TaskDialog.Show("Error", "Tagging is not supported in perspective 3D views.")
+        sys.exit()
+    if "}" in v3d.Name:
+        TaskDialog.Show("Error", "Tagging only allowed in Locked 3D view.  Your view contains invalid characters, rename the view if you wish to tag in 3D")
+        sys.exit()
+    
+    t_lock = Transaction(doc, "Lock 3D View Orientation")
+    t_lock.Start()
+    try:
+        v3d.SaveOrientationAndLock()
+        t_lock.Commit()
+        if not v3d.IsLocked:
+            raise Exception("Lock verification failed")
+    except:
+        t_lock.RollBack()
+        TaskDialog.Show("Error", "Failed to lock 3D view orientation. Ensure the view is not a template and retry.")
+        sys.exit()
+elif curview.ViewType not in [ViewType.FloorPlan, ViewType.AreaPlan, ViewType.Section]:
     TaskDialog.Show("Error", "This script can only run in a Floor Plan or Section view.")
-    # print("This script can only run in a Floor Plan or Section view.")
     sys.exit()
 
 # Search project for all Families

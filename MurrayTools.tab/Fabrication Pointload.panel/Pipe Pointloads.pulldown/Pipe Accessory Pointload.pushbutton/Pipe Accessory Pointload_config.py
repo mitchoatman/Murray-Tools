@@ -99,7 +99,7 @@ if len(Fpipework) > 0:
     else:
         forms.alert('At least one Pipe Accessory must be selected.')
         
-    pointload = ((Total_Weight / Hanger_Count) / 10)
+    pointload = Total_Weight / Hanger_Count
 
     t = Transaction(doc, 'Write Pointload Info')
     #Start Transaction

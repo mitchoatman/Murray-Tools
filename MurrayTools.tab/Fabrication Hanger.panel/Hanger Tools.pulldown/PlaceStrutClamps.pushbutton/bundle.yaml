@@ -1,0 +1,23 @@
+#highlight: new
+
+# bundle title
+title:
+  "Place Strut Clamps"
+
+# bundle tooltip
+tooltip: |-
+  Populates strut clamps on selected pipes and racks.
+    1. Run Command.
+    2. Select Fabrication Hangers and Pipes in a run that are related.
+  
+  DO NOT select an entire floor.  This is meant for separate runs at a time.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

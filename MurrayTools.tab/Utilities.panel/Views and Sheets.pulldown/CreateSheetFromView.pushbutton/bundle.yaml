@@ -6,16 +6,24 @@ title:
   "Create Sheet(s)\nFrom View(s)"
 
 # bundle tooltip
-tooltip: >-
+tooltip: |-
   Creates a new sheet(s) from selected view.
       1. Select a view(s) in project browser.
       2. Run Script.
-      3. Pick desired title block.
-      4. Enter Sheet name and number.
+      3. If views were not pre-selected, choose them in dialog.
+      4. Pick desired title block.
+      5. Enter Sheet name and number.
       
   Will create multiple sheets from multiple views selected.
   New sheets will use view name for sheet number when multiple are selected.
 
+  [Shift]+Click:    
+  Adds ceiling plan to existing sheet(s) from selected view.
+      1. Select a view(s) in project browser.
+      2. Run Script.
+      3. If views were not pre-selected, choose them in dialog.
+      4. Pick the sheets to place ceiling plans on.
+      5. Ceiling plans will be combined on selected sheets.
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Walls

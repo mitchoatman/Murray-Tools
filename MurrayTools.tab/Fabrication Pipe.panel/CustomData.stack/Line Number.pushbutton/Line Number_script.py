@@ -1,23 +1,30 @@
-import clr
+import os, clr
 clr.AddReference('System.Windows.Forms')
 clr.AddReference('System.Drawing')
+clr.AddReference('PresentationFramework')
+clr.AddReference('PresentationCore')
+clr.AddReference('WindowsBase')
 import System
-from System.Windows.Forms import Form, Label, TextBox, Button, DialogResult, FormStartPosition, FormBorderStyle, MessageBox, ListBox
-from System.Drawing import Point, Size
-from Autodesk.Revit.DB import Transaction, FilteredElementCollector
-from Autodesk.Revit.UI import Selection
+from System.Windows import Window, Thickness, HorizontalAlignment, VerticalAlignment, WindowStartupLocation
+from System.Windows.Controls import Grid, RowDefinition, ColumnDefinition, Label, TextBox, Button, ListBox, StackPanel
+from System.Windows.Input import Keyboard, MouseButtonEventArgs
+from Autodesk.Revit.DB import Transaction, FilteredElementCollector, BuiltInCategory, ElementId
+from Autodesk.Revit.UI import UIApplication, TaskDialog
 from Autodesk.Revit.UI.Selection import ObjectType
+from System.Windows.Interop import WindowInteropHelper
+from System.Collections.Generic import List
 from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import set_parameter_by_name
-import os
-import re
 
 Shared_Params()
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+curview = doc.ActiveView
+app = UIApplication(doc.Application)
 
 def natural_key(s):
+    import re
     return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)]
 
 # File handling
@@ -43,132 +50,193 @@ for elem in collector:
         line_numbers.add(param.AsString())
 line_numbers = sorted(line_numbers, key=natural_key)
 
-# WinForms dialog
-class LineNumberForm(Form):
-    def __init__(self, default_value, line_numbers):
-        self.Text = "Line Number"
-        self.scale_factor = self.get_dpi_scale()
-        self.padding = 5
+# WPF dialog
+class LineNumberWindow(Window):
+    def __init__(self, default_value, line_numbers, revit_window_handle):
+        self.Title = "Line Number"
+        self.Width = 300
+        self.ResizeMode = System.Windows.ResizeMode.NoResize
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
         self.InitializeComponents(default_value, line_numbers)
-
-    def get_dpi_scale(self):
-        screen = System.Windows.Forms.Screen.PrimaryScreen
-        graphics = self.CreateGraphics()
-        dpi_x = graphics.DpiX
-        graphics.Dispose()
-        return dpi_x / 96.0
-
-    def scale_value(self, value):
-        return int(value * self.scale_factor)
+        # Set the owner to Revit's main window
+        WindowInteropHelper(self).Owner = revit_window_handle
 
     def InitializeComponents(self, default_value, line_numbers):
-        self.FormBorderStyle = FormBorderStyle.FixedSingle
-        self.MaximizeBox = False
-        self.MinimizeBox = False
-        self.StartPosition = FormStartPosition.CenterScreen
+        # Create Grid layout
+        grid = Grid()
+        self.Content = grid
 
-        self.Width = self.scale_value(300)
+        # Define rows
+        row_definitions = [
+            RowDefinition(Height=System.Windows.GridLength.Auto),  # Label
+            RowDefinition(Height=System.Windows.GridLength.Auto),  # Textbox
+            RowDefinition(Height=System.Windows.GridLength.Auto),  # Listbox label
+            RowDefinition(Height=System.Windows.GridLength(1, System.Windows.GridUnitType.Star)),  # Listbox
+            RowDefinition(Height=System.Windows.GridLength.Auto)   # Buttons
+        ]
+        for row in row_definitions:
+            grid.RowDefinitions.Add(row)
 
-        # ListBox item height
-        item_height = self.scale_value(20)
+        # Define columns
+        column_definitions = [
+            ColumnDefinition(Width=System.Windows.GridLength(1, System.Windows.GridUnitType.Star))
+        ]
+        grid.ColumnDefinitions.Add(column_definitions[0])
 
-        # Tiered dialog height
-        num_items = len(line_numbers)
-        if num_items <= 10:
-            listbox_height = item_height * 7
-        elif num_items <= 15:
-            listbox_height = item_height * 11
-        elif num_items <= 20:
-            listbox_height = item_height * 13
-        else:
-            listbox_height = item_height * 13
+        # Calculate listbox height based on line numbers
+        item_height = 20
+        listbox_height = item_height * min(15, max(7, len(line_numbers))) + 5
+        self.Height = listbox_height + 185
 
-        listbox_height += self.scale_value(10)
-
-        # Fixed height for other UI parts
-        header_height = self.scale_value(130)
-        button_height = self.scale_value(30)
-        bottom_margin = self.scale_value(20)
-
-        self.Height = listbox_height + header_height + button_height + bottom_margin
+        # Add controls
+        row_index = 0
 
         # Label for TextBox
         self.label = Label()
-        self.label.Text = "Enter Line Number:"
-        self.label.Location = Point(self.scale_value(20), self.scale_value(10))
-        self.label.Size = Size(self.scale_value(260), self.scale_value(20))
-        self.Controls.Add(self.label)
+        self.label.Content = "Enter Line Number:"
+        self.label.Margin = Thickness(10, 5, 10, 5)
+        Grid.SetRow(self.label, row_index)
+        grid.Children.Add(self.label)
+        row_index += 1
 
         # TextBox
         self.textbox = TextBox()
         self.textbox.Text = default_value
-        self.textbox.Location = Point(self.scale_value(20), self.scale_value(31))
-        self.textbox.Size = Size(self.scale_value(240), self.scale_value(20))
-        self.Controls.Add(self.textbox)
+        self.textbox.Margin = Thickness(10, 0, 10, 5)
+        Grid.SetRow(self.textbox, row_index)
+        grid.Children.Add(self.textbox)
+        row_index += 1
 
         # Label for ListBox
         self.list_label = Label()
-        self.list_label.Text = "Line Numbers in View:"
-        self.list_label.Location = Point(self.scale_value(20), self.scale_value(72))
-        self.list_label.Size = Size(self.scale_value(260), self.scale_value(20))
-        self.Controls.Add(self.list_label)
+        self.list_label.Content = "Line Numbers in View:"
+        self.list_label.Margin = Thickness(10, 0, 10, 5)
+        Grid.SetRow(self.list_label, row_index)
+        grid.Children.Add(self.list_label)
+        row_index += 1
 
         # ListBox
         self.listbox = ListBox()
-        self.listbox.Location = Point(self.scale_value(20), self.scale_value(95))
-        self.listbox.Size = Size(self.scale_value(240), listbox_height)
+        self.listbox.Height = listbox_height
+        self.listbox.Margin = Thickness(10, 0, 10, 0)
         for number in line_numbers:
             self.listbox.Items.Add(number)
-        self.listbox.SelectedIndexChanged += self.on_listbox_select
-        self.Controls.Add(self.listbox)
+        self.listbox.SelectionChanged += self.on_listbox_select
+        def listbox_double_click(sender, args):
+            if isinstance(args, MouseButtonEventArgs) and args.ClickCount == 2:
+                self.on_listbox_double_click(sender, args)
+        self.listbox.MouseDoubleClick += listbox_double_click
+        Grid.SetRow(self.listbox, row_index)
+        grid.Children.Add(self.listbox)
+        row_index += 1
 
         # Buttons
-        button_width = self.scale_value(75)
-        button_y = self.Height - bottom_margin - bottom_margin - bottom_margin - bottom_margin
+        button_panel = StackPanel()
+        button_panel.Orientation = System.Windows.Controls.Orientation.Horizontal
+        button_panel.HorizontalAlignment = HorizontalAlignment.Center
+        button_panel.Margin = Thickness(0, 15, 0, 10)
+        Grid.SetRow(button_panel, row_index)
+        grid.Children.Add(button_panel)
 
         self.ok_button = Button()
-        self.ok_button.Text = "OK"
-        self.ok_button.Size = Size(button_width, button_height)
-        self.ok_button.Location = Point(self.scale_value(70), button_y)
-        self.ok_button.DialogResult = DialogResult.OK
-        self.Controls.Add(self.ok_button)
+        self.ok_button.Content = "OK"
+        self.ok_button.Width = 75
+        self.ok_button.Height = 25
+        self.ok_button.Margin = Thickness(5, 0, 5, 0)
+        self.ok_button.Click += self.on_ok_click
+        button_panel.Children.Add(self.ok_button)
+
+        self.show_button = Button()
+        self.show_button.Content = "Show"
+        self.show_button.Width = 75
+        self.show_button.Height = 25
+        self.show_button.Margin = Thickness(5, 0, 5, 0)
+        self.show_button.Click += self.on_show_click
+        button_panel.Children.Add(self.show_button)
 
         self.cancel_button = Button()
-        self.cancel_button.Text = "Cancel"
-        self.cancel_button.Size = Size(button_width, button_height)
-        self.cancel_button.Location = Point(self.scale_value(155), button_y)
-        self.cancel_button.DialogResult = DialogResult.Cancel
-        self.Controls.Add(self.cancel_button)
+        self.cancel_button.Content = "Cancel"
+        self.cancel_button.Width = 75
+        self.cancel_button.Height = 25
+        self.cancel_button.Margin = Thickness(5, 0, 5, 0)
+        self.cancel_button.Click += self.on_cancel_click
+        button_panel.Children.Add(self.cancel_button)
 
-        self.AcceptButton = self.ok_button
-        self.CancelButton = self.cancel_button
+        # Set Enter and Escape keys
+        self.KeyDown += self.on_key_down
 
     def on_listbox_select(self, sender, event):
         selected = self.listbox.SelectedItem
         if selected:
             self.textbox.Text = selected
 
+    def on_listbox_double_click(self, sender, event):
+        selected = self.listbox.SelectedItem
+        if selected:
+            self.textbox.Text = selected
+
+    def on_show_click(self, sender, event):
+        selected = self.listbox.SelectedItem
+        if not selected:
+            TaskDialog.Show("Warning", "Please select a line number from the list.")
+            return
+
+        # Collect elements with the selected FP_Line Number
+        matching_elements = []
+        collector = FilteredElementCollector(doc, doc.ActiveView.Id)
+        for elem in collector:
+            param = elem.LookupParameter("FP_Line Number")
+            if param and param.HasValue and param.AsString() == selected:
+                matching_elements.append(elem)
+
+        if not matching_elements:
+            TaskDialog.Show("Warning", "No elements found with line number '{selected}' in the active view.")
+            return
+
+        # Zoom to matching elements
+        element_ids = List[ElementId]()
+        for elem in matching_elements:
+            element_ids.Add(elem.Id)
+        uidoc.Selection.SetElementIds(element_ids); uidoc.ShowElements(element_ids)
+
+    def on_ok_click(self, sender, event):
+        self.DialogResult = True
+        self.Close()
+
+    def on_cancel_click(self, sender, event):
+        self.DialogResult = False
+        self.Close()
+
+    def on_key_down(self, sender, event):
+        if event.Key == System.Windows.Input.Key.Enter:
+            self.DialogResult = True
+            self.Close()
+        elif event.Key == System.Windows.Input.Key.Escape:
+            self.DialogResult = False
+            self.Close()
+
+# Get Revit's main window handle
+revit_window_handle = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle
+
 # Show dialog
-form = LineNumberForm(PrevInput, line_numbers)
+form = LineNumberWindow(PrevInput, line_numbers, revit_window_handle)
 value = None
-if form.ShowDialog() == DialogResult.OK:
+if form.ShowDialog() == True:
     value = form.textbox.Text
 
+# Rest of the existing code, with selection logic after dialog
 if value:
-    # Get selected elements after OK is clicked
-    selected_ids = uidoc.Selection.GetElementIds()
-    if not selected_ids:
-        # Prompt user to select elements if none are selected
-        try:
-            picked_refs = uidoc.Selection.PickObjects(ObjectType.Element, "Please select elements to set Line Number.")
-            selected_ids = [ref.ElementId for ref in picked_refs]
-        except:
-            MessageBox.Show("Selection cancelled. No elements selected.", "Error")
-            exit()
+    selected_ids = []
+    try:
+        picked_refs = uidoc.Selection.PickObjects(ObjectType.Element, "Please select elements to set Line Number.")
+        selected_ids = [ref.ElementId for ref in picked_refs]
+    except:
+        TaskDialog.Show("Error", "Selection cancelled. No elements selected.")
+        sys.exit()
 
     if not selected_ids:
-        MessageBox.Show("No elements selected. Please select elements and try again.", "Error")
-        exit()
+        TaskDialog.Show("Error", "No elements selected. Please select elements and try again.")
+        sys.exit()
 
     selection = [doc.GetElement(eid) for eid in selected_ids]
 
@@ -192,6 +260,6 @@ if value:
 
         t.Commit()
     except Exception as e:
-        MessageBox.Show("Error: {}".format(str(e)), "Error")
+        TaskDialog.Show("Error", "Error: {}".format(str(e)))
         if t is not None and t.HasStarted():
             t.RollBack()

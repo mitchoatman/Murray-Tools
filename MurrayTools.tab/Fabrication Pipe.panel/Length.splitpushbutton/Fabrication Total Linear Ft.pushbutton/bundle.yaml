@@ -7,7 +7,7 @@ title:
 
 # bundle tooltip
 tooltip: |-
-  Collects combined length of Fabrication Pipes in the (ACTIVE VIEW).
+  Collects combined length of Fabrication Pipes in the Model.
 
     1. Run Command.
     2. Linear Ft of pipe will be shown in the dialog

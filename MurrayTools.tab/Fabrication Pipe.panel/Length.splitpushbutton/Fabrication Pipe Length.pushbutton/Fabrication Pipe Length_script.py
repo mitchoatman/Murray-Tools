@@ -11,7 +11,10 @@ import sys
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+curview = doc.ActiveView
 app = doc.Application
+RevitVersion = app.VersionNumber
+RevitINT = float(RevitVersion)
 
 # Get selected elements or prompt for selection
 selected_ids = uidoc.Selection.GetElementIds()
@@ -27,18 +30,32 @@ if not selected_ids:
     MessageBox.Show("No elements selected. Please select elements and try again.", "Error")
     sys.exit()
 
-# Collect MEP Fabrication Pipework elements with CID 2041 from selected IDs
-selected_id_set = set(str(id.IntegerValue) for id in selected_ids)  # Convert to set of string IDs for comparison
-collector = (
-    FilteredElementCollector(doc)
-    .OfCategory(BuiltInCategory.OST_FabricationPipework)
-    .WhereElementIsNotElementType()
-)
+if RevitINT > 2025:
+    # Collect MEP Fabrication Pipework elements with CID 2041 from selected IDs
+    selected_id_set = set(str(id.Value) for id in selected_ids)  # Convert to set of string IDs for comparison
+    collector = (
+        FilteredElementCollector(doc)
+        .OfCategory(BuiltInCategory.OST_FabricationPipework)
+        .WhereElementIsNotElementType()
+    )
 
-Fpipework = [
-    elem for elem in collector
-    if isinstance(elem, FabricationPart) and elem.ItemCustomId == 2041 and str(elem.Id.IntegerValue) in selected_id_set
-]
+    Fpipework = [
+        elem for elem in collector
+        if isinstance(elem, FabricationPart) and elem.ItemCustomId == 2041 and str(elem.Id.Value) in selected_id_set
+    ]
+else:
+    # Collect MEP Fabrication Pipework elements with CID 2041 from selected IDs
+    selected_id_set = set(str(id.IntegerValue) for id in selected_ids)  # Convert to set of string IDs for comparison
+    collector = (
+        FilteredElementCollector(doc)
+        .OfCategory(BuiltInCategory.OST_FabricationPipework)
+        .WhereElementIsNotElementType()
+    )
+
+    Fpipework = [
+        elem for elem in collector
+        if isinstance(elem, FabricationPart) and elem.ItemCustomId == 2041 and str(elem.Id.IntegerValue) in selected_id_set
+    ]
 
 if not Fpipework:
     print "No fabrication pipes with CID 2041 selected."
@@ -52,7 +69,10 @@ type_cache = {}  # Cache element types
 for pipe in Fpipework:
     try:
         # Get element type from cache or document
-        type_id = pipe.GetTypeId().IntegerValue
+        if RevitINT > 2025:
+            type_id = pipe.GetTypeId().Value
+        else:
+            type_id = pipe.GetTypeId().IntegerValue
         if type_id not in type_cache:
             type_cache[type_id] = doc.GetElement(pipe.GetTypeId())
         elem_type = type_cache[type_id]

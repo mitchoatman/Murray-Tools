@@ -1,4 +1,4 @@
-import Autodesk
+# -*- coding: UTF-8 -*-
 from Autodesk.Revit.DB import Transaction, FabricationConfiguration
 import os
 from Parameters.Add_SharedParameters import Shared_Params
@@ -7,12 +7,17 @@ Shared_Params()
 
 # .NET Imports
 import clr
+clr.AddReference('PresentationCore')
+clr.AddReference('PresentationFramework')
+clr.AddReference('WindowsBase')
 clr.AddReference('System')
-clr.AddReference('System.Drawing')
 clr.AddReference('System.Windows.Forms')
 import System
-from System.Windows.Forms import *
-from System.Drawing import Point, Size, Font, FontStyle
+from System.Windows import Application, Window, Thickness, HorizontalAlignment, VerticalAlignment, WindowStartupLocation, ResizeMode, FontWeights
+from System.Windows.Controls import Button, TextBox, Label, Grid, RowDefinition, ColumnDefinition
+from System.Windows.Media import Brushes, FontFamily
+from System.Windows import Size
+from System.Windows.Threading import DispatcherFrame, Dispatcher
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -33,64 +38,100 @@ with open(filepath, 'r') as file:
     lines = file.readlines()
     lines = [line.rstrip() for line in lines]
 
-class TXT_Form(Form):
+class TXT_Form(Window):
     def __init__(self):
-        self.Text = 'Spool Data'
-        self.Size = Size(275, 200)
-        self.StartPosition = FormStartPosition.CenterScreen
-        self.TopMost = True
-        self.ShowIcon = False
-        self.MaximizeBox = False
-        self.MinimizeBox = False
-        self.FormBorderStyle = FormBorderStyle.FixedDialog
+        self.Title = 'Spool Data'
+        self.Width = 275
+        self.Height = 200
+        self.MinWidth = 275
+        self.MinHeight = 200
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
+        self.Topmost = True
+        self.ResizeMode = ResizeMode.NoResize
 
+        # Create grid layout
+        grid = Grid()
+        for i in range(4):  # 4 rows: label1, textbox1, label2, textbox2, button
+            grid.RowDefinitions.Add(RowDefinition())
+        for i in range(2):  # 2 columns: labels, textboxes
+            grid.ColumnDefinitions.Add(ColumnDefinition())
+
+        # Label 1 (Spool Name)
+        label1 = Label()
+        label1.Content = 'Spool Name:'
+        label1.FontFamily = FontFamily("Arial")
+        label1.FontSize = 14
+        label1.FontWeight = FontWeights.Bold
+        label1.Margin = Thickness(5, 5, 0, 0)
+        Grid.SetRow(label1, 0)
+        Grid.SetColumn(label1, 0)
+        grid.Children.Add(label1)
+
+        # TextBox 1
+        textbox1 = TextBox()
+        textbox1.Text = lines[0]
+        textbox1.Margin = Thickness(-10, 5, 5, 0)
+        textbox1.FontFamily = FontFamily("Arial")
+        textbox1.FontSize = 12
+        textbox1.Height = 20
+        textbox1.IsReadOnly = False
+        textbox1.IsEnabled = True
+        Grid.SetRow(textbox1, 0)
+        Grid.SetColumn(textbox1, 1)
+        grid.Children.Add(textbox1)
+
+        # Label 2 (Map Name)
+        label2 = Label()
+        label2.Content = 'Map Name:'
+        label2.FontFamily = FontFamily("Arial")
+        label2.FontSize = 14
+        label2.FontWeight = FontWeights.Bold
+        label2.Margin = Thickness(5, 5, 0, 0)
+        Grid.SetRow(label2, 1)
+        Grid.SetColumn(label2, 0)
+        grid.Children.Add(label2)
+
+        # TextBox 2
+        textbox2 = TextBox()
+        textbox2.Text = lines[1]
+        textbox2.Margin = Thickness(-10, 5, 5, 0)
+        textbox2.FontFamily = FontFamily("Arial")
+        textbox2.FontSize = 12
+        textbox2.Height = 20
+        textbox2.IsReadOnly = False
+        textbox2.IsEnabled = True
+        Grid.SetRow(textbox2, 1)
+        Grid.SetColumn(textbox2, 1)
+        grid.Children.Add(textbox2)
+
+        # Button
+        button = Button()
+        button.Content = 'Set Spool Data'
+        button.Margin = Thickness(80, -5, 80, 5)
+        button.FontFamily = FontFamily("Arial")
+        button.FontSize = 12
+        button.Height = 25
+        button.Click += self.on_click
+        Grid.SetRow(button, 3)
+        Grid.SetColumnSpan(button, 2)
+        grid.Children.Add(button)
+
+        self.Content = grid
         self.value = None
-
-        self.label_textbox = Label()
-        self.label_textbox.Text = 'Spool Name:'
-        self.label_textbox.ForeColor = System.Drawing.Color.Black
-        self.label_textbox.Font = Font("Arial", 12, FontStyle.Bold)
-        self.label_textbox.Location = Point(5, 20)
-        self.label_textbox.Size = Size(110, 40)
-        self.Controls.Add(self.label_textbox)
-
-        self.label_textbox2 = Label()
-        self.label_textbox2.Text = 'Map Name:'
-        self.label_textbox2.ForeColor = System.Drawing.Color.Black
-        self.label_textbox2.Font = Font("Arial", 12, FontStyle.Bold)
-        self.label_textbox2.Location = Point(5, 70)
-        self.label_textbox2.Size = Size(110, 40)
-        self.Controls.Add(self.label_textbox2)
-
-        self.textBox1 = TextBox()
-        self.textBox1.Text = lines[0]
-        self.textBox1.Location = Point(125, 20)
-        self.textBox1.Size = Size(125, 40)
-        self.Controls.Add(self.textBox1)
-
-        self.textBox2 = TextBox()
-        self.textBox2.Text = lines[1]
-        self.textBox2.Location = Point(125, 70)
-        self.textBox2.Size = Size(125, 40)
-        self.Controls.Add(self.textBox2)
-
-        self.button = Button()
-        self.button.Text = 'Set Spool Data'
-        self.button.Location = Point(80, 120)
-        self.button.Size = Size(100, 30)
-        self.Controls.Add(self.button)
-
-        self.button.Click += self.on_click
+        self.map_name = None
+        textbox1.Focus()  # Set focus to Spool Name textbox
+        textbox1.SelectAll()  # Select all text in Spool Name textbox
 
     def on_click(self, sender, event):
         try:
-            self.value = self.textBox1.Text
-            self.map_name = self.textBox2.Text
+            self.value = self.Content.Children[1].Text  # textbox1
+            self.map_name = self.Content.Children[3].Text  # textbox2
             
             # Write data to elements
             selection = uidoc.Selection.GetElementIds()
             if not selection:
-                MessageBox.Show("No elements selected. Please select elements.")
+                from System.Windows.Forms import MessageBox
+                MessageBox.Show("No elements selected. Please select elements.", "Selection Error")
                 return
             
             t = Transaction(doc, 'Set Assembly Number')
@@ -136,22 +177,32 @@ class TXT_Form(Form):
                     the_file.writelines([line1, line2])
 
                 # Update the text boxes with the new values
-                self.textBox1.Text = newspoolname
-                self.textBox2.Text = self.map_name
+                self.Content.Children[1].Text = newspoolname
+                self.Content.Children[3].Text = self.map_name
             else:
                 with open(filepath, 'w') as the_file:
                     line1 = self.value + '\n'
                     line2 = self.map_name + '\n'
                     the_file.writelines([line1, line2])
-        except ValueError:
-            MessageBox.Show("Please enter valid data.")
-        except Exception as e:
-            MessageBox.Show('oof, not sure what happened! Contact admin.')
 
-# Display the form modelessly
+        except ValueError:
+            from System.Windows.Forms import MessageBox
+            MessageBox.Show("Please enter valid data.", "Input Error")
+        except Exception as e:
+            from System.Windows.Forms import MessageBox
+            MessageBox.Show('oof, not sure what happened! Contact admin.', "Error")
+
 form = TXT_Form()
+
+# Set up a WPF dispatcher frame
+frame = DispatcherFrame()
+
+# When form is closed, exit the frame cleanly
+def exit_frame(sender, e):
+    frame.Continue = False
+
+form.Closed += exit_frame
 form.Show()
 
-# Event loop to keep the form open
-while form.Visible:
-    System.Windows.Forms.Application.DoEvents()
+# Keeps UI responsive, textboxes editable, and exits properly on close
+Dispatcher.PushFrame(frame)

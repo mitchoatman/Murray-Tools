@@ -11,6 +11,15 @@ from pyrevit import script, revit
 from pyrevit.forms import SelectFromList
 from pyrevit.revit import doc, uidoc, selection
 
+from Autodesk.Revit.UI import UIDocument, TaskDialog
+
+doc = __revit__.ActiveUIDocument.Document
+uidoc = __revit__.ActiveUIDocument
+curview = doc.ActiveView
+app = doc.Application
+RevitVersion = app.VersionNumber
+RevitINT = float(RevitVersion)
+
 output = script.get_output()
 logger = script.get_logger()
 linkify = output.linkify
@@ -69,9 +78,17 @@ def read_checkboxes_state():
 
 
 def save_checkboxes_state(checkboxes):
-    selected_ids = {c.Id.IntegerValue.ToString() for c in checkboxes}
-    with open(DATAFILE, 'w') as filter_element: 
-        pl.dump(selected_ids, filter_element)
+    if RevitINT > 2025:
+        selected_ids = {str(c.Id.Value) for c in checkboxes}
+        try:
+            with open(DATAFILE, 'wb') as filter_element:  # Use binary mode for pickle
+                pl.dump(selected_ids, filter_element)
+        except Exception as e:
+            logger.error('Failed to save checkbox state to %s: %s', DATAFILE, str(e))
+    else:
+        selected_ids = {c.Id.IntegerValue.ToString() for c in checkboxes}
+        with open(DATAFILE, 'w') as filter_element: 
+            pl.dump(selected_ids, filter_element)
 
 
 def get_filter_rules(doc):
@@ -202,7 +219,7 @@ def main():
 
     t.Commit()
 
-    print("Filters Copied")
+    TaskDialog.Show("Success","Filters Copied")
 
 if __name__ == "__main__":
     main()

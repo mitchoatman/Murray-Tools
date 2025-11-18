@@ -4,7 +4,8 @@ title:
 
 tooltip: |-
   Place wall sleeve family on pipe centerline at wall locations for point layout purposes.
-  It will also append Fabrication service name and abbreviation to the sleeve.
+  It will append Fabrication service name and abbreviation to the sleeve and includes 1/2"
+  annular space.
   
   1.  Select the pipe to place sleeve on.
   2.  Pick the intersection of the pipe centerline and wall.

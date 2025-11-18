@@ -1,11 +1,16 @@
-
+# -*- coding: utf-8 -*-
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FabricationPart, FabricationAncillaryUsage, Transaction, TransactionGroup, FilteredElementCollector, ElementCategoryFilter, BuiltInCategory
+from Autodesk.Revit.DB import FabricationPart, FabricationAncillaryUsage, Transaction, TransactionGroup, FilteredElementCollector, BuiltInCategory
 from Autodesk.Revit.UI.Selection import *
-from rpw.ui.forms import FlexForm, Label, TextBox, Separator, Button
-from pyrevit import script
+from Autodesk.Revit.UI import TaskDialog
 from Parameters.Add_SharedParameters import Shared_Params
 import os
+import clr
+clr.AddReference('PresentationFramework')
+clr.AddReference('PresentationCore')
+clr.AddReference('WindowsBase')
+from System.Windows import Application, Window, Thickness, WindowStyle, ResizeMode, WindowStartupLocation, HorizontalAlignment
+from System.Windows.Controls import Label, TextBox, Button, Grid, RowDefinition, ColumnDefinition
 
 Shared_Params()
 
@@ -14,31 +19,21 @@ uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 
 def convert_fractions(string):
-    # Remove double quotes (") from the input string.
     string = string.replace('"', '')
-    # Split the string into a list of tokens.
     tokens = string.split()
-    # Initialize variables to keep track of the integer and fractional parts.
     integer_part = 0
     fractional_part = 0.0
-    # Iterate over the tokens and convert the mixed number to a float.
     for token in tokens:
         if " " in token:
-            # Split the mixed number into integer and fractional parts.
             integer_part_str, fractional_part_str = token.split(" ")
-            # Convert the integer part to an integer.
             integer_part += int(integer_part_str)
-            # Convert the fractional part to a float.
             fractional_part_str = fractional_part_str.replace('/', '')
             fractional_part += float(fractional_part_str)
         elif "/" in token:
-            # If the token is just a fraction, convert it to a float and add it to the fractional part.
             numerator, denominator = token.split("/")
             fractional_part += float(numerator) / float(denominator)
         else:
-            # If the token is a standalone number, add it to the integer part.
             integer_part += float(token)
-    # Calculate the final result by adding the integer and fractional parts together.
     result = integer_part + fractional_part
     return result
 
@@ -58,128 +53,143 @@ try:
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
     if not os.path.exists(filepath):
-        with open((filepath), 'w') as the_file:
-            line1 = ''
-            line2 = ''
-            line3 = ''
-            line4 = ''
-            line5 = ''
-            the_file.writelines([line1, line2, line3, line4, line5])  
+        with open(filepath, 'w') as the_file:
+            the_file.writelines(['', '', '', '', ''])
 
-        # read text file for stored values and show them in dialog
-    with open((filepath), 'r') as file:
-        lines = file.readlines()
-        lines = [line.rstrip() for line in lines]
+    with open(filepath, 'r') as file:
+        lines = [line.rstrip() for line in file.readlines()]
 
-    if lines:
-        # Display dialog with stored values
-        components = [
-            Label('7/8 Rod / Max Pipe Size:'),
-            TextBox('rod_875',lines[0]),
-            Label('3/4 Rod / Max Pipe Size:'),
-            TextBox('rod_075', lines[1]),
-            Label('5/8 Rod / Max Pipe Size:'),
-            TextBox('rod_625', lines[2]),
-            Label('1/2 Rod / Max Pipe Size'),
-            TextBox('rod_050', lines[3]),
-            Label('3/8 Rod / Max Pipe Size:'),
-            TextBox('rod_375', lines[4]),
-            Button('Ok')
+    class RodSizeForm(Window):
+        def __init__(self, initial_values):
+            self.Title = "Hanger Rod Sizing"
+            self.Width = 300
+            self.Height = 300
+            self.WindowStyle = WindowStyle.SingleBorderWindow
+            self.ResizeMode = ResizeMode.NoResize
+            self.WindowStartupLocation = WindowStartupLocation.CenterScreen
+            self.result = None
+
+            grid = Grid()
+            grid.Margin = Thickness(10)
+            grid.ColumnDefinitions.Add(ColumnDefinition())
+            grid.ColumnDefinitions.Add(ColumnDefinition())
+            for _ in range(6):
+                grid.RowDefinitions.Add(RowDefinition())
+
+            self.Content = grid
+
+            label_texts = [
+                '↓ 7/8 Rod / Max Pipe Size:', '↓ 3/4 Rod / Max Pipe Size:',
+                '↓ 5/8 Rod / Max Pipe Size:', '↓ 1/2 Rod / Max Pipe Size:',
+                '↓ 3/8 Rod / Max Pipe Size:'
             ]
-        form = FlexForm('Hanger Rod Sizing', components)
-        form.show()
+            textbox_names = ['rod_875', 'rod_075', 'rod_625', 'rod_050', 'rod_375']
+
+            self.textboxes = []
+            for i, (text, name, value) in enumerate(zip(label_texts, textbox_names, initial_values)):
+                label = Label()
+                label.Content = text
+                label.Margin = Thickness(0, 0, 10, 10)
+                Grid.SetRow(label, i)
+                Grid.SetColumn(label, 0)
+                grid.Children.Add(label)
+
+                textbox = TextBox()
+                textbox.Name = name
+                textbox.Text = value
+                textbox.Width = 100
+                textbox.Margin = Thickness(0, 0, 0, 10)
+                Grid.SetRow(textbox, i)
+                Grid.SetColumn(textbox, 1)
+                grid.Children.Add(textbox)
+                self.textboxes.append(textbox)
+
+            ok_button = Button()
+            ok_button.Content = "OK"
+            ok_button.Width = 60
+            ok_button.Height = 25
+            ok_button.HorizontalAlignment = HorizontalAlignment.Center
+            ok_button.Margin = Thickness(0, 10, 0, 0)
+            ok_button.Click += self.on_ok
+            Grid.SetRow(ok_button, 5)
+            Grid.SetColumnSpan(ok_button, 2)
+            grid.Children.Add(ok_button)
+
+            self.values = {}
+            if self.textboxes:
+                self.textboxes[0].Focus()
+
+        def on_ok(self, sender, args):
+            for textbox in self.textboxes:
+                self.values[textbox.Name] = textbox.Text
+            self.DialogResult = True
+            self.Close()
+
+    form = RodSizeForm(lines if lines else ['', '', '', '', ''])
+    if form.ShowDialog() and form.DialogResult:
+        rod875 = convert_fractions(form.values['rod_875'])
+        rod075 = convert_fractions(form.values['rod_075'])
+        rod625 = convert_fractions(form.values['rod_625'])
+        rod050 = convert_fractions(form.values['rod_050'])
+        rod375 = convert_fractions(form.values['rod_375'])
+
+        with open(filepath, 'w') as the_file:
+            the_file.writelines([
+                str(rod875) + '\n', str(rod075) + '\n',
+                str(rod625) + '\n', str(rod050) + '\n',
+                str(rod375) + '\n'
+            ])
+
+        if rod875 == 0.0 or '':
+            rod875 = 0
+        if rod075 == 0.0 or '':
+            rod075 = 0
+        if rod625 == 0.0 or '':
+            rod625 = 0
+        if rod050 == 0.0 or '':
+            rod050 = 0
+        if rod375 == 0.0 or '':
+            rod375 = 0
+
+        hangers = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers) \
+                           .WhereElementIsNotElementType() \
+                           .ToElements()
+
+        tg = TransactionGroup(doc, "Change Hanger Rod")
+        tg.Start()
+
+        t = Transaction(doc, "Set Hanger Rod")
+        t.Start()
+        hangers_without_host_printed = False
+        for hanger in hangers:
+            hosted_info = hanger.GetHostedInfo().HostId
+            try:
+                HostSize = convert_fractions(get_parameter_value_by_name(doc.GetElement(hosted_info), 'Size'))
+                if HostSize <= rod875:
+                    newrodkit = 64
+                if HostSize <= rod075:
+                    newrodkit = 62
+                if HostSize <= rod625:
+                    newrodkit = 31
+                if HostSize <= rod050:
+                    newrodkit = 42
+                if HostSize <= rod375:
+                    newrodkit = 58
+                hanger.HangerRodKit = newrodkit
+            except:
+                from pyrevit import script
+                output = script.get_output()
+                print('{}: {}'.format((get_parameter_value_by_name_AsValueString(hanger, 'Family')), output.linkify(hanger.Id)))
+        t.Commit()
+
+        t = Transaction(doc, "Update FP Parameter")
+        t.Start()
+        for x in hangers:
+            [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
+        t.Commit()
+
+        tg.Assimilate()
     else:
-        # Display dialog without stored values
-        components = [
-            Label('7/8 Rod / Max Pipe Size:'),
-            TextBox('rod_875',''),
-            Label('3/4 Rod / Max Pipe Size:'),
-            TextBox('rod_075', ''),
-            Label('5/8 Rod / Max Pipe Size:'),
-            TextBox('rod_625', ''),
-            Label('1/2 Rod / Max Pipe Size'),
-            TextBox('rod_050', ''),
-            Label('3/8 Rod / Max Pipe Size:'),
-            TextBox('rod_375', ''),
-            Button('Ok')
-            ]
-        form = FlexForm('Hanger Rod Sizing', components)
-        form.show()
-
-    # Convert dialog input into variable
-
-    rod875 = convert_fractions(form.values['rod_875'])
-    rod075 = convert_fractions(form.values['rod_075'])
-    rod625 = convert_fractions(form.values['rod_625'])
-    rod050 = convert_fractions(form.values['rod_050'])
-    rod375 = convert_fractions(form.values['rod_375'])
-
-    # write values to text file for future retrieval
-    with open((filepath), 'w') as the_file:
-        line1 = (str(rod875) + '\n')
-        line2 = (str(rod075) + '\n')
-        line3 = (str(rod625) + '\n')
-        line4 = (str(rod050) + '\n')
-        line5 = (str(rod375) + '\n')
-        the_file.writelines([line1, line2, line3, line4, line5])
-
-    if rod875 == 0.0 or '':
-        rod875 = 0
-    if rod075 == 0.0 or '':
-        rod075 = 0
-    if rod625 == 0.0 or '':
-        rod625 = 0
-    if rod050 == 0.0 or '':
-        rod050 = 0
-    if rod375 == 0.0 or '':
-        rod375 = 0
-
-    # Creating collector instance and collecting all the fabrication hangers from the model
-    hangers = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers) \
-                       .WhereElementIsNotElementType() \
-                       .ToElements()
-
-    tg = TransactionGroup(doc, "Change Hanger Rod")
-    tg.Start()
-
-    t = Transaction(doc, "Set Hanger Rod")
-    t.Start()
-    hangers_without_host_printed = False  # Flag to ensure the message is printed only once
-    for hanger in hangers:
-        hosted_info = hanger.GetHostedInfo().HostId
-        try:
-            # Get the host element's size
-            HostSize = convert_fractions(get_parameter_value_by_name(doc.GetElement(hosted_info), 'Size'))
-            if HostSize <= rod875:
-                newrodkit = 64
-            if HostSize <= rod075:
-                newrodkit = 62
-            if HostSize <= rod625:
-                newrodkit = 31
-            if HostSize <= rod050:
-                newrodkit = 42
-            if HostSize <= rod375:
-                newrodkit = 58
-            # Set rod size.
-            hanger.HangerRodKit = newrodkit
-        except:
-            if not hangers_without_host_printed:
-                print("HANGERS WITHOUT A HOST")  # Print the message only once
-                hangers_without_host_printed = True
-            output = script.get_output()
-            print('{}: {}'.format((get_parameter_value_by_name_AsValueString(hanger, 'Family')), output.linkify(hanger.Id)))
-    t.Commit()
-
-    t = Transaction(doc, "Update FP Parameter")
-    t.Start()
-    for x in hangers:
-        [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
-    t.Commit()
-
-    #End Transaction Group
-    tg.Assimilate()
-except:
-    pass
-
-
-
+        TaskDialog.Show("Cancelled", "Operation cancelled by user.")
+except OperationCanceledException:
+    TaskDialog.Show("Selection Cancelled", "Operation cancelled by user.")

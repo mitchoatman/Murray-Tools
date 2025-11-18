@@ -1,14 +1,23 @@
 import Autodesk
 from pyrevit import revit
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+from Autodesk.Revit.UI import TaskDialog
 from System.Windows.Forms import SaveFileDialog, DialogResult
-import os
+import os, sys
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 
-selected_elements = uidoc.Selection.PickObjects(ObjectType.Element)
+# Attempt to pick elements; exit quietly if selection is canceled
+try:
+    selected_elements = uidoc.Selection.PickObjects(ObjectType.Element)
+except:
+    sys.exit()  # Exit quietly if the user aborts the pick operation
+
+if not selected_elements:  # Additional check for empty selection
+    exit()
+
 element_ids = [elem.ElementId for elem in selected_elements]
 
 # Define the path for saving the last export location
@@ -50,6 +59,6 @@ if save_dialog.ShowDialog() == DialogResult.OK:
         with open(filepath, 'w') as f:
             f.write(folder_path)
     except Exception as e:
-        print("Export failed: " + str(e))
+        TaskDialog.Show("Export Error", "Export failed: " + str(e))
 else:
-    print("PCF file save canceled.")
+    TaskDialog.Show("Export Canceled", "PCF file save canceled.")

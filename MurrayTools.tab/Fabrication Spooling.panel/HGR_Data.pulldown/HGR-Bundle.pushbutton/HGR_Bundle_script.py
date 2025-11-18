@@ -1,11 +1,12 @@
 import clr
-clr.AddReference('System.Windows.Forms')
-clr.AddReference('System.Drawing')
-import System
-from System.Windows.Forms import Form, Label, TextBox, Button, DialogResult, FormStartPosition, FormBorderStyle, MessageBox
-from System.Drawing import Point, Size
+clr.AddReference('PresentationCore')
+clr.AddReference('PresentationFramework')
+clr.AddReference('WindowsBase')
+from System.Windows import Window, Thickness, HorizontalAlignment, VerticalAlignment, WindowStartupLocation, ResizeMode, FontWeights
+from System.Windows.Controls import Grid, RowDefinition, ColumnDefinition, Label, TextBox, Button
 from Autodesk.Revit.DB import Transaction
 from Autodesk.Revit.UI.Selection import ObjectType
+from System.Windows.Media import Brushes, FontFamily
 import os, sys
 from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import set_parameter_by_name
@@ -28,74 +29,69 @@ f = open((filepath), 'r')
 PrevInput = f.read()
 f.close()
 
-# WinForms dialog
-class BundleNumberForm(Form):
+# WPF dialog
+class BundleNumberForm(Window):
     def __init__(self, default_value):
-        self.Text = "Bundle Number"
-        self.scale_factor = self.get_dpi_scale()
-        self.padding = 5
-        self.InitializeComponents(default_value)
+        self.Title = "Bundle Number"
+        self.Width = 300
+        self.Height = 160
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
+        self.ResizeMode = ResizeMode.NoResize
 
-    def get_dpi_scale(self):
-        screen = System.Windows.Forms.Screen.PrimaryScreen
-        graphics = self.CreateGraphics()
-        dpi_x = graphics.DpiX
-        graphics.Dispose()
-        return dpi_x / 96.0
+        self.snumber = None
 
-    def scale_value(self, value):
-        return int(value * self.scale_factor)
+        grid = Grid()
+        grid.Margin = Thickness(10)
 
-    def InitializeComponents(self, default_value):
-        self.FormBorderStyle = FormBorderStyle.FixedSingle
-        self.MaximizeBox = False
-        self.MinimizeBox = False
-        self.StartPosition = FormStartPosition.CenterScreen
+        for _ in range(3):
+            grid.RowDefinitions.Add(RowDefinition())
 
-        self.Width = self.scale_value(300)
-        self.Height = self.scale_value(160)
-
-        # Label for TextBox
-        self.label = Label()
-        self.label.Text = "Enter Bundle Number:"
-        self.label.Location = Point(self.scale_value(20), self.scale_value(10))
-        self.label.Size = Size(self.scale_value(260), self.scale_value(20))
-        self.Controls.Add(self.label)
+        # Label
+        label = Label()
+        label.Content = "Enter Bundle Number:"
+        label.FontFamily = FontFamily("Arial")
+        label.FontSize = 14
+        label.Margin = Thickness(0, 0, 0, 5)
+        Grid.SetRow(label, 0)
+        grid.Children.Add(label)
 
         # TextBox
-        self.textbox = TextBox()
-        self.textbox.Text = default_value
-        self.textbox.Location = Point(self.scale_value(20), self.scale_value(31))
-        self.textbox.Size = Size(self.scale_value(240), self.scale_value(20))
-        self.Controls.Add(self.textbox)
+        textbox = TextBox()
+        textbox.Text = default_value
+        textbox.Margin = Thickness(0, 0, 0, 10)
+        textbox.FontFamily = FontFamily("Arial")
+        textbox.FontSize = 12.25
+        Grid.SetRow(textbox, 1)
+        grid.Children.Add(textbox)
 
         # Buttons
-        button_width = self.scale_value(75)
-        button_height = self.scale_value(30)
-        button_y = self.scale_value(80)
+        button_width = 75
+        button_container = Grid()
+        button_container.HorizontalAlignment = HorizontalAlignment.Center
+        Grid.SetRow(button_container, 2)
 
-        self.ok_button = Button()
-        self.ok_button.Text = "OK"
-        self.ok_button.Size = Size(button_width, button_height)
-        self.ok_button.Location = Point(self.scale_value(70), button_y)
-        self.ok_button.DialogResult = DialogResult.OK
-        self.Controls.Add(self.ok_button)
+        ok_button = Button()
+        ok_button.Content = "OK"
+        ok_button.Width = button_width
+        ok_button.Click += self.ok_clicked
+        button_container.Children.Add(ok_button)
 
-        self.cancel_button = Button()
-        self.cancel_button.Text = "Cancel"
-        self.cancel_button.Size = Size(button_width, button_height)
-        self.cancel_button.Location = Point(self.scale_value(155), button_y)
-        self.cancel_button.DialogResult = DialogResult.Cancel
-        self.Controls.Add(self.cancel_button)
+        grid.Children.Add(button_container)
 
-        self.AcceptButton = self.ok_button
-        self.CancelButton = self.cancel_button
+        self.Content = grid
+        textbox.Focus()
+        textbox.SelectAll()
+
+    def ok_clicked(self, sender, args):
+        self.snumber = self.Content.Children[1].Text
+        self.DialogResult = True
+        self.Close()
 
 # Show dialog
 form = BundleNumberForm(PrevInput)
 value = None
-if form.ShowDialog() == DialogResult.OK:
-    value = form.textbox.Text
+if form.ShowDialog() and form.DialogResult:
+    value = form.snumber
 
 if value:
     # Get selected elements after OK is clicked

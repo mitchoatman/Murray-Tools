@@ -1,14 +1,18 @@
 import clr
-clr.AddReference('System.Windows.Forms')
-clr.AddReference('System.Drawing')
-import System
-from System.Windows.Forms import Form, Label, TextBox, Button, DialogResult, FormStartPosition, FormBorderStyle, MessageBox
-from System.Drawing import Point, Size
+import os, sys
+import Autodesk
 from Autodesk.Revit.DB import Transaction
 from Autodesk.Revit.UI.Selection import ObjectType
-import os, sys
 from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import set_parameter_by_name
+from Autodesk.Revit.UI import TaskDialog
+
+clr.AddReference('PresentationFramework')
+clr.AddReference('PresentationCore')
+clr.AddReference('WindowsBase')
+from System.Windows import Application, Window, Thickness, WindowStyle, ResizeMode, WindowStartupLocation, HorizontalAlignment
+from System.Windows.Controls import Label, TextBox, Button, Grid, RowDefinition
+
 Shared_Params()
 
 doc = __revit__.ActiveUIDocument.Document
@@ -20,104 +24,84 @@ filepath = os.path.join(folder_name, 'Ribbon_REFLineNumber.txt')
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
 if not os.path.exists(filepath):
-    f = open((filepath), 'w')
-    f.write('123')
-    f.close()
+    with open(filepath, 'w') as f:
+        f.write('123')
 
-f = open((filepath), 'r')
-PrevInput = f.read()
-f.close()
+with open(filepath, 'r') as f:
+    PrevInput = f.read()
 
-# WinForms dialog
-class REFLineNumberForm(Form):
+# WPF Form (no XAML)
+class REFLineNumberForm(Window):
     def __init__(self, default_value):
-        self.Text = "REF Line Number"
-        self.scale_factor = self.get_dpi_scale()
-        self.padding = 5
-        self.InitializeComponents(default_value)
+        self.Title = "REF Line Number"
+        self.Width = 300
+        self.Height = 160
+        self.WindowStyle = WindowStyle.SingleBorderWindow
+        self.ResizeMode = ResizeMode.NoResize
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
+        self.result = None
 
-    def get_dpi_scale(self):
-        screen = System.Windows.Forms.Screen.PrimaryScreen
-        graphics = self.CreateGraphics()
-        dpi_x = graphics.DpiX
-        graphics.Dispose()
-        return dpi_x / 96.0
+        grid = Grid()
+        grid.Margin = Thickness(10)
 
-    def scale_value(self, value):
-        return int(value * self.scale_factor)
+        for _ in range(3):
+            grid.RowDefinitions.Add(RowDefinition())
 
-    def InitializeComponents(self, default_value):
-        self.FormBorderStyle = FormBorderStyle.FixedSingle
-        self.MaximizeBox = False
-        self.MinimizeBox = False
-        self.StartPosition = FormStartPosition.CenterScreen
+        self.Content = grid
 
-        self.Width = self.scale_value(300)
-        self.Height = self.scale_value(160)
+        label = Label()
+        label.Content = "Enter REF Line Number:"
+        label.Margin = Thickness(0, -5, 0, 10)
+        Grid.SetRow(label, 0)
+        grid.Children.Add(label)
 
-        # Label for TextBox
-        self.label = Label()
-        self.label.Text = "Enter REF Line Number:"
-        self.label.Location = Point(self.scale_value(20), self.scale_value(10))
-        self.label.Size = Size(self.scale_value(260), self.scale_value(20))
-        self.Controls.Add(self.label)
-
-        # TextBox
         self.textbox = TextBox()
         self.textbox.Text = default_value
-        self.textbox.Location = Point(self.scale_value(20), self.scale_value(31))
-        self.textbox.Size = Size(self.scale_value(240), self.scale_value(20))
-        self.Controls.Add(self.textbox)
+        self.textbox.Margin = Thickness(0, 0, 0, 10)
+        Grid.SetRow(self.textbox, 1)
+        grid.Children.Add(self.textbox)
 
-        # Buttons
-        button_width = self.scale_value(75)
-        button_height = self.scale_value(30)
-        button_y = self.scale_value(80)
+        ok_button = Button()
+        ok_button.Content = "OK"
+        ok_button.Width = 75
+        ok_button.Height = 25
+        ok_button.HorizontalAlignment = HorizontalAlignment.Center
+        ok_button.Click += self.on_ok
+        Grid.SetRow(ok_button, 2)
+        grid.Children.Add(ok_button)
 
-        self.ok_button = Button()
-        self.ok_button.Text = "OK"
-        self.ok_button.Size = Size(button_width, button_height)
-        self.ok_button.Location = Point(self.scale_value(70), button_y)
-        self.ok_button.DialogResult = DialogResult.OK
-        self.Controls.Add(self.ok_button)
+        self.textbox.Focus()
+        self.textbox.SelectAll()
 
-        self.cancel_button = Button()
-        self.cancel_button.Text = "Cancel"
-        self.cancel_button.Size = Size(button_width, button_height)
-        self.cancel_button.Location = Point(self.scale_value(155), button_y)
-        self.cancel_button.DialogResult = DialogResult.Cancel
-        self.Controls.Add(self.cancel_button)
-
-        self.AcceptButton = self.ok_button
-        self.CancelButton = self.cancel_button
+    def on_ok(self, sender, args):
+        self.result = self.textbox.Text
+        self.DialogResult = True
+        self.Close()
 
 # Show dialog
 form = REFLineNumberForm(PrevInput)
 value = None
-if form.ShowDialog() == DialogResult.OK:
-    value = form.textbox.Text
+if form.ShowDialog() and form.DialogResult:
+    value = form.result
 
 if value:
-    # Get selected elements after OK is clicked
     selected_ids = uidoc.Selection.GetElementIds()
     if not selected_ids:
-        # Prompt user to select elements if none are selected
         try:
             picked_refs = uidoc.Selection.PickObjects(ObjectType.Element, "Please select elements to set REF Line Number.")
             selected_ids = [ref.ElementId for ref in picked_refs]
         except:
-            MessageBox.Show("Selection cancelled. No elements selected.", "Error")
+            TaskDialog.Show("Error", "Selection cancelled. No elements selected.")
             sys.exit()
 
     if not selected_ids:
-        MessageBox.Show("No elements selected. Please select elements and try again.", "Error")
-        exit()
+        TaskDialog.Show("Error", "No elements selected. Please select elements and try again.")
+        sys.exit()
 
     selection = [doc.GetElement(eid) for eid in selected_ids]
 
-    f = open((filepath), 'w')
-    f.write(value)
-    f.close()
+    with open(filepath, 'w') as f:
+        f.write(value)
 
     t = None
     try:
@@ -131,6 +115,6 @@ if value:
 
         t.Commit()
     except Exception as e:
-        MessageBox.Show("Error: {}".format(str(e)), "Error")
+        TaskDialog.Show("Error: {}".format(str(e)), "Error")
         if t is not None and t.HasStarted():
             t.RollBack()

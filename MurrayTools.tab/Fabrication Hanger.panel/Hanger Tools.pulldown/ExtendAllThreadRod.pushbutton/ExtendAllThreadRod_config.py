@@ -35,12 +35,17 @@ class CustomISelectionFilter(ISelectionFilter):
     def AllowReference(self, ref, point):
         return True
 
-pipesel = uidoc.Selection.PickObjects(
-    ObjectType.Element,
-    CustomISelectionFilter("MEP Fabrication Pipework", "All Thread Rod"),
-    "Select 'All Thread Rod' Elements Only"
-)
-Hanger = [doc.GetElement(elId) for elId in pipesel]
+try:
+    pipesel = uidoc.Selection.PickObjects(
+        ObjectType.Element,
+        CustomISelectionFilter("MEP Fabrication Pipework", "All Thread Rod"),
+        "Select 'All Thread Rod' Elements Only"
+    )
+    Hanger = [doc.GetElement(elId) for elId in pipesel]
+except Autodesk.Revit.Exceptions.OperationCanceledException:
+    TaskDialog.Show("Selection Cancelled", "Selection Cancelled by User.")
+    import sys
+    sys.exit()
 
 folder_name = "c:\\Temp"
 filepath = os.path.join(folder_name, 'Ribbon_ExtendHangerRod.txt')
@@ -65,10 +70,15 @@ if len(Hanger) > 0:
     form.show()
 
     # Convert dialog input into variable
-    value = form.values['Elevation']
-    InputFT = float(value.split("-", 1)[0])
-    InputIN = float(value.split("-", 1)[1]) / 12
-    valuenum = InputFT + InputIN
+    try:
+        value = form.values['Elevation']
+        InputFT = float(value.split("-", 1)[0])
+        InputIN = float(value.split("-", 1)[1]) / 12
+        valuenum = InputFT + InputIN
+    except (KeyError, IndexError, ValueError):
+        TaskDialog.Show("Input Error", "Invalid elevation input. Please use FT-IN format (e.g., 5-6).")
+        import sys
+        sys.exit()
 
     with open(filepath, 'w') as f:
         f.write(value)
@@ -86,8 +96,12 @@ if len(Hanger) > 0:
                 current_length = length_param.AsDouble()
                 length_param.Set(current_length + delta)
             else:
-                print("Length parameter not found or read-only on:", e.Id)
+                output = script.get_output()
+                print("Length parameter not found or read-only on: {}".format(output.linkify(e.Id)))
+        else:
+            output = script.get_output()
+            print("Bounding box not found for element: {}".format(output.linkify(e.Id)))
 
     t.Commit()
 else:
-    print('At least one "All Thread Rod" element must be selected.')
+    TaskDialog.Show("Selection Error", "At least one 'All Thread Rod' element must be selected.")

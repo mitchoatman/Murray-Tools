@@ -1,19 +1,19 @@
-# Imports
+import clr
+import os, sys
 import Autodesk
 from Autodesk.Revit.DB import Transaction
-from Autodesk.Revit.UI import Selection
 from Autodesk.Revit.UI.Selection import ObjectType
-import os
 from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import set_parameter_by_name
-Shared_Params()
+from Autodesk.Revit.UI import TaskDialog
 
-# Windows Forms Imports
-import clr
-clr.AddReference('System.Windows.Forms')
-clr.AddReference('System.Drawing')
-from System.Windows.Forms import Form, Label, TextBox, Button, DialogResult, FormBorderStyle, FormStartPosition
-from System.Drawing import Point, Size
+clr.AddReference('PresentationFramework')
+clr.AddReference('PresentationCore')
+clr.AddReference('WindowsBase')
+from System.Windows import Application, Window, Thickness, WindowStyle, ResizeMode, WindowStartupLocation, HorizontalAlignment
+from System.Windows.Controls import Label, TextBox, Button, Grid, RowDefinition
+
+Shared_Params()
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -21,88 +21,85 @@ uidoc = __revit__.ActiveUIDocument
 folder_name = "c:\\Temp"
 filepath = os.path.join(folder_name, 'Ribbon_ValveNumber.txt')
 
-# Ensure folder and file exist
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
 if not os.path.exists(filepath):
     with open(filepath, 'w') as f:
         f.write('123')
 
-# Read previous input
 with open(filepath, 'r') as f:
     PrevInput = f.read()
 
-# Create and show Windows Forms dialog
-def show_forms_dialog(default_value):
-    form = Form()
-    form.Text = "Valve Number"
-    form.Size = Size(300, 160)
-    form.FormBorderStyle = FormBorderStyle.FixedDialog
-    form.StartPosition = FormStartPosition.CenterScreen
-    form.MaximizeBox = False
-    form.MinimizeBox = False
+# WPF Form (no XAML)
+class ValveNumberForm(Window):
+    def __init__(self, default_value):
+        self.Title = "Valve Number"
+        self.Width = 300
+        self.Height = 160
+        self.WindowStyle = WindowStyle.SingleBorderWindow
+        self.ResizeMode = ResizeMode.NoResize
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
+        self.result = None
 
-    # Label
-    label = Label()
-    label.Text = "Enter Valve Number:"
-    label.Location = Point(10, 10)
-    label.Size = Size(260, 20)
-    form.Controls.Add(label)
+        grid = Grid()
+        grid.Margin = Thickness(10)
 
-    # TextBox
-    text_box = TextBox()
-    text_box.Text = default_value
-    text_box.Location = Point(10, 40)
-    text_box.Size = Size(260, 25)
-    form.Controls.Add(text_box)
+        for _ in range(3):
+            grid.RowDefinitions.Add(RowDefinition())
 
-    # OK Button
-    ok_button = Button()
-    ok_button.Text = "OK"
-    ok_button.Location = Point(110, 80)
-    ok_button.Size = Size(75, 25)
-    ok_button.DialogResult = DialogResult.OK
-    form.AcceptButton = ok_button
-    form.Controls.Add(ok_button)
+        self.Content = grid
 
-    # Cancel Button
-    cancel_button = Button()
-    cancel_button.Text = "Cancel"
-    cancel_button.Location = Point(195, 80)
-    cancel_button.Size = Size(75, 25)
-    cancel_button.DialogResult = DialogResult.Cancel
-    form.CancelButton = cancel_button
-    form.Controls.Add(cancel_button)
+        label = Label()
+        label.Content = "Enter Valve Number:"
+        label.Margin = Thickness(0, -5, 0, 10)
+        Grid.SetRow(label, 0)
+        grid.Children.Add(label)
 
-    # Show dialog
-    result = form.ShowDialog()
+        self.textbox = TextBox()
+        self.textbox.Text = default_value
+        self.textbox.Margin = Thickness(0, 0, 0, 10)
+        Grid.SetRow(self.textbox, 1)
+        grid.Children.Add(self.textbox)
 
-    if result == DialogResult.OK:
-        return text_box.Text
-    return None
+        ok_button = Button()
+        ok_button.Content = "OK"
+        ok_button.Width = 75
+        ok_button.Height = 25
+        ok_button.HorizontalAlignment = HorizontalAlignment.Center
+        ok_button.Click += self.on_ok
+        Grid.SetRow(ok_button, 2)
+        grid.Children.Add(ok_button)
 
-# Display dialog
-value = show_forms_dialog(PrevInput)
+        self.textbox.Focus()
+        self.textbox.SelectAll()
+
+    def on_ok(self, sender, args):
+        self.result = self.textbox.Text
+        self.DialogResult = True
+        self.Close()
+
+# Show dialog
+form = ValveNumberForm(PrevInput)
+value = None
+if form.ShowDialog() and form.DialogResult:
+    value = form.result
 
 if value:
-    # Get selected elements after OK is clicked
     selected_ids = uidoc.Selection.GetElementIds()
     if not selected_ids:
-        # Prompt user to select elements if none are selected
         try:
             picked_refs = uidoc.Selection.PickObjects(ObjectType.Element, "Please select elements to set Valve Number.")
             selected_ids = [ref.ElementId for ref in picked_refs]
         except:
-            print("Error: Selection cancelled. No elements selected.")
-            raise Exception("Selection cancelled")
+            TaskDialog.Show("Error", "Selection cancelled. No elements selected.")
+            sys.exit()
 
     if not selected_ids:
-        print("Error: No elements selected. Please select elements and try again.")
-        raise Exception("No elements selected")
+        TaskDialog.Show("Error", "No elements selected. Please select elements and try again.")
+        sys.exit()
 
     selection = [doc.GetElement(eid) for eid in selected_ids]
 
-    # Save new value
     with open(filepath, 'w') as f:
         f.write(value)
 
@@ -122,6 +119,6 @@ if value:
 
         t.Commit()
     except Exception as e:
-        print("Error: {}".format(str(e)))
+        TaskDialog.Show("Error", "Error: {}".format(str(e)))
         if t and t.HasStarted():
             t.RollBack()

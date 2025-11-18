@@ -3,6 +3,7 @@ layout:
   - PinAllSpools
   - Rename_Spools
   - Tag_Spools_View
+  - CreateSpoolViewFilters
 
 background:
   title: 'D5D5CD'

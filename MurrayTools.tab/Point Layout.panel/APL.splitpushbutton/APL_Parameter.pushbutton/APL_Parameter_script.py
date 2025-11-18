@@ -1,16 +1,16 @@
-#Imports
+# -*- coding: UTF-8 -*-
 from Autodesk.Revit.DB import Transaction, FilteredElementCollector, BuiltInCategory, ElementId
 from Autodesk.Revit.UI import Selection, TaskDialog
 from Autodesk.Revit.UI.Selection import ObjectType
 from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsDouble
 from Parameters.Add_SharedParameters import Shared_Params
-import os
-import clr
-clr.AddReference('System.Windows.Forms')
-clr.AddReference('System.Drawing')
-from System.Windows.Forms import Form, Label, TextBox, CheckBox, Button, DialogResult, FormBorderStyle, FormStartPosition
-from System.Drawing import Point, Size, Font
-from System.Drawing import FontStyle
+import os, clr, sys
+clr.AddReference('PresentationCore')
+clr.AddReference('PresentationFramework')
+clr.AddReference('WindowsBase')
+clr.AddReference('System')
+from System.Windows import Application, Window, Thickness, HorizontalAlignment, ResizeMode, WindowStartupLocation
+from System.Windows.Controls import Button, TextBox, CheckBox, Grid, RowDefinition, ColumnDefinition, Label
 
 Shared_Params()
 
@@ -18,7 +18,25 @@ doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 
-def feet_to_feet_inches_fraction(decimal_feet, precision=0.125):  # 1/8" = 0.125
+def set_param_value(element, param_name, value):
+    """Set parameter value, checking instance first, then type."""
+    param = element.LookupParameter(param_name)
+    if param and not param.IsReadOnly:
+        param.Set(value)
+        return True
+
+    # If instance param not found, try type
+    element_type = doc.GetElement(element.GetTypeId())
+    if element_type:
+        param_type = element_type.LookupParameter(param_name)
+        if param_type and not param_type.IsReadOnly:
+            param_type.Set(value)
+            return True
+
+    return False
+
+
+def feet_to_feet_inches_fraction(decimal_feet, precision=0.125):
     total_inches = decimal_feet * 12
     rounded_total_inches = round(total_inches / precision) * precision
     rounded_total_inches = round(rounded_total_inches, 3)
@@ -45,22 +63,22 @@ def feet_to_feet_inches_fraction(decimal_feet, precision=0.125):  # 1/8" = 0.125
         fraction_str = "7/8"
     if feet == 0:
         if whole_inches == 0 and fraction_str:
-            return "0'-0 %s\"" % fraction_str
+            return "0'-0 {0}\"".format(fraction_str)
         elif whole_inches > 0 and fraction_str:
-            return "0'-%d %s\"" % (whole_inches, fraction_str)
+            return "0'-{0} {1}\"".format(whole_inches, fraction_str)
         elif whole_inches > 0:
-            return "0'-%d\"" % whole_inches
+            return "0'-{0}\"".format(whole_inches)
         else:
             return "0'-0\""
     else:
         if whole_inches == 0 and fraction_str:
-            return "%d'-0 %s\"" % (feet, fraction_str)
+            return "{0}'-0 {1}\"".format(feet, fraction_str)
         elif whole_inches > 0 and fraction_str:
-            return "%d'-%d %s\"" % (feet, whole_inches, fraction_str)
+            return "{0}'-{1} {2}\"".format(feet, whole_inches, fraction_str)
         elif whole_inches > 0:
-            return "%d'-%d\"" % (feet, whole_inches)
+            return "{0}'-{1}\"".format(feet, whole_inches)
         else:
-            return "%d'-0\"" % feet
+            return "{0}'-0\"".format(feet)
 
 try:
     folder_name = "c:\\Temp"
@@ -92,114 +110,154 @@ try:
         lines = file.readlines()
         lines = [line.rstrip() for line in lines]
 
-    # WinForm Dialog
-    class UpdateAPLForm(Form):
+    class UpdateAPLForm(object):
         def __init__(self, desc, pre):
-            self.Text = "Update APL Information"
-            self.Size = Size(400, 220)
-            self.FormBorderStyle = FormBorderStyle.FixedSingle
-            self.MaximizeBox = False
-            self.MinimizeBox = False
-            self.StartPosition = FormStartPosition.CenterScreen
+            self._window = Window()
+            self._window.Title = "Update APL Information"
+            self._window.Width = 360
+            self._window.Height = 230
+            self._window.ResizeMode = ResizeMode.NoResize
+            self._window.WindowStartupLocation = WindowStartupLocation.CenterScreen
+            self.values = {}
 
-            # Point Prefix
-            self.label_pre = Label()
-            self.label_pre.Text = "Point Prefix:"
-            self.label_pre.Location = Point(20, 20)
-            self.label_pre.Size = Size(100, 20)
-            self.label_pre.Font = Font(self.label_pre.Font, FontStyle.Bold)
-            self.Controls.Add(self.label_pre)
+            # Create grid layout
+            grid = Grid()
+            grid.Margin = Thickness(10)
+            for i in range(5):  # 5 rows: 2 for textboxes/buttons, 2 for checkboxes, 1 for OK button
+                grid.RowDefinitions.Add(RowDefinition())
+            grid.ColumnDefinitions.Add(ColumnDefinition())  # Label column
+            grid.ColumnDefinitions.Add(ColumnDefinition())  # TextBox column
+            grid.ColumnDefinitions.Add(ColumnDefinition())  # Enable button column
+
+            # Prefix label and textbox
+            label_pre = Label()
+            label_pre.Content = "Prefix:"
+            Grid.SetRow(label_pre, 0)
+            Grid.SetColumn(label_pre, 0)
+            grid.Children.Add(label_pre)
 
             self.textbox_pre = TextBox()
             self.textbox_pre.Text = pre
-            self.textbox_pre.Location = Point(130, 20)
-            self.textbox_pre.Size = Size(125, 20)
-            self.Controls.Add(self.textbox_pre)
+            self.textbox_pre.Height = 20
+            self.textbox_pre.Width = 135
+            self.textbox_pre.IsEnabled = False
+            Grid.SetRow(self.textbox_pre, 0)
+            Grid.SetColumn(self.textbox_pre, 1)
+            grid.Children.Add(self.textbox_pre)
 
-            self.checkbox_pre = CheckBox()
-            self.checkbox_pre.Text = "[Enable]"
-            self.checkbox_pre.Location = Point(275, 20)
-            self.checkbox_pre.Size = Size(70, 20)
-            self.Controls.Add(self.checkbox_pre)
+            # Prefix enable button
+            enable_pre = Button()
+            enable_pre.Content = "Enable"
+            enable_pre.Width = 50
+            enable_pre.Height = 20
+            enable_pre.Margin = Thickness(-15, 0, 20, 0)
+            enable_pre.HorizontalAlignment = HorizontalAlignment.Right
+            enable_pre.Click += lambda sender, args: self.ToggleTextBox(self.textbox_pre, enable_pre)
+            Grid.SetRow(enable_pre, 0)
+            Grid.SetColumn(enable_pre, 2)
+            grid.Children.Add(enable_pre)
 
-            # Point Description
-            self.label_desc = Label()
-            self.label_desc.Text = "Point Description:"
-            self.label_desc.Location = Point(20, 50)
-            self.label_desc.Size = Size(100, 20)
-            self.label_desc.Font = Font(self.label_desc.Font, FontStyle.Bold)
-            self.Controls.Add(self.label_desc)
+            # Description label and textbox
+            label_desc = Label()
+            label_desc.Content = "Description:"
+            Grid.SetRow(label_desc, 1)
+            Grid.SetColumn(label_desc, 0)
+            grid.Children.Add(label_desc)
 
             self.textbox_desc = TextBox()
             self.textbox_desc.Text = desc
-            self.textbox_desc.Location = Point(130, 50)
-            self.textbox_desc.Size = Size(125, 20)
-            self.Controls.Add(self.textbox_desc)
+            self.textbox_desc.Height = 20
+            self.textbox_desc.Width = 135
+            self.textbox_desc.IsEnabled = False
+            Grid.SetRow(self.textbox_desc, 1)
+            Grid.SetColumn(self.textbox_desc, 1)
+            grid.Children.Add(self.textbox_desc)
 
-            self.checkbox_desc = CheckBox()
-            self.checkbox_desc.Text = "[Enable]"
-            self.checkbox_desc.Location = Point(275, 50)
-            self.checkbox_desc.Size = Size(70, 20)
-            self.Controls.Add(self.checkbox_desc)
+            # Description enable button
+            enable_desc = Button()
+            enable_desc.Content = "Enable"
+            enable_desc.Width = 50
+            enable_desc.Height = 20
+            enable_desc.Margin = Thickness(-15, 0, 20, 0)
+            enable_desc.HorizontalAlignment = HorizontalAlignment.Right
+            enable_desc.Click += lambda sender, args: self.ToggleTextBox(self.textbox_desc, enable_desc)
+            Grid.SetRow(enable_desc, 1)
+            Grid.SetColumn(enable_desc, 2)
+            grid.Children.Add(enable_desc)
 
-            # Cleanup Insert Description
+            # Checkboxes
             self.checkbox_cleanup = CheckBox()
-            self.checkbox_cleanup.Text = "Re-format Insert Description (view)"
-            self.checkbox_cleanup.Location = Point(20, 80)
-            self.checkbox_cleanup.Size = Size(300, 20)
-            self.Controls.Add(self.checkbox_cleanup)
+            self.checkbox_cleanup.Content = "Re-format Insert Description"
+            Grid.SetRow(self.checkbox_cleanup, 2)
+            Grid.SetColumn(self.checkbox_cleanup, 0)
+            Grid.SetColumnSpan(self.checkbox_cleanup, 3)
+            grid.Children.Add(self.checkbox_cleanup)
 
-            # Sleeve Dimensions
             self.checkbox_slv = CheckBox()
-            self.checkbox_slv.Text = "Add Size and Length to Sleeve Description (view)"
-            self.checkbox_slv.Location = Point(20, 110)
-            self.checkbox_slv.Size = Size(300, 20)
-            self.Controls.Add(self.checkbox_slv)
+            self.checkbox_slv.Content = "Add Size and Length to Sleeve Description"
+            self.checkbox_slv.Margin = Thickness(0, -5, 0, 0)
+            Grid.SetRow(self.checkbox_slv, 3)
+            Grid.SetColumn(self.checkbox_slv, 0)
+            Grid.SetColumnSpan(self.checkbox_slv, 3)
+            grid.Children.Add(self.checkbox_slv)
 
             # OK Button
-            self.button_ok = Button()
-            self.button_ok.Text = "OK"
-            self.button_ok.Location = Point(162, 140)
-            self.button_ok.Size = Size(75, 30)
-            self.button_ok.Click += self.on_ok
-            self.Controls.Add(self.button_ok)
+            button_ok = Button()
+            button_ok.Content = "OK"
+            button_ok.Width = 75
+            button_ok.Height = 25
+            button_ok.Margin = Thickness(0, -5, 0, 0)
+            button_ok.HorizontalAlignment = HorizontalAlignment.Center
+            Grid.SetRow(button_ok, 4)
+            Grid.SetColumn(button_ok, 0)
+            Grid.SetColumnSpan(button_ok, 3)  # Span all columns for centering
+            button_ok.Click += self.OnOK
+            grid.Children.Add(button_ok)
 
-            self.values = {}
+            self._window.Content = grid
 
-        def on_ok(self, sender, args):
+        def ToggleTextBox(self, textbox, button):
+            textbox.IsEnabled = not textbox.IsEnabled
+            button.Content = "Disable" if textbox.IsEnabled else "Enable"
+
+        def OnOK(self, sender, args):
             self.values = {
                 'Desc': self.textbox_desc.Text,
                 'Pre': self.textbox_pre.Text,
-                'changepre': self.checkbox_pre.Checked,
-                'changedesc': self.checkbox_desc.Checked,
-                'cleanupins': self.checkbox_cleanup.Checked,
-                'writeslvdims': self.checkbox_slv.Checked
+                'desc_enabled': self.textbox_desc.IsEnabled,
+                'pre_enabled': self.textbox_pre.IsEnabled,
+                'cleanupins': self.checkbox_cleanup.IsChecked,
+                'writeslvdims': self.checkbox_slv.IsChecked
             }
-            self.DialogResult = DialogResult.OK
-            self.Close()
+            self._window.Close()
+
+        def ShowDialog(self):
+            self._window.ShowDialog()
+            return self.values
 
     # Display dialog
     form = UpdateAPLForm(lines[0], lines[1])
-    if form.ShowDialog() != DialogResult.OK:
-        raise Exception("Dialog cancelled")
+    values = form.ShowDialog()
+    if not values:
+        sys.exit()  # Exit quietly if dialog is closed with X or cancelled
 
-    # Convert dialog input into variable
-    value = form.values['Desc'].upper()
-    value1 = form.values['Pre'].upper()
-    chkpre = form.values['changepre']
-    chkdesc = form.values['changedesc']
-    chkins = form.values['cleanupins']
-    chkslv = form.values['writeslvdims']
+    # Convert dialog input into variables
+    value = values['Desc'].upper()
+    value1 = values['Pre'].upper()
+    desc_enabled = values['desc_enabled']
+    pre_enabled = values['pre_enabled']
+    chkins = values['cleanupins']
+    chkslv = values['writeslvdims']
 
-    # write values to text file for future retrieval
+    # Write values to text file
     with open(filepath, 'w') as the_file:
         line1 = value + '\n'
         line2 = value1 + '\n'
         the_file.writelines([line1, line2])
 
-    # Prompt for selection only if description or prefix checkboxes are checked
+    # Prompt for selection only if description or prefix textboxes are enabled
     selection = []
-    if chkdesc or chkpre:
+    if desc_enabled or pre_enabled:
         OBJselection = uidoc.Selection.PickObjects(ObjectType.Element, 'Select Elements or Finish Button')
         selection = [doc.GetElement(elId) for elId in OBJselection]
 
@@ -207,32 +265,19 @@ try:
     t.Start()
 
     try:
-        if chkdesc:
+        if desc_enabled:
             for i in selection:
                 if value:
-                    param_exist_ts = i.LookupParameter("TS_Point_Description")
-                    if param_exist_ts:
-                        set_parameter_by_name(i, "TS_Point_Description", value)
-                    else:
-                        set_parameter_by_name(i, "PointDescription", value)
-        if chkpre:
+                    if not set_param_value(i, "TS_Point_Description", value):
+                        set_param_value(i, "PointDescription", value)
+        if pre_enabled:
             for i in selection:
                 if value1:
-                    param_exist = i.LookupParameter("PointNumber")
-                    if param_exist:
-                        set_parameter_by_name(i, "PointNumber", value1)
-                    param_exist_0 = i.LookupParameter("GTP_PointNumber_0")
-                    if param_exist_0:
-                        set_parameter_by_name(i, "GTP_PointNumber_0", value1)
-                    param_exist_1 = i.LookupParameter("GTP_PointNumber_1")
-                    if param_exist_1:
-                        set_parameter_by_name(i, "GTP_PointNumber_1", value1)
-                    param_exist_2 = i.LookupParameter("GTP_PointNumber_2")
-                    if param_exist_2:
-                        set_parameter_by_name(i, "GTP_PointNumber_2", value1)
-                    param_exist_3 = i.LookupParameter("GTP_PointNumber_3")
-                    if param_exist_3:
-                        set_parameter_by_name(i, "GTP_PointNumber_3", value1)
+                    set_param_value(i, "PointNumber", value1)
+                    set_param_value(i, "GTP_PointNumber_0", value1)
+                    set_param_value(i, "GTP_PointNumber_1", value1)
+                    set_param_value(i, "GTP_PointNumber_2", value1)
+                    set_param_value(i, "GTP_PointNumber_3", value1)
         if chkins:
             generic_models_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_GenericModel)
             pipe_point_elements = [element for element in generic_models_collector if "Pipe Pt" in element.Name]
@@ -244,36 +289,52 @@ try:
             accessory_models_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_PipeAccessory)
             accessory_elements = [element for element in accessory_models_collector if "Metal Sleeve" in element.Name or "Plastic Sleeve" in element.Name or "Cast Iron Sleeve" in element.Name]
             for x in accessory_elements:
-                slvdiameter = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Pipe Nominal Diameter') * 12)
-                slvlength = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Sleeve Length') * 12)
-                result_string = 'SLV ' + slvdiameter + ' x ' + slvlength
+                slvdiameter = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Pipe Nominal Diameter') * 12)
+                slvlength = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Sleeve Length') * 12)
+                result_string = 'SLV {0} x {1}'.format(slvdiameter, slvlength)
                 set_parameter_by_name(x, 'TS_Point_Description', result_string)
             accessory_elements2 = [element for element in accessory_models_collector if "Pipe Riser" in element.Name]
             for x in accessory_elements2:
-                slvdiameter = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Diameter') * 12)
-                result_string2 = slvdiameter + ' RISER'
+                slvdiameter = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Diameter') * 12)
+                result_string2 = "{0} RISER".format(slvdiameter)
                 set_parameter_by_name(x, 'TS_Point_Description', result_string2)
             accessory_elements3 = [element for element in accessory_models_collector if "Floor Sleeve" in element.Name or "Round Floor Sleeve" in element.Name]
             for x in accessory_elements3:
-                slvdiameter = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Diameter') * 12)
-                slvlength = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Length') * 12)
-                result_string = 'SLV ' + slvdiameter + ' x ' + slvlength
+                slvdiameter = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Diameter') * 12)
+                slvlength = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Length') * 12)
+                result_string = 'SLV {0} x {1}'.format(slvdiameter, slvlength)
                 set_parameter_by_name(x, 'TS_Point_Description', result_string)
             accessory_elements4 = [element for element in accessory_models_collector if "Rectangular Sleeve" in element.Name]
             for x in accessory_elements4:
-                slvlength = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Length') * 12)
-                slvwidth = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Width') * 12)
-                slvheight = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Height') * 12)
-                result_string = 'SLV ' + slvlength + ' x ' + slvwidth + ' x ' + slvheight
+                slvlength = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Length') * 12)
+                slvwidth = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Width') * 12)
+                slvheight = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Height') * 12)
+                result_string = 'SLV {0} x {1} x {2}'.format(slvlength, slvwidth, slvheight)
                 set_parameter_by_name(x, 'TS_Point_Description', result_string)
             accessory_elements5 = [element for element in accessory_models_collector if "WS" in element.Name or "DR-WS" in element.Name]
             for x in accessory_elements5:
-                slvdiameter = "{:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Diameter') * 12)
+                slvdiameter = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Diameter') * 12)
                 slvelevation = feet_to_feet_inches_fraction(get_parameter_value_by_name_AsDouble(x, 'Elevation from Level'))
                 result_string = "DIA {0} CL {1}".format(slvdiameter, slvelevation)
                 set_parameter_by_name(x, 'TS_Point_Description', result_string)
-    except:
-        TaskDialog.Show("Error", "Something did not get data, good luck! Trust but verify...")
+            accessory_elements6 = [element for element in accessory_models_collector if "BLOCKOUT" in element.Name]
+            for x in accessory_elements6:
+                slvlength = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Length') * 12)
+                slvwidth = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Width') * 12)
+                slvheight = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Height') * 12)
+                result_string = 'BO W{0} x H{1} x L{2}'.format(slvwidth, slvheight, slvlength)
+                set_parameter_by_name(x, 'TS_Point_Description', result_string)
+            accessory_ductmodels_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_DuctAccessory)
+            accessory_elements7 = [element for element in accessory_ductmodels_collector if "RWS" in element.Name]
+            for x in accessory_elements7:
+                slvlength = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Length') * 12)
+                slvwidth = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Width') * 12)
+                slvheight = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Height') * 12)
+                result_string = 'RWS W{0} x H{1} x L{2}'.format(slvwidth, slvheight, slvlength)
+                set_parameter_by_name(x, 'TS_Point_Description', result_string)
+    except Exception as e:
+        t.RollBack()
+        TaskDialog.Show("Error", "Something went wrong: {0}".format(str(e)))
     t.Commit()
-except:
-    pass
+except Exception as e:
+    TaskDialog.Show("Error", "Failed to execute: {0}".format(str(e)))

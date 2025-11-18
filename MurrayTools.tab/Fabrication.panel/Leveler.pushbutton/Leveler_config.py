@@ -3,8 +3,8 @@ import System
 doc = __revit__.ActiveUIDocument.Document
 curview = doc.ActiveView
 
-# Collect all Level elements, storing their names, elevations, and IDs
-level_collector = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Levels).WhereElementIsNotElementType()
+# Collect all Level elements (in active view), storing their names, elevations, and IDs
+level_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_Levels).WhereElementIsNotElementType()
 level_elevations = {}
 level_ids = {}
 for level in level_collector:
