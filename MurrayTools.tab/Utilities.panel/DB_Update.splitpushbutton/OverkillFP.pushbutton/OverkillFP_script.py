@@ -1,136 +1,165 @@
-from Autodesk.Revit.UI.Selection import ObjectType
-from Autodesk.Revit.DB import BoundingBoxXYZ, FilteredElementCollector, Transaction, BuiltInCategory, FabricationPart
-from pyrevit import forms
+# -*- coding: utf-8 -*-
+from Autodesk.Revit.DB import FilteredElementCollector, Transaction, FabricationPart
+from Autodesk.Revit.UI import TaskDialog, TaskDialogResult, TaskDialogCommonButtons
 import math
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 
-# .NET Imports
+# WPF imports (proven pattern)
 import clr
-clr.AddReference('System')
-clr.AddReference('System.Drawing')
-clr.AddReference('System.Windows.Forms')
+clr.AddReference('PresentationFramework')
+clr.AddReference('PresentationCore')
+clr.AddReference('WindowsBase')
+
 import System
-from System.Windows.Forms import *
-from System.Drawing import Point, Size, Font, FontStyle
+from System.Windows import (
+    Window, Thickness, HorizontalAlignment, VerticalAlignment,
+    WindowStartupLocation, ResizeMode
+)
+from System.Windows.Controls import (
+    Label, TextBox, Button, Grid,
+    RowDefinition, ColumnDefinition
+)
+from System.Windows import GridLength
 
-
-class TXT_Form(Form):
+class FuzzDistanceWindow(Window):
     def __init__(self):
-        self.Text          = 'Fuzz Distance'
-        self.Size          = Size(250,150)
-        self.StartPosition = FormStartPosition.CenterScreen
+        self.Title = "Fuzz Distance"
+        self.Width = 260
+        self.Height = 160
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
+        self.ResizeMode = ResizeMode.NoResize
+        self.Topmost = True
 
-        self.TopMost     = True  # Keeps the form on top of all other windows
-        self.ShowIcon    = False  # Removes the icon from the title bar
-        self.MaximizeBox = False
-        self.MinimizeBox = False
-        self.FormBorderStyle = FormBorderStyle.FixedDialog  # Disallows resizing
+        # Main Grid
+        grid = Grid()
+        grid.Margin = Thickness(10)
 
-        # Initialize valuenum to None
-        self.valuenum = None
+        # Rows
+        grid.RowDefinitions.Add(RowDefinition(Height=GridLength(40)))
+        grid.RowDefinitions.Add(RowDefinition(Height=GridLength(50)))
 
-        #Design of dialog
+        # Columns
+        grid.ColumnDefinitions.Add(ColumnDefinition(Width=GridLength(80)))
+        grid.ColumnDefinitions.Add(ColumnDefinition(Width=GridLength(1, System.Windows.GridUnitType.Star)))
 
-        #Label for TextBox
-        self.label_textbox           = Label()
-        self.label_textbox.Text      = 'Fuzz:'
-        self.label_textbox.ForeColor = System.Drawing.Color.Black
-        self.label_textbox.Font      = Font("Arial", 12, FontStyle.Bold)
-        self.label_textbox.Location  = Point(20,20)
-        self.label_textbox.Size      = Size(90,40)
-        self.Controls.Add(self.label_textbox)
+        # Label
+        lbl = Label()
+        lbl.Content = "Fuzz:"
+        lbl.FontSize = 14
+        lbl.VerticalAlignment = VerticalAlignment.Center
+        lbl.Margin = Thickness(25, 0, 0, 0)
+        Grid.SetRow(lbl, 0)
+        Grid.SetColumn(lbl, 0)
+        grid.Children.Add(lbl)
 
-        #TextBox
-        self.textBox          = TextBox()
-        self.textBox.Text     = '0.0625'
-        self.textBox.Location = Point(110, 20)
-        self.textBox.Size     = Size(100, 40)
-        self.Controls.Add(self.textBox)
+        # TextBox
+        self.txtFuzz = TextBox()
+        self.txtFuzz.Text = "0.0625"
+        self.txtFuzz.FontSize = 14
+        self.txtFuzz.Width = 120
+        self.txtFuzz.HorizontalAlignment = HorizontalAlignment.Left
+        self.txtFuzz.VerticalAlignment = VerticalAlignment.Center
+        self.txtFuzz.Margin = Thickness(1, 0, 0, 0)
+        Grid.SetRow(self.txtFuzz, 0)
+        Grid.SetColumn(self.txtFuzz, 1)
+        grid.Children.Add(self.txtFuzz)
 
-        #Button
-        self.button          = Button()
-        self.button.Text     = 'Set Distance'
-        self.button.Location = Point(68, 60)
-        self.button.Size     = Size(100, 30)
-        self.Controls.Add(self.button)
+        # Button
+        btn = Button()
+        btn.Content = "Set Distance"
+        btn.Width = 100
+        btn.Height = 30
+        btn.HorizontalAlignment = HorizontalAlignment.Center
+        btn.IsDefault = True
+        btn.Click += self.on_ok_click
+        Grid.SetRow(btn, 1)
+        Grid.SetColumn(btn, 0)
+        Grid.SetColumnSpan(btn, 2)
+        grid.Children.Add(btn)
 
-        self.button.Click      += self.on_click
-        # self.button.MouseEnter += self.btn_hover
+        self.Content = grid
+        self.result = None
 
-    def on_click(self, sender, event):
+    def on_ok_click(self, sender, args):
         try:
-            self.value = self.textBox.Text
-            self.valuenum = float(self.value) / 12
+            value = float(self.txtFuzz.Text)
+            if value <= 0:
+                raise ValueError
+            self.result = value / 12.0          # inches → feet
+            self.DialogResult = True
         except ValueError:
-            MessageBox.Show("Enter amount of fuzz distance in decimal inches.")
-        self.Close()
+            TaskDialog.Show("Invalid Input", "Please enter a valid positive number in decimal inches.")
+            self.DialogResult = False
 
-#Show the Form
-form = TXT_Form()
-# form.Show()
-Application.Run(form)
+# Show dialog
+window = FuzzDistanceWindow()
+if not window.ShowDialog() or window.result is None:
+    TaskDialog.Show("Cancelled", "Operation cancelled or invalid input.")
+    import sys
+    sys.exit()
 
-def GetCenterPoint(ele):
-    bBox = doc.GetElement(ele).get_BoundingBox(None)
-    center = (bBox.Max + bBox.Min) / 2
-    return (center.X, center.Y, center.Z)
+fuzz_distance = window.result
 
-def calculate_distance(point1, point2):
-    return math.sqrt((point1[0] - point2[0])**2 +
-                     (point1[1] - point2[1])**2 +
-                     (point1[2] - point2[2])**2)
+# ---------- Core logic ----------
+def GetCenterPoint(element_id):
+    elem = doc.GetElement(element_id)
+    bbox = elem.get_BoundingBox(None)
+    if bbox and bbox.Enabled:
+        center = (bbox.Max + bbox.Min) / 2
+        return (center.X, center.Y, center.Z)
+    return None
 
-# Fuzz distance in Revit units (0.25 inches = 0.020833333 feet)
-fuzz_distance = form.valuenum
+def calculate_distance(p1, p2):
+    if p1 is None or p2 is None:
+        return float('inf')
+    return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2 + (p1[2] - p2[2])**2)
 
-# Create a FilteredElementCollector to get all FabricationPart elements
-AllElements = FilteredElementCollector(doc, curview.Id).OfClass(FabricationPart) \
-                   .WhereElementIsNotElementType() \
-                   .ToElements()
+# Collect visible Fabrication Parts (fixed syntax)
+fabrication_parts = FilteredElementCollector(doc, curview.Id) \
+                    .OfClass(FabricationPart) \
+                    .WhereElementIsNotElementType() \
+                    .ToElements()
 
-# Get the center point of each selected element
-element_ids = []
 center_points = []
+element_ids = []
 
-for reference in AllElements:
-    center_point = GetCenterPoint(reference.Id)
-    center_points.append(center_point)
-    element_ids.append(reference.Id)
+for part in fabrication_parts:
+    cp = GetCenterPoint(part.Id)
+    if cp:
+        center_points.append(cp)
+        element_ids.append(part.Id)
 
-# Find the duplicates in the list of center points
-duplicates = []
-duplicate_element_ids = []
-unique_center_points = []
+# Identify duplicates
+duplicate_ids = []
+unique_centers = []
 
 for i, cp in enumerate(center_points):
-    found_duplicate = False
-    for ucp in unique_center_points:
-        if calculate_distance(cp, ucp) <= fuzz_distance:
-            found_duplicate = True
-            break
-    if not found_duplicate:
-        unique_center_points.append(cp)
+    if any(calculate_distance(cp, uc) <= fuzz_distance for uc in unique_centers):
+        duplicate_ids.append(element_ids[i])
     else:
-        duplicates.append(cp)
-        duplicate_element_ids.append(element_ids[i])
+        unique_centers.append(cp)
 
-# Delete the elements that belong to duplicate center points
-try:
-    if duplicates:
-        forms.alert_ifnot(len(duplicates) < 0,
-                          ("Delete Duplicate(s): {}".format(len(duplicates))),
-                          yes=True, no=True, exitscript=True)
-        
-        with Transaction(doc, "Delete Elements") as transaction:
-            transaction.Start()
-            for element_id in duplicate_element_ids:
-                doc.Delete(element_id)
-            transaction.Commit()
+# Delete duplicates with confirmation using TaskDialog
+if duplicate_ids:
+    td = TaskDialog("Confirm Deletion")
+    td.MainInstruction = "Delete {} duplicate fabrication part(s)?".format(len(duplicate_ids))
+    td.CommonButtons = TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No
+    td.DefaultButton = TaskDialogResult.Yes
+
+    if td.Show() == TaskDialogResult.Yes:
+        with Transaction(doc, "Delete Duplicate Fabrication Parts") as t:
+            t.Start()
+            for eid in duplicate_ids:
+                try:
+                    doc.Delete(eid)
+                except:
+                    pass
+            t.Commit()
+        TaskDialog.Show("Success", "Duplicate(s) successfully removed.")
     else:
-        forms.show_balloon('Duplicates', 'No Duplicates Found')
-
-except:
-    pass
+        TaskDialog.Show("Cancelled", "Operation cancelled by user.")
+else:
+    TaskDialog.Show("No Duplicates", "No duplicate fabrication parts found within the specified fuzz distance.")

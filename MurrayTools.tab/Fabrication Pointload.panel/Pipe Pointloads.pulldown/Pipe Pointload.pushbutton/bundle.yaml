@@ -12,8 +12,7 @@ tooltip: |-
   Values are rounded to a power of 10x.
   Example: 1 = 0-10lbs  2 = 11-20lbs  3 = 21-30.lbs  4 = 31-40lbs
     1. Run Command.
-    2. Select Fabrication Pipes to collect weight from.
-    3. Select Fabrication Hangers to distribute weight across.
+    2. Select Fab Pipes & Hangers to collect and distribute weight.
     Muti-point supports weights are halved automatically.
 
   [Shift]+Click:

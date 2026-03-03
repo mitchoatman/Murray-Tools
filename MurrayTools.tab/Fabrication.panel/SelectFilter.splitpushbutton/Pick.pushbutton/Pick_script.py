@@ -1,3 +1,4 @@
+import Autodesk
 from collections import namedtuple
 from System.Collections.Generic import List
 from Autodesk.Revit import DB
@@ -72,8 +73,18 @@ def get_categories_in_active_view(doc, view):
     return sorted(category_dict.values(), key=lambda x: x.Name)
 
 def pick_by_categories(category_opts, uidoc):
+    if not category_opts:
+        return
+
     msfilter = PickByCategorySelectionFilter(category_opts)
-    selection_list = uidoc.Selection.PickElementsByRectangle(msfilter)
+    
+    try:
+        selection_list = uidoc.Selection.PickElementsByRectangle(msfilter)
+    except Autodesk.Revit.Exceptions.OperationCanceledException:
+        return
+    except Exception as ex:
+        return
+
     if selection_list:
         filtered_ids = List[ElementId]([e.Id for e in selection_list])
         uidoc.Selection.SetElementIds(filtered_ids)

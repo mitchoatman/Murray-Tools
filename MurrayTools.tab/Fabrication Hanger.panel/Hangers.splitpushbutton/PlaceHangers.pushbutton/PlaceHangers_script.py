@@ -23,7 +23,7 @@ RevitINT = float(RevitVersion)
 class FabricationPartSelectionFilter(ISelectionFilter):
     def AllowElement(self, element):
         return isinstance(element, FabricationPart)
-    
+   
     def AllowReference(self, reference, point):
         return False
 
@@ -39,18 +39,19 @@ class CustomISelectionFilter(ISelectionFilter):
     def AllowReference(self, ref, point):
         return True
 
-# Function to order selected elements by connector proximity
+# Function to order selected elements by connector proximity and track entry connectors
 def order_selected_elements(selected_elements, start_element, start_connector):
     ordered_elements = [start_element]
+    entry_connectors = {start_element.Id: start_connector}
     remaining_elements = set(e.Id for e in selected_elements) - {start_element.Id}
     current_element = start_element
     current_connector = start_connector
-    
+   
     while remaining_elements:
         min_distance = float('inf')
         next_element = None
         next_connector = None
-        
+       
         for element_id in remaining_elements:
             element = doc.GetElement(element_id)
             connector_manager = element.ConnectorManager
@@ -62,9 +63,10 @@ def order_selected_elements(selected_elements, start_element, start_connector):
                     min_distance = distance
                     next_element = element
                     next_connector = conn
-        
+       
         if next_element:
             ordered_elements.append(next_element)
+            entry_connectors[next_element.Id] = next_connector
             remaining_elements.remove(next_element.Id)
             current_element = next_element
             # Find the opposite connector on the current element
@@ -74,9 +76,8 @@ def order_selected_elements(selected_elements, start_element, start_connector):
                     break
         else:
             break
-    
-    # print("Ordered elements: {}".format([e.Id.IntegerValue for e in ordered_elements]))
-    return ordered_elements
+   
+    return ordered_elements, entry_connectors
 
 # Function to determine if an element is vertical
 def vertical_fab(element):
@@ -94,17 +95,17 @@ def find_nearest_connector(element, pick_point):
     connector_manager = element.ConnectorManager
     if not connector_manager:
         return None
-    
+   
     nearest_connector = None
     min_distance = float('inf')
-    
+   
     for connector in connector_manager.Connectors:
         connector_point = connector.Origin
         distance = pick_point.DistanceTo(connector_point)
         if distance < min_distance:
             min_distance = distance
             nearest_connector = connector
-    
+   
     return nearest_connector
 
 # Function to analyze run for start, end, and angles
@@ -116,29 +117,23 @@ def analyze_run(selected_elements, start_element, start_connector):
     end_point = start_point
     segments = []
     current_position = 0
-
     # Use the selected_elements as the ordered run
     ordered_run = selected_elements
-    # print("Ordered run includes elements: {}".format([e.Id.IntegerValue for e in ordered_run]))
-
     # Collect segment info and calculate length
     for e in ordered_run:
         length = e.CenterlineLength
-        is_pipe = e.LookupParameter('Part Pattern Number').AsInteger() in (2041, 866, 40)
-        segments.append((e, current_position, length, is_pipe))
+        is_fabpart = e.LookupParameter('Part Pattern Number').AsInteger() in (2041, 866, 40)
+        segments.append((e, current_position, length, is_fabpart))
         total_run_length += length
         current_position += length
-        # print("Segment: Element ID {}, Start Pos {}, Length {}, Is Pipe {}".format(
-            # e.Id.IntegerValue, current_position - length, length, is_pipe))
         if e == ordered_run[-1]:
             connectors = e.ConnectorManager.Connectors
             for conn in connectors:
                 if conn.Origin.DistanceTo(start_point) > end_point.DistanceTo(start_point):
                     end_point = conn.Origin
-
-    # Analyze directions and angles
-    for i, (e, start_pos, length, is_pipe) in enumerate(segments):
-        if is_pipe:
+    # Analyze directions and angles (kept for potential future use)
+    for i, (e, start_pos, length, is_fabpart) in enumerate(segments):
+        if is_fabpart:
             connectors = e.ConnectorManager.Connectors
             conn_points = [conn.Origin for conn in connectors]
             if len(conn_points) >= 2:
@@ -146,8 +141,8 @@ def analyze_run(selected_elements, start_element, start_connector):
                 direction = (p2 - p1).Normalize()
                 pipe_directions.append((e, direction))
                 if i < len(segments) - 1:
-                    next_e, _, _, next_is_pipe = segments[i + 1]
-                    if next_is_pipe:
+                    next_e, _, _, next_is_fabpart = segments[i + 1]
+                    if next_is_fabpart:
                         next_connectors = next_e.ConnectorManager.Connectors
                         next_points = [conn.Origin for conn in next_connectors]
                         if len(next_points) >= 2:
@@ -159,7 +154,6 @@ def analyze_run(selected_elements, start_element, start_connector):
                             angle_deg = math.degrees(angle_rad)
                             if i + 1 < len(segments) and not segments[i + 1][3]:
                                 fitting_angles.append((segments[i + 1][0], angle_deg))
-
     return {
         'start_point': start_point,
         'end_point': end_point,
@@ -177,18 +171,15 @@ class HangerSpacingDialog(Window):
         self.Height = 300
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
         self.ResizeMode = ResizeMode.NoResize
-
         stack = StackPanel()
         stack.Orientation = Orientation.Vertical
         stack.Margin = Thickness(10)
-
         label_hanger = Label()
         label_hanger.Content = "Choose Hanger:"
         label_hanger.FontSize = 12
         label_hanger.FontFamily = FontFamily("Arial")
         label_hanger.Margin = Thickness(0, 0, 0, 0)
         stack.Children.Add(label_hanger)
-
         self.combobox_hanger = ComboBox()
         self.combobox_hanger.Width = 350
         self.combobox_hanger.Height = 20
@@ -202,14 +193,12 @@ class HangerSpacingDialog(Window):
         self.combobox_hanger.Margin = Thickness(0, 0, 0, 10)
         self.combobox_hanger.HorizontalAlignment = HorizontalAlignment.Left
         stack.Children.Add(self.combobox_hanger)
-
         label_end_dist = Label()
         label_end_dist.Content = "Distance from End (Ft):"
         label_end_dist.FontSize = 12
         label_end_dist.FontFamily = FontFamily("Arial")
         label_end_dist.Margin = Thickness(0, 0, 0, 0)
         stack.Children.Add(label_end_dist)
-
         self.textbox_end_dist = TextBox()
         self.textbox_end_dist.Width = 200
         self.textbox_end_dist.Height = 20
@@ -219,14 +208,12 @@ class HangerSpacingDialog(Window):
         self.textbox_end_dist.Margin = Thickness(0, 0, 0, 10)
         self.textbox_end_dist.HorizontalAlignment = HorizontalAlignment.Left
         stack.Children.Add(self.textbox_end_dist)
-
         label_spacing = Label()
         label_spacing.Content = "Hanger Spacing (Ft):"
         label_spacing.FontSize = 12
         label_spacing.FontFamily = FontFamily("Arial")
         label_spacing.Margin = Thickness(0, 0, 0, 0)
         stack.Children.Add(label_spacing)
-
         self.textbox_spacing = TextBox()
         self.textbox_spacing.Width = 200
         self.textbox_spacing.Height = 20
@@ -236,7 +223,6 @@ class HangerSpacingDialog(Window):
         self.textbox_spacing.Margin = Thickness(0, 0, 0, 10)
         self.textbox_spacing.HorizontalAlignment = HorizontalAlignment.Left
         stack.Children.Add(self.textbox_spacing)
-
         self.checkbox_atos = CheckBox()
         self.checkbox_atos.Content = "Attach to Structure"
         self.checkbox_atos.FontSize = 12
@@ -244,7 +230,6 @@ class HangerSpacingDialog(Window):
         self.checkbox_atos.IsChecked = True
         self.checkbox_atos.Margin = Thickness(0, 0, 0, 5)
         stack.Children.Add(self.checkbox_atos)
-
         self.checkbox_support_joints = CheckBox()
         self.checkbox_support_joints.Content = "Support Joints"
         self.checkbox_support_joints.FontSize = 12
@@ -252,7 +237,6 @@ class HangerSpacingDialog(Window):
         self.checkbox_support_joints.IsChecked = lines[3].lower() == 'true'
         self.checkbox_support_joints.Margin = Thickness(0, 0, 0, 10)
         stack.Children.Add(self.checkbox_support_joints)
-
         self.button_ok = Button()
         self.button_ok.Content = "OK"
         self.button_ok.FontSize = 12
@@ -262,9 +246,7 @@ class HangerSpacingDialog(Window):
         self.button_ok.HorizontalAlignment = HorizontalAlignment.Center
         self.button_ok.Click += self.ok_button_clicked
         stack.Children.Add(self.button_ok)
-
         self.Content = stack
-
     def ok_button_clicked(self, sender, event):
         self.DialogResult = True
         self.Close()
@@ -273,33 +255,27 @@ try:
     # Selection of starting fabrication part
     selected_ref = uidoc.Selection.PickObject(ObjectType.Element, FabricationPartSelectionFilter(), 'Select the starting Fabrication Part')
     element = doc.GetElement(selected_ref.ElementId)
-
     if not isinstance(element, FabricationPart):
         raise Exception("Selected element is not a FabricationPart.")
-
     pick_point = selected_ref.GlobalPoint
     start_connector = find_nearest_connector(element, pick_point)
     if not start_connector:
         raise Exception("Could not find a valid connector on the selected element.")
-
+    
     # Get fabrication service and button setup
     parameters = element.LookupParameter('Fabrication Service').AsValueString()
     servicenamelist = []
     Config = FabricationConfiguration.GetFabricationConfiguration(doc)
     LoadedServices = Config.GetAllLoadedServices()
-
     for Item1 in LoadedServices:
         try:
             servicenamelist.append(Item1.Name)
         except:
             servicenamelist.append([])
-
     Servicenum = servicenamelist.index(parameters)
     FabricationService = LoadedServices[Servicenum]
-
     buttonnames = []
     button_data = []
-
     if RevitINT > 2022:
         palette_count = FabricationService.PaletteCount
         for group_idx in range(palette_count):
@@ -318,24 +294,21 @@ try:
                 if bt.IsAHanger:
                     buttonnames.append(bt.Name)
                     button_data.append((group_idx, btn_idx, bt.Name))
-
+    
     folder_name = "c:\\Temp"
     filepath = os.path.join(folder_name, 'Ribbon_PlaceHangers.txt')
-
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
     if not os.path.exists(filepath):
         with open(filepath, 'w') as the_file:
             line1 = (str(buttonnames[0]) + '\n')
             line2 = ('1' + '\n')
-            line3 = '4' + '\n'
+            line3 = ('4' + '\n')
             line4 = 'True'
             the_file.writelines([line1, line2, line3, line4])
-
     with open(filepath, 'r') as file:
         lines = file.readlines()
         lines = [line.rstrip() for line in lines]
-
     if len(lines) < 4:
         with open(filepath, 'w') as the_file:
             line1 = (str(buttonnames[0]) + '\n')
@@ -346,7 +319,7 @@ try:
         with open(filepath, 'r') as file:
             lines = file.readlines()
             lines = [line.rstrip() for line in lines]
-
+    
     # Show the Windows Forms dialog
     form = HangerSpacingDialog(buttonnames, lines)
     if form.ShowDialog():
@@ -355,7 +328,7 @@ try:
         Spacing = float(form.textbox_spacing.Text)
         AtoS = form.checkbox_atos.IsChecked
         SupportJoint = form.checkbox_support_joints.IsChecked
-
+        
         # Write values to text file for future retrieval
         with open(filepath, 'w') as the_file:
             line1 = (Selectedbutton + '\n')
@@ -363,60 +336,56 @@ try:
             line3 = str(Spacing) + '\n'
             line4 = str(SupportJoint)
             the_file.writelines([line1, line2, line3, line4])
-
+        
         for group_idx, btn_idx, btn_name in button_data:
             if btn_name == Selectedbutton:
                 Servicegroupnum = group_idx
                 Buttonnum = btn_idx
                 break
-
+        
         validbutton = FabricationService.IsValidButtonIndex(Servicegroupnum, Buttonnum)
         FabricationServiceButton = FabricationService.GetButton(Servicegroupnum, Buttonnum)
-
-        selected_refs = uidoc.Selection.PickObjects(ObjectType.Element, CustomISelectionFilter(parameters), "Select additional Fabrication Parts to place hangers on")            
-        selected_elements = [doc.GetElement( elId ) for elId in selected_refs]
         
+        selected_refs = uidoc.Selection.PickObjects(ObjectType.Element, CustomISelectionFilter(parameters), "Select additional Fabrication Parts to place hangers on")
+        selected_elements = [doc.GetElement( elId ) for elId in selected_refs]
+       
         # Ensure start element is included
         if element.Id not in [e.Id for e in selected_elements]:
             selected_elements.insert(0, element)
-        
-        # Order selected elements by connector proximity
-        ordered_elements = order_selected_elements(selected_elements, element, start_connector)
+       
+        # Order selected elements by connector proximity and retrieve entry connectors
+        ordered_elements, entry_connectors = order_selected_elements(selected_elements, element, start_connector)
         if not ordered_elements:
             raise Exception("No valid elements selected for the run.")
-
+        
         run_info = analyze_run(ordered_elements, element, start_connector)
         start_point = run_info['start_point']
         end_point = run_info['end_point']
         total_run_length = run_info['total_length']
         segments = run_info['segments']
         fitting_angles = run_info['fitting_angles']
-
+        
         t = Transaction(doc, 'Place Hangers')
         t.Start()
-
+        
         if SupportJoint:
+            # Original per pipe logic unchanged works as expected
             for e in ordered_elements:
                 if e.LookupParameter('Part Pattern Number').AsInteger() in (2041, 866, 40):
                     if not vertical_fab(e):
                         pipelen = e.CenterlineLength
                         pipe_connectors = e.ConnectorManager.Connectors
                         if not pipe_connectors or pipe_connectors.Size == 0:
-                            print("No valid connectors found for pipe ID {}".format(e.Id.IntegerValue))
                             continue
-                        # Check if pipe is shorter than 2 * distancefromend
                         if pipelen < 2 * distancefromend:
                             try:
-                                # Place one hanger in the center
                                 center_position = pipelen / 2
                                 pipe_connector = next(iter(pipe_connectors))
                                 FabricationPart.CreateHanger(doc, FabricationServiceButton, e.Id, pipe_connector, center_position, AtoS)
                             except Exception as ex:
-                                print("Failed to place center hanger at position {} on pipe ID {}: {}".format(
-                                    center_position, e.Id.IntegerValue, str(ex)))
+                                pass
                         else:
                             try:
-                                # Place hangers at distancefromend from each connector
                                 for connector in pipe_connectors:
                                     FabricationPart.CreateHanger(
                                         doc,
@@ -426,7 +395,6 @@ try:
                                         distancefromend,
                                         AtoS
                                     )
-                                # Place additional hangers at Spacing intervals
                                 if pipelen > (Spacing + (2 * distancefromend)):
                                     qtyofhgrs = range(int((math.floor(pipelen) - (2 * distancefromend)) / Spacing))
                                     IncrementSpacing = distancefromend
@@ -435,254 +403,121 @@ try:
                                         IncrementSpacing += Spacing
                                         FabricationPart.CreateHanger(doc, FabricationServiceButton, e.Id, pipe_connector, IncrementSpacing, AtoS)
                             except Exception as ex:
-                                print("Failed to place hanger on pipe ID {}: {}".format(e.Id.IntegerValue, str(ex)))
+                                pass
         else:
-            placed_hangers = []
-            last_hanger_position = None
-            last_hanger_point = None
-            last_connector = None
-            last_pipe_id = None
-
-            # Helper function to find nearest connector to a point
-            def find_nearest_connector_to_point(element, target_point):
-                connector_manager = element.ConnectorManager
-                if not connector_manager:
-                    return None
-                nearest_connector = None
-                min_distance = float('inf')
-                for connector in connector_manager.Connectors:
-                    distance = connector.Origin.DistanceTo(target_point)
-                    if distance < min_distance:
-                        min_distance = distance
-                        nearest_connector = connector
-                return nearest_connector
-
-            # Place first hanger
-            if element.LookupParameter('Part Pattern Number').AsInteger() in (2041, 866, 40) and not vertical_fab(element):
-                pipelen = element.CenterlineLength
-                if pipelen > distancefromend:
-                    local_position = distancefromend
-                    segment_start = next((start for e, start, _, _ in segments if e.Id == element.Id), 0)
-                    global_position = segment_start + local_position
-                    fitting_zones = [(start, start + length) for e, start, length, is_pipe in segments if not is_pipe]
-                    is_valid_position = True
-                    for start, end in fitting_zones:
-                        if (start - 0.5) <= global_position <= (end + 0.5):
-                            is_valid_position = False
-                            global_position = end + 0.5
-                            local_position = global_position - segment_start
-                            break
-                    try:
-                        # Calculate physical position of the hanger
-                        connectors = element.ConnectorManager.Connectors
-                        connector_points = [conn.Origin for conn in connectors]
-                        if len(connector_points) >= 2:
-                            p1, p2 = connector_points[:2]
-                            direction = (p2 - p1).Normalize()
-                            hanger_point = start_connector.Origin + direction * local_position
-                        else:
-                            hanger_point = start_connector.Origin
-                        FabricationPart.CreateHanger(
-                            doc,
-                            FabricationServiceButton,
-                            element.Id,
-                            start_connector,
-                            local_position,
-                            AtoS
-                        )
-                        placed_hangers.append(global_position)
-                        last_hanger_position = global_position
-                        last_hanger_point = hanger_point
-                        last_connector = start_connector
-                        last_pipe_id = element.Id
-
-                    except:
-                        print("Failed to place first hanger at position {} on pipe ID {}".format(
-                            global_position, element.Id.IntegerValue))
-
-            # Place subsequent hangers
-            if last_hanger_position is not None:
-                proposed_position = last_hanger_position + Spacing
-                bend_hangers_placed = set()  # Track bends with hangers placed
-
-                while proposed_position < total_run_length:
-                    # Find the segment containing the proposed position
-                    current_segment = None
-                    segment_start = 0
-                    local_position = 0
-                    is_pipe_segment = False
-                    for e, start, length, is_pipe in segments:
-                        segment_end = start + length
-                        if start <= proposed_position < segment_end:
-                            current_segment = e
-                            segment_start = start
-                            local_position = proposed_position - start
-                            is_pipe_segment = is_pipe
-                            break
-
-                    # Handle non-pipe segments (fittings, couplings, tees)
-                    if not is_pipe_segment and current_segment:
-                        # Check if it's a bend fitting
-                        is_bend = any(fitting.Id == current_segment.Id for fitting, _ in fitting_angles)
-                        if is_bend and current_segment.Id not in bend_hangers_placed:
-                            # Find the previous and next pipe segments
-                            fitting_end = segment_start + length
-                            prev_segment_idx = next((i for i in range(len(segments)-1, -1, -1) if segments[i][1] < segment_start and segments[i][3]), None)
-                            next_segment_idx = next((i for i, (e, start, _, is_pipe) in enumerate(segments) if start > fitting_end and is_pipe), None)
-                            
-                            # Place hanger on previous pipe (if available)
-                            if prev_segment_idx is not None:
-                                prev_pipe, prev_start, prev_length, _ = segments[prev_segment_idx]
-                                if prev_length > distancefromend:
-                                    # Select connector closest to the fitting
-                                    fitting_connectors = current_segment.ConnectorManager.Connectors
-                                    prev_pipe_connectors = prev_pipe.ConnectorManager.Connectors
-                                    prev_pipe_end_point = next(iter(prev_pipe_connectors)).Origin
-                                    fitting_start_connector = find_nearest_connector_to_point(current_segment, prev_pipe_end_point)
-                                    if fitting_start_connector:
-                                        pipe_connector = find_nearest_connector_to_point(prev_pipe, fitting_start_connector.Origin)
-                                        if pipe_connector:
-                                            hanger_position = prev_start + prev_length - distancefromend
-                                            local_position = prev_length - distancefromend
-                                            try:
-                                                # Calculate physical position
-                                                connectors = prev_pipe.ConnectorManager.Connectors
-                                                connector_points = [conn.Origin for conn in connectors]
-                                                if len(connector_points) >= 2:
-                                                    p1, p2 = connector_points[:2]
-                                                    direction = (p2 - p1).Normalize()
-                                                    hanger_point = pipe_connector.Origin + direction * local_position
-                                                else:
-                                                    hanger_point = pipe_connector.Origin
-                                                FabricationPart.CreateHanger(
-                                                    doc,
-                                                    FabricationServiceButton,
-                                                    prev_pipe.Id,
-                                                    pipe_connector,
-                                                    local_position,
-                                                    AtoS
-                                                )
-                                                placed_hangers.append(hanger_position)
-                                                if hanger_position > last_hanger_position:
-                                                    last_hanger_position = hanger_position
-                                                    last_hanger_point = hanger_point
-                                                    last_connector = pipe_connector
-                                                    last_pipe_id = prev_pipe.Id
-                                            except:
-                                                print("Failed to place bend hanger at position {} on pipe ID {}".format(
-                                                    hanger_position, prev_pipe.Id.IntegerValue))
-
-                            # Place hanger on next pipe (if available)
-                            if next_segment_idx is not None:
-                                next_pipe, next_start, next_length, _ = segments[next_segment_idx]
-                                if next_length > distancefromend:
-                                    # Select connector closest to the fitting
-                                    fitting_connectors = current_segment.ConnectorManager.Connectors
-                                    next_pipe_connectors = next_pipe.ConnectorManager.Connectors
-                                    next_pipe_start_point = next(iter(next_pipe_connectors)).Origin
-                                    fitting_end_connector = find_nearest_connector_to_point(current_segment, next_pipe_start_point)
-                                    if fitting_end_connector:
-                                        pipe_connector = find_nearest_connector_to_point(next_pipe, fitting_end_connector.Origin)
-                                        if pipe_connector:
-                                            hanger_position = next_start + distancefromend
-                                            local_position = distancefromend
-                                            try:
-                                                # Calculate physical position
-                                                connectors = next_pipe.ConnectorManager.Connectors
-                                                connector_points = [conn.Origin for conn in connectors]
-                                                if len(connector_points) >= 2:
-                                                    p1, p2 = connector_points[:2]
-                                                    direction = (p2 - p1).Normalize()
-                                                    hanger_point = pipe_connector.Origin + direction * local_position
-                                                else:
-                                                    hanger_point = pipe_connector.Origin
-                                                FabricationPart.CreateHanger(
-                                                    doc,
-                                                    FabricationServiceButton,
-                                                    next_pipe.Id,
-                                                    pipe_connector,
-                                                    local_position,
-                                                    AtoS
-                                                )
-                                                placed_hangers.append(hanger_position)
-                                                print("Placed bend hanger at position {} (local {}) on pipe ID {} after bend fitting ID {}, connector at X={}, Y={}, Z={}, spacing from last: {}".format(
-                                                    hanger_position, local_position, next_pipe.Id.IntegerValue, current_segment.Id.IntegerValue,
-                                                    pipe_connector.Origin.X, pipe_connector.Origin.Y, pipe_connector.Origin.Z,
-                                                    hanger_position - last_hanger_position))
-                                                # Update last hanger info if this is the latest position
-                                                if hanger_position > last_hanger_position:
-                                                    last_hanger_position = hanger_position
-                                                    last_hanger_point = hanger_point
-                                                    last_connector = pipe_connector
-                                                    last_pipe_id = next_pipe.Id
-                                            except:
-                                                print("Failed to place bend hanger at position {} on pipe ID {}".format(
-                                                    hanger_position, next_pipe.Id.IntegerValue))
-                            
-                            # Mark bend as processed and advance proposed_position
-                            bend_hangers_placed.add(current_segment.Id)
-                            proposed_position = last_hanger_position + Spacing
-                        else:
-                            # Skip couplings/tees or bends already processed
-                            proposed_position = segment_end + Spacing
-                        continue
-
-                    # Place hanger on pipe segment
-                    if is_pipe_segment and local_position <= current_segment.CenterlineLength:
-                        # Check if proposed position is too close to an existing hanger
-                        too_close = any(abs(proposed_position - p) < 0.5 for p in placed_hangers)
-                        if too_close:
-                            proposed_position = last_hanger_position + Spacing
-                            continue
+            # Continuous run logic with improved end handling
+            placed_positions = []
+            last_placed = 0.0
+            
+            def place_hanger_at_global(target_global):
+                """Attempt to place hanger at or near target_global position.
+                   Returns actual global position placed or None."""
+                for seg_idx, (e, seg_start, seg_len, is_fabpart) in enumerate(segments):
+                    seg_end = seg_start + seg_len
+                    if seg_start <= target_global < seg_end:
+                        if is_fabpart and not vertical_fab(e):
+                            local_pos = target_global - seg_start
+                            connector = entry_connectors.get(e.Id)
+                            if connector and 0.01 <= local_pos <= seg_len - 0.01:
+                                try:
+                                    FabricationPart.CreateHanger(
+                                        doc, FabricationServiceButton, e.Id, connector, local_pos, AtoS)
+                                    return target_global
+                                except:
+                                    pass
+                        # Shift to nearest valid pipe edge if on fitting or placement failed
+                        prev_pipe = None
+                        prev_end_global = seg_start
+                        prev_idx = seg_idx - 1
+                        while prev_idx >= 0:
+                            prev_e, prev_start, prev_len, prev_is_fabpart = segments[prev_idx]
+                            if prev_is_fabpart and not vertical_fab(prev_e):
+                                prev_pipe = prev_e
+                                prev_end_global = prev_start + prev_len
+                                break
+                            prev_idx -= 1
+                        next_pipe = None
+                        next_start_global = seg_end
+                        next_idx = seg_idx + 1
+                        while next_idx < len(segments):
+                            next_e, next_start, _, next_is_fabpart = segments[next_idx]
+                            if next_is_fabpart and not vertical_fab(next_e):
+                                next_pipe = next_e
+                                next_start_global = next_start
+                                break
+                            next_idx += 1
                         
-                        # Use the same connector as the last hanger if on the same pipe, else find nearest
-                        if current_segment.Id == last_pipe_id and last_connector:
-                            pipe_connector = last_connector
-                        else:
-                            pipe_connector = find_nearest_connector_to_point(current_segment, last_hanger_point)
+                        dist_to_prev = abs(target_global - prev_end_global) if prev_pipe else float('inf')
+                        dist_to_next = abs(next_start_global - target_global) if next_pipe else float('inf')
                         
-                        if pipe_connector:
-                            try:
-                                # Calculate physical position
-                                connectors = current_segment.ConnectorManager.Connectors
-                                connector_points = [conn.Origin for conn in connectors]
-                                if len(connector_points) >= 2:
-                                    p1, p2 = connector_points[:2]
-                                    direction = (p2 - p1).Normalize()
-                                    hanger_point = pipe_connector.Origin + direction * local_position
-                                else:
-                                    hanger_point = pipe_connector.Origin
-                                FabricationPart.CreateHanger(
-                                    doc,
-                                    FabricationServiceButton,
-                                    current_segment.Id,
-                                    pipe_connector,
-                                    local_position,
-                                    AtoS
-                                )
-                                placed_hangers.append(proposed_position)
-                                last_hanger_position = proposed_position
-                                last_hanger_point = hanger_point
-                                last_connector = pipe_connector
-                                last_pipe_id = current_segment.Id
-                                proposed_position = last_hanger_position + Spacing
-                            except:
-                                print("Failed to place hanger at position {} on pipe ID {}".format(
-                                    proposed_position, current_segment.Id.IntegerValue))
-                                # Step back 12 inches (1 foot) if hanger placement fails
-                                proposed_position = max(segment_start, last_hanger_position - 1.0)  # 1.0 foot = 12 inches
-                                continue
-                        else:
-                            proposed_position = segment_end + Spacing
+                        if dist_to_prev <= dist_to_next and prev_pipe:
+                            local_pos = prev_pipe.CenterlineLength - 0.1
+                            connector = entry_connectors.get(prev_pipe.Id)
+                            if connector:
+                                try:
+                                    FabricationPart.CreateHanger(
+                                        doc, FabricationServiceButton, prev_pipe.Id, connector, local_pos, AtoS)
+                                    return prev_end_global - 0.1
+                                except:
+                                    pass
+                        elif next_pipe:
+                            local_pos = 0.1
+                            connector = entry_connectors.get(next_pipe.Id)
+                            if connector:
+                                try:
+                                    FabricationPart.CreateHanger(
+                                        doc, FabricationServiceButton, next_pipe.Id, connector, local_pos, AtoS)
+                                    return next_start_global + 0.1
+                                except:
+                                    pass
+                return None
+            
+            # Force hanger near start on first pipe segment
+            first_pipe_idx = next((i for i, (_, _, _, is_fabpart) in enumerate(segments) if is_fabpart and not vertical_fab(segments[i][0])), None)
+            if first_pipe_idx is not None:
+                e, seg_start, seg_len, _ = segments[first_pipe_idx]
+                connector = entry_connectors.get(e.Id)
+                if connector and seg_len > 0.5:  # Minimum practical length
+                    if seg_len < 2 * distancefromend:
+                        local_pos = seg_len / 2
                     else:
-                        if current_segment:
-                            proposed_position = segment_end + Spacing
-                        else:
-                            print("No segment found for position {}; total run length: {}".format(proposed_position, total_run_length))
-                            break
-
+                        local_pos = distancefromend
+                    try:
+                        FabricationPart.CreateHanger(doc, FabricationServiceButton, e.Id, connector, local_pos, AtoS)
+                        actual_global = seg_start + local_pos
+                        placed_positions.append(actual_global)
+                        last_placed = actual_global
+                    except:
+                        pass
+            
+            # Place intermediate hangers
+            proposed = last_placed + Spacing
+            while proposed < total_run_length - distancefromend:
+                actual = place_hanger_at_global(proposed)
+                if actual is not None and abs(actual - last_placed) > 1.0:
+                    placed_positions.append(actual)
+                    last_placed = actual
+                proposed = last_placed + Spacing
+            
+            # Force hanger near end on last pipe segment, if not already close
+            last_pipe_idx = next((i for i in range(len(segments)-1, -1, -1) if segments[i][3] and not vertical_fab(segments[i][0])), None)
+            if last_pipe_idx is not None:
+                e, seg_start, seg_len, _ = segments[last_pipe_idx]
+                connector = entry_connectors.get(e.Id)
+                if connector and seg_len > 0.5:
+                    if seg_len < 2 * distancefromend:
+                        local_pos = seg_len / 2
+                    else:
+                        local_pos = seg_len - distancefromend
+                    try:
+                        global_pos = seg_start + local_pos
+                        if not placed_positions or abs(global_pos - placed_positions[-1]) > 1.0:
+                            FabricationPart.CreateHanger(doc, FabricationServiceButton, e.Id, connector, local_pos, AtoS)
+                            placed_positions.append(global_pos)
+                    except:
+                        pass
+        
         t.Commit()
 
 except Exception as ex:
     pass
-    # print("Error: {}".format(str(ex)))

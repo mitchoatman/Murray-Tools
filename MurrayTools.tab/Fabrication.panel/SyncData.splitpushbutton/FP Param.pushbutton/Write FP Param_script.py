@@ -156,6 +156,8 @@ if selection:
                     [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0]
                     ProductEntry = x.LookupParameter('Product Entry')
                     if ProductEntry:
+                        RLA = 0.0
+                        RLB = 0.0
                         if (x.GetRodInfo().RodCount) < 2:
                             hosted_info = x.GetHostedInfo().HostId
                             try:
@@ -174,9 +176,9 @@ if selection:
                             ItmDims = x.GetDimensions()
                             for dta in ItmDims:
                                 if dta.Name == 'Length A':
-                                    RLA = x.GetDimensionValue(dta)
+                                    RLA = x.GetDimensionValue(dta) or 0.0
                                 if dta.Name == 'Length B':
-                                    RLB = x.GetDimensionValue(dta)
+                                    RLB = x.GetDimensionValue(dta) or 0.0
                             set_parameter_by_name(x, 'FP_Rod Length', RLA)
                             set_parameter_by_name(x, 'FP_Rod Length A', RLA)
                             set_parameter_by_name(x, 'FP_Rod Length B', RLB)
@@ -185,9 +187,9 @@ if selection:
                         ItmDims = x.GetDimensions()
                         for dta in ItmDims:
                             if dta.Name == 'Length A':
-                                RLA = x.GetDimensionValue(dta)
+                                RLA = x.GetDimensionValue(dta) or 0.0
                             if dta.Name == 'Length B':
-                                RLB = x.GetDimensionValue(dta)
+                                RLB = x.GetDimensionValue(dta) or 0.0
                             if dta.Name == 'Width':
                                 TrapWidth = x.GetDimensionValue(dta)
                             if dta.Name == 'Bearer Extn':
@@ -247,7 +249,8 @@ else:
                 set_parameter_by_name(duct, 'FP_Extension Bottom', BOTE)
         except:
             pass
-
+    RLA = 0.0
+    RLB = 0.0
     for hanger in hanger_collector:
         if (hanger.GetRodInfo().RodCount) < 2:
             hosted_info = hanger.GetHostedInfo().HostId
@@ -266,17 +269,19 @@ else:
             ItmDims = hanger.GetDimensions()
             for dta in ItmDims:
                 if dta.Name == 'Length A':
-                    RLA = hanger.GetDimensionValue(dta)
+                    RLA = hanger.GetDimensionValue(dta) or 0.0
+                if dta.Name == 'Length B':
+                    RLB = hanger.GetDimensionValue(dta) or 0.0
             set_parameter_by_name(hanger, 'FP_Rod Length A', RLA)
-
+            set_parameter_by_name(hanger, 'FP_Rod Length B', RLB)
         try:
             if (hanger.GetRodInfo().RodCount) > 1:
                 ItmDims = hanger.GetDimensions()
                 for dta in ItmDims:
                     if dta.Name == 'Length A':
-                        RLA = hanger.GetDimensionValue(dta)
+                        RLA = hanger.GetDimensionValue(dta) or 0.0
                     if dta.Name == 'Length B':
-                        RLB = hanger.GetDimensionValue(dta)
+                        RLB = hanger.GetDimensionValue(dta) or 0.0
                     if dta.Name == 'Width':
                         TrapWidth = hanger.GetDimensionValue(dta)
                     if dta.Name == 'Bearer Extn':

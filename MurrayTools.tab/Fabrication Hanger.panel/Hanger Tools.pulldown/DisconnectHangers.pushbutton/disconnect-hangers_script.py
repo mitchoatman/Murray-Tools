@@ -1,6 +1,6 @@
 from Autodesk.Revit.DB import Transaction, FabricationPart
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
-
+from Autodesk.Revit.UI import TaskDialog
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 
@@ -42,19 +42,18 @@ try:
                         # Disconnect using the hosted info
                         hosted_info.DisconnectFromHost()
                         successful_disconnects += 1
-                        print("Disconnected hanger {} from its host".format(hanger.Id))
                     else:
-                        print("No host information found for hanger {}".format(hanger.Id))
+                        TaskDialog.Show("Error", "No host information found for hanger {}".format(hanger.Id))
                 else:
-                    print("Element {} is not a hanger".format(hanger.Id))
+                    TaskDialog.Show("Error", "Element {} is not a hanger".format(hanger.Id))
                     
             except Exception as e:
-                print("Failed to disconnect hanger {}: {}".format(hanger.Id, str(e)))
+                TaskDialog.Show("Error", "Failed to disconnect hanger {}: {}".format(hanger.Id, str(e)))
 
         t.Commit()
-        print("Successfully disconnected {} hangers".format(successful_disconnects))
+        TaskDialog.Show("Success", "Successfully disconnected {} hangers".format(successful_disconnects))
     else:
-        print("No hangers selected")
+        TaskDialog.Show("Error", "No hangers selected")
 
 except:
     # Silently exit if user cancels the selection

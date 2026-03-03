@@ -84,7 +84,8 @@ class OpenExcelDialog(Window):
 
     def open_clicked(self, sender, args):
         try:
-            System.Diagnostics.Process.Start(self.filepath)
+            os.startfile(self.filepath)
+            # System.Diagnostics.Process.Start(self.filepath)
         except Exception as e:
             TaskDialog.Show("Error", "Failed to open file:\n{}".format(str(e)))
         self.Close()

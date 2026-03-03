@@ -74,14 +74,23 @@ for pipe in Fpipework:
     if pipe.ItemCustomId == 2041:
         piperad = (get_parameter_numvalue_by_name(pipe, 'Main Primary Diameter') * 6)
         pipelength = get_parameter_numvalue_by_name(pipe, 'Length')
-        pweight_param = get_parameter_value_by_name(pipe, 'Weight')
-        pipelb_param = float(pweight_param.replace(" lbm", ""))
         B = (piperad * piperad * 3.14159)
         C = ((pipelength * 12) * B)
         D = (C / 231)
         Z = (D * 8.34)
-        F = (pipelb_param + Z)
-        Total_Weight = Total_Weight + F
+        
+        # Safely handle Weight parameter
+        pweight_param = get_parameter_value_by_name(pipe, 'Weight')
+        pipelb_param = 0.0
+        
+        if pweight_param and isinstance(pweight_param, str) and " lbm" in pweight_param:
+            try:
+                pipelb_param = float(pweight_param.replace(" lbm", "").strip())
+            except ValueError:
+                pipelb_param = 0.0  # Fallback
+        
+        F = pipelb_param + Z
+        Total_Weight += F
     else:
         fweight_param = get_parameter_value_by_name(pipe, 'Weight')
         if fweight_param and isinstance(fweight_param, str) and " lbm" in fweight_param:

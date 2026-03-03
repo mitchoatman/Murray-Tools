@@ -65,7 +65,7 @@ categoryId = ElementId(BuiltInCategory.OST_PipeAccessory)
 # Define schedule names and their respective family filters
 schedules = [
     {"name": "WALL SLEEVE SCHEDULE", "fields": roundFieldNames, "filter": "WS", "category": categoryId},
-    {"name": "BLOCKOUT WALL SLEEVE SCHEDULE", "fields": blockoutFieldNames, "filter": "BLOCKOUTS", "category": categoryId}
+    {"name": "BLOCKOUT WALL SLEEVE SCHEDULE", "fields": blockoutFieldNames, "filter": "BLOCKOUT", "category": categoryId}
 ]
 
 # Function to add field by name

@@ -6,19 +6,16 @@ from Autodesk.Revit.DB import (
     BuiltInCategory,
     FamilySymbol,
     Transaction,
-    Line,
     XYZ,
     ViewType,
-    UnitUtils,
-    UnitTypeId,
+    Transform,
     ProjectLocation,
-    Transform
 )
 from Autodesk.Revit.UI import TaskDialog
-from math import atan2
 from fractions import Fraction
 import re
 import os
+
 from Parameters.Add_SharedParameters import Shared_Params
 Shared_Params()
 from Parameters.Get_Set_Params import (
@@ -27,62 +24,50 @@ from Parameters.Get_Set_Params import (
 )
 
 class PointConverter:
-    pt_internal = None
-    pt_survey = None
-    pt_project = None
+    """Convert coordinates between internal / project / survey systems."""
     def __init__(self, x, y, z, coord_sys='internal', doc=None):
-        """PointConverter - Convert coordinate into desired coordinate system. Assumes x, y, z are already in internal units for the specified coord_sys."""
         if doc is None:
             doc = __revit__.ActiveUIDocument.Document
-        # Get Systems Transform
-        srvTrans = self.GetSurveyTransform(doc)
-        projTrans = self.GetProjectTransform(doc)
+        self.doc = doc
         pt = XYZ(x, y, z)
-        # INTERNAL COORDINATE SYSTEM
-        if coord_sys.lower() == 'internal':
-            self.pt_internal = pt
-            self.pt_survey = self.ApplyInverseTransformation(srvTrans, self.pt_internal)
-            self.pt_project = self.ApplyInverseTransformation(projTrans, self.pt_internal)
-        # PROJECT COORDINATE SYSTEM
-        elif coord_sys.lower() == 'project':
-            self.pt_project = pt
-            self.pt_internal = self.ApplyTransformation(projTrans, self.pt_project)
-            self.pt_survey = self.ApplyInverseTransformation(srvTrans, self.pt_internal)
-        # SURVEY COORDINATE SYSTEM
-        elif coord_sys.lower() == 'survey':
-            self.pt_survey = pt
-            self.pt_internal = self.ApplyTransformation(srvTrans, self.pt_survey)
-            self.pt_project = self.ApplyInverseTransformation(projTrans, self.pt_internal)
-        else:
-            raise Exception("Wrong argument value for 'coord_sys' in PointConverter class.")
-    # HELPING METHODS
-    def GetSurveyTransform(self, doc):
-        """Gets the Active Project Locations Transform (Survey)."""
-        return doc.ActiveProjectLocation.GetTotalTransform()
-    def GetProjectTransform(self, doc):
-        """Get the Project Base Points Transform."""
-        basePtLoc = next((l for l in FilteredElementCollector(doc) \
-                         .OfClass(ProjectLocation) \
-                         .WhereElementIsNotElementType() \
-                         .ToElements() if l.Name == "Project"), None)
-        if basePtLoc is None:
-            return Transform.Identity # Fallback to identity if no project location found
-        return basePtLoc.GetTotalTransform()
-    def ApplyInverseTransformation(self, t, pt):
-        """Applies the inverse transformation of the given Transform to the given point."""
-        return t.Inverse.OfPoint(pt)
-    def ApplyTransformation(self, t, pt):
-        """Applies the transformation of the given Transform to the given point."""
-        return t.OfPoint(pt)
 
-# Get Revit document objects
-doc = __revit__.ActiveUIDocument.Document
+        srv_trans = self._get_survey_transform()
+        proj_trans = self._get_project_transform()
+
+        if coord_sys.lower() == 'internal':
+            self.internal = pt
+            self.survey   = srv_trans.Inverse.OfPoint(pt)
+            self.project  = proj_trans.Inverse.OfPoint(pt)
+        elif coord_sys.lower() == 'project':
+            self.project  = pt
+            self.internal = proj_trans.OfPoint(pt)
+            self.survey   = srv_trans.Inverse.OfPoint(self.internal)
+        elif coord_sys.lower() == 'survey':
+            self.survey   = pt
+            self.internal = srv_trans.OfPoint(pt)
+            self.project  = proj_trans.Inverse.OfPoint(self.internal)
+        else:
+            raise ValueError("coord_sys must be 'internal', 'project' or 'survey'")
+
+    def _get_survey_transform(self):
+        return self.doc.ActiveProjectLocation.GetTotalTransform()
+
+    def _get_project_transform(self):
+        collector = FilteredElementCollector(self.doc).OfClass(ProjectLocation).WhereElementIsNotElementType()
+        for loc in collector:
+            if loc.Name == "Project":
+                return loc.GetTotalTransform()
+        return Transform.Identity
+
+# Document & setup
+doc   = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
-# File path setup
-path, filename = os.path.split(__file__)
+
+path, _ = os.path.split(__file__)
 family_path = os.path.join(path, 'Round Floor Sleeve.rfa')
-# Sleeve length storage
+
+# Sleeve length from file
 temp_folder = r"c:\Temp"
 sleeve_length_file = os.path.join(temp_folder, 'Ribbon_Sleeve.txt')
 if not os.path.exists(temp_folder):
@@ -91,8 +76,8 @@ if not os.path.exists(sleeve_length_file):
     with open(sleeve_length_file, 'w') as f:
         f.write('6')
 with open(sleeve_length_file, 'r') as f:
-    sleeve_length = float(f.read())
-# Diameter mapping for sleeve sizing
+    sleeve_length = float(f.read().strip())
+
 DIAMETER_MAP = {
     (0.0, 1.0): 2.0, (1.0, 1.25): 2.5, (1.25, 1.5): 3.0,
     (1.5, 2.5): 4.0, (2.5, 3.5): 5.0, (3.5, 4.5): 6.0,
@@ -102,8 +87,8 @@ DIAMETER_MAP = {
     (24.5, 26.5): 28.0, (26.5, 28.5): 30.0, (28.5, 30.5): 32.0,
     (30.5, 32.5): 34.0, (32.5, 34.5): 36.0
 }
+
 def load_family():
-    """Load 'Round Floor Sleeve' family if not present in project"""
     families = FilteredElementCollector(doc).OfClass(Family)
     family_name = 'Round Floor Sleeve'
     if not any(f.Name == family_name for f in families):
@@ -111,271 +96,205 @@ def load_family():
         t.Start()
         doc.LoadFamily(family_path)
         t.Commit()
- 
+
     collector = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeAccessory).OfClass(FamilySymbol)
-    return next((fs for fs in collector if fs.Family.Name == family_name and
-                fs.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString() == family_name), None)
-def get_diameter_from_size(pipe_diameter):
-    """Convert pipe diameter (in feet) to sleeve diameter (in feet)"""
-    pipe_diameter *= 12 # Convert to inches
-    for (min_val, max_val), sleeve_size in DIAMETER_MAP.items():
-        if min_val < pipe_diameter <= max_val:
-            return sleeve_size / 12 # Convert back to feet
-    return 2.0 / 12 # Default minimum size
+    for fs in collector:
+        name_param = fs.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM)
+        if fs.Family.Name == family_name and name_param and name_param.AsString() == family_name:
+            return fs
+    return None
+
+def get_diameter_from_size(pipe_diameter_feet):
+    inches = pipe_diameter_feet * 12
+    for (lo, hi), sleeve_in in DIAMETER_MAP.items():
+        if lo < inches <= hi:
+            return sleeve_in / 12.0
+    return 2.0 / 12.0
+
 def is_vertical_pipe(pipe):
-    """Check if pipe is vertical using connectors"""
-    if pipe.ItemCustomId == 2041:
-        connectors = list(pipe.ConnectorManager.Connectors)
-        if len(connectors) < 2:
-            return False
-        direction = (connectors[1].Origin - connectors[0].Origin).Normalize()
-        return abs(direction.Z) > 0.99 # Nearly vertical (cosine close to 1)
-    return False
+    if pipe.ItemCustomId != 2041:
+        return False
+    conns = list(pipe.ConnectorManager.Connectors)
+    if len(conns) < 2:
+        return False
+    direction = (conns[1].Origin - conns[0].Origin).Normalize()
+    return abs(direction.Z) > 0.99
+
 def get_pipe_intersections(pipe, level):
-    """Find if the pipe bounding box spans the level elevation, and compute intersection point using center XY"""
     if not is_vertical_pipe(pipe):
         return []
-   
-    # Get bounding box (view-independent)
+
     bbox = pipe.get_BoundingBox(None)
     if bbox is None:
         return []
-   
-    min_z = bbox.Min.Z
-    max_z = bbox.Max.Z
-   
-    # Convert level elevation from survey to internal
-    level_converter = PointConverter(0, 0, level.Elevation, coord_sys='survey', doc=doc)
-    plane_z = level_converter.pt_internal.Z
-   
-    # Check if the pipe spans the level
-    if not (min_z < plane_z < max_z):
+
+    # Use ProjectElevation → always in internal coordinates, independent of Elevation Base
+    plane_z_internal = level.ProjectElevation
+
+    if not (bbox.Min.Z < plane_z_internal < bbox.Max.Z):
         return []
-   
-    # Get center XY from average of connector origins (assuming vertical, Z differs)
-    connectors = list(pipe.ConnectorManager.Connectors)
-    if len(connectors) < 2:
+
+    conns = list(pipe.ConnectorManager.Connectors)
+    if len(conns) < 2:
         return []
-   
-    center_x = (connectors[0].Origin.X + connectors[1].Origin.X) / 2.0
-    center_y = (connectors[0].Origin.Y + connectors[1].Origin.Y) / 2.0
-    center_z = plane_z
-   
-    intersection_point = XYZ(center_x, center_y, center_z)
-    return [intersection_point]
-def is_duplicate_sleeve(intersection_point, existing_sleeves, tolerance=0.01): # Increased tolerance for floating point
-    """Check if a sleeve already exists at the intersection point within tolerance"""
-    for sleeve in existing_sleeves:
-        if hasattr(sleeve, 'Location') and sleeve.Location is not None:
-            sleeve_location = sleeve.Location.Point
-            if (abs(sleeve_location.X - intersection_point.X) < tolerance and
-                abs(sleeve_location.Y - intersection_point.Y) < tolerance and
-                abs(sleeve_location.Z - intersection_point.Z) < tolerance):
-                return True
+
+    cx = (conns[0].Origin.X + conns[1].Origin.X) / 2.0
+    cy = (conns[0].Origin.Y + conns[1].Origin.Y) / 2.0
+
+    return [XYZ(cx, cy, plane_z_internal)]
+
+def is_duplicate_sleeve(point, existing, tol=0.02):
+    for el in existing:
+        loc = getattr(el.Location, 'Point', None)
+        if loc and all(abs(a - b) < tol for a, b in zip((loc.X, loc.Y, loc.Z), (point.X, point.Y, point.Z))):
+            return True
     return False
-def place_sleeve_at_intersection(pipe, intersection_point, family_symbol, level, existing_sleeves):
-    """Place and configure sleeve family instance at intersection if no duplicate exists"""
-    if is_duplicate_sleeve(intersection_point, existing_sleeves):
+
+def place_sleeve_at_intersection(pipe, pt, symbol, level, existing):
+    if is_duplicate_sleeve(pt, existing):
         return None
- 
-    new_instance = doc.Create.NewFamilyInstance(
-        intersection_point,
-        family_symbol,
-        level,
-        DB.Structure.StructuralType.NonStructural
-    )
- 
-    # Set diameter with improved fraction handling
-    overall_size = pipe.get_Parameter(DB.BuiltInParameter.RBS_REFERENCE_OVERALLSIZE).AsString()
-    cleaned_size = re.sub(r'["]', '', overall_size.strip()) # Remove " specifically
- 
+
+    inst = doc.Create.NewFamilyInstance(
+        pt, symbol, level, DB.Structure.StructuralType.NonStructural)
+
+    size_str = pipe.get_Parameter(DB.BuiltInParameter.RBS_REFERENCE_OVERALLSIZE).AsString() or ""
+    cleaned = re.sub(r'["\']', '', size_str.strip())
+
     try:
-        diameter = float(cleaned_size)
+        dia_in = float(cleaned)
     except ValueError:
-        match = re.match(r'(?:(\d+)[-\s])?(\d+/\d+)', cleaned_size)
-        if match:
-            integer_part, fraction_part = match.groups()
-            diameter = float(Fraction(fraction_part))
-            if integer_part:
-                diameter += float(integer_part)
+        m = re.match(r'(?:(\d+)[-\s])?(\d+/\d+)', cleaned)
+        if m:
+            int_part, frac_part = m.groups()
+            dia_in = float(Fraction(frac_part))
+            if int_part:
+                dia_in += float(int_part)
         else:
-            diameter = 0.5
- 
-    diameter = diameter / 12 # Convert inches to feet
-    new_instance.LookupParameter('Diameter').Set(get_diameter_from_size(diameter))
- 
-    # Set length and level
-    new_instance.LookupParameter('Length').Set(sleeve_length)
-    new_instance.LookupParameter('Schedule Level').Set(level.Id)
- 
-    # Align sleeve with pipe direction (vertical, so no rotation needed)
-    # connectors = list(pipe.ConnectorManager.Connectors)
-    # vec = (connectors[1].Origin - connectors[0].Origin).Normalize()
-    # angle = atan2(vec.Y, vec.X)
-    # axis = Line.CreateBound(intersection_point, XYZ(intersection_point.X, intersection_point.Y, intersection_point.Z + 1))
-    # DB.ElementTransformUtils.RotateElement(doc, new_instance.Id, axis, angle)
- 
-    # Set family parameters including service name with error handling
-    params = {
+            dia_in = 0.5
+
+    dia_ft = dia_in / 12.0
+    inst.LookupParameter('Diameter').Set(get_diameter_from_size(dia_ft))
+
+    inst.LookupParameter('Length').Set(sleeve_length)
+    inst.LookupParameter('Schedule Level').Set(level.Id)
+
+    mapping = {
         'FP_Product Entry': 'Overall Size',
         'FP_Service Name': 'Fabrication Service Name',
         'FP_Service Abbreviation': 'Fabrication Service Abbreviation'
     }
-    for fam_param, pipe_param in params.items():
+    for fam_p, pipe_p in mapping.items():
         try:
-            param_value = get_parameter_value_by_name_AsString(pipe, pipe_param)
-            if param_value is not None:
-                set_parameter_by_name(new_instance, fam_param, param_value)
-            else:
-                set_parameter_by_name(new_instance, fam_param, "")
-                TaskDialog.Show("Warning", "Pipe missing '{0}', set '{1}' to empty string".format(pipe_param, fam_param))
-        except Exception as e:
-            TaskDialog.Show("Error", "Error setting '{0}' from '{1}': {2}".format(fam_param, pipe_param, str(e)))
-            set_parameter_by_name(new_instance, fam_param, "")
- 
-    return new_instance
-def get_upper_level(current_view, all_levels):
-    """Find the next highest level above the view's associated level by elevation"""
-    view_level = current_view.GenLevel
-    view_elevation = view_level.Elevation
- 
-    upper_level = None
-    min_above_elevation = float('inf')
- 
-    for lvl in all_levels:
-        if lvl.Elevation > view_elevation and lvl.Elevation < min_above_elevation:
-            min_above_elevation = lvl.Elevation
-            upper_level = lvl
- 
-    return upper_level
+            val = get_parameter_value_by_name_AsString(pipe, pipe_p)
+            set_parameter_by_name(inst, fam_p, val if val is not None else "")
+        except:
+            set_parameter_by_name(inst, fam_p, "")
+
+    return inst
+
+def get_upper_level(view, all_levels):
+    gen_level = view.GenLevel
+    if not gen_level:
+        return None
+    elev = gen_level.Elevation
+    candidates = [lvl for lvl in all_levels if lvl.Elevation > elev]
+    if not candidates:
+        return None
+    return min(candidates, key=lambda l: l.Elevation)
+
 def main():
-    """Main execution: place sleeves at vertical pipe-level intersections based on view type or selection"""
-    family_symbol = load_family()
-    if not family_symbol:
-        TaskDialog.Show("Error", "Failed to load family symbol, load the family manually from here:\n{0}".format(family_path))
+    symbol = load_family()
+    if not symbol:
+        TaskDialog.Show("Error", "Cannot load family symbol.\nPlease load manually:\n" + family_path)
         return
- 
-    # Check for pre-selected elements
+
     selected_ids = uidoc.Selection.GetElementIds()
     all_levels = FilteredElementCollector(doc).OfClass(DB.Level).ToElements()
-    existing_sleeves = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeAccessory).WhereElementIsNotElementType().ToElements()
- 
+    existing_sleeves = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeAccessory)\
+                                                     .WhereElementIsNotElementType()\
+                                                     .ToElements()
+
     with Transaction(doc, 'Place Sleeves at Intersections') as t:
         t.Start()
-        if not family_symbol.IsActive:
-            family_symbol.Activate()
+        if not symbol.IsActive:
+            symbol.Activate()
             doc.Regenerate()
-     
-        placed_count = 0
-     
-        # Mode 1: Pre-selected pipe in Floor Plan - Place sleeve at upper level
-        if selected_ids.Count > 0 and curview.ViewType == ViewType.FloorPlan:
-            upper_level = get_upper_level(curview, all_levels)
-            if not upper_level:
-                TaskDialog.Show("Error", "No upper level found above the current floor plan view")
+
+        placed = 0
+
+        is_3d = curview.ViewType == ViewType.ThreeD
+        is_plan = curview.ViewType == ViewType.FloorPlan
+
+        section_box = curview.GetSectionBox() if is_3d and curview.IsSectionBoxActive else None
+        if section_box:
+            sb_min = section_box.Transform.OfPoint(section_box.Min)
+            sb_max = section_box.Transform.OfPoint(section_box.Max)
+
+        # Mode selection
+        if selected_ids.Count > 0 and is_plan:
+            upper = get_upper_level(curview, all_levels)
+            if not upper:
+                TaskDialog.Show("Error", "No level above current floor plan view.")
                 t.Commit()
                 return
-            for element_id in selected_ids:
-                pipe = doc.GetElement(element_id)
-                if (pipe.Category.Id.IntegerValue == int(BuiltInCategory.OST_FabricationPipework) and
-                    is_vertical_pipe(pipe)):
-                    intersections = get_pipe_intersections(pipe, upper_level)
-                    for point in intersections:
-                        new_sleeve = place_sleeve_at_intersection(pipe, point, family_symbol, upper_level, existing_sleeves)
-                        if new_sleeve:
-                            placed_count += 1
-     
-        # Mode 2: Pre-selected pipe in 3D View - Place sleeves at all level intersections for visible selected pipes
-        elif selected_ids.Count > 0 and curview.ViewType == ViewType.ThreeD:
-            # Get all visible fabrication pipes in the current 3D view
-            visible_pipes = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationPipework).WhereElementIsNotElementType().ToElements()
-            visible_pipe_ids = {pipe.Id for pipe in visible_pipes} # Set of visible pipe IDs
-         
-            # Get the section box of the 3D view (if active)
-            section_box = curview.GetSectionBox() if curview.IsSectionBoxActive else None
-            if section_box:
-                min_point = section_box.Min
-                max_point = section_box.Max
-                # Transform coordinates to world space
-                transform = section_box.Transform
-                min_point = transform.OfPoint(min_point)
-                max_point = transform.OfPoint(max_point)
-         
-            # Use all levels (no filtering for levels)
-         
-            for element_id in selected_ids:
-                if element_id not in visible_pipe_ids: # Skip if the selected pipe isn't visible in the view
-                    continue
-                pipe = doc.GetElement(element_id)
-                if (pipe.Category.Id.IntegerValue == int(BuiltInCategory.OST_FabricationPipework) and
-                    is_vertical_pipe(pipe)):
-                    for level in all_levels:
-                        intersections = get_pipe_intersections(pipe, level)
-                        for point in intersections:
-                            # Additional check: ensure intersection point is within section box
-                            if section_box and not (min_point.X <= point.X <= max_point.X and
-                                                   min_point.Y <= point.Y <= max_point.Y and
-                                                   min_point.Z <= point.Z <= max_point.Z):
-                                continue # Skip if intersection is outside section box
-                            new_sleeve = place_sleeve_at_intersection(pipe, point, family_symbol, level, existing_sleeves)
-                            if new_sleeve:
-                                placed_count += 1
-     
-        # Mode 3: 3D View without selection - Populate all visible intersections within section box
-        elif curview.ViewType == ViewType.ThreeD:
-            # Get all visible fabrication pipes in the current 3D view
-            pipes = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationPipework).WhereElementIsNotElementType().ToElements()
-         
-            # Get the section box of the 3D view (if active)
-            section_box = curview.GetSectionBox() if curview.IsSectionBoxActive else None
-            if section_box:
-                min_point = section_box.Min
-                max_point = section_box.Max
-                # Transform coordinates to world space
-                transform = section_box.Transform
-                min_point = transform.OfPoint(min_point)
-                max_point = transform.OfPoint(max_point)
-         
-            # Use all levels (no filtering for levels)
-         
-            for pipe in pipes:
-                if not is_vertical_pipe(pipe):
-                    continue
-                for level in all_levels:
-                    intersections = get_pipe_intersections(pipe, level)
-                    for point in intersections:
-                        # Additional check: ensure intersection point is within section box
-                        if section_box and not (min_point.X <= point.X <= max_point.X and
-                                               min_point.Y <= point.Y <= max_point.Y and
-                                               min_point.Z <= point.Z <= max_point.Z):
-                            continue # Skip if intersection is outside section box
-                        new_sleeve = place_sleeve_at_intersection(pipe, point, family_symbol, level, existing_sleeves)
-                        if new_sleeve:
-                            placed_count += 1
-     
-        # Mode 4: Floor Plan View without selection - Populate only upper level
-        elif curview.ViewType == ViewType.FloorPlan:
-            upper_level = get_upper_level(curview, all_levels)
-            if not upper_level:
-                TaskDialog.Show("Error", "No upper level found above the current view's level")
+            levels_to_check = [upper]
+
+        elif selected_ids.Count > 0 and is_3d:
+            visible_pipes = FilteredElementCollector(doc, curview.Id)\
+                            .OfCategory(BuiltInCategory.OST_FabricationPipework)\
+                            .WhereElementIsNotElementType().ToElements()
+            visible_ids = set([p.Id for p in visible_pipes])
+            levels_to_check = all_levels
+
+        elif is_3d:
+            visible_pipes = FilteredElementCollector(doc, curview.Id)\
+                            .OfCategory(BuiltInCategory.OST_FabricationPipework)\
+                            .WhereElementIsNotElementType().ToElements()
+            levels_to_check = all_levels
+
+        elif is_plan:
+            upper = get_upper_level(curview, all_levels)
+            if not upper:
+                TaskDialog.Show("Error", "No level above current view.")
                 t.Commit()
                 return
-            pipes = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationPipework).WhereElementIsNotElementType().ToElements()
-            for pipe in pipes:
-                if not is_vertical_pipe(pipe):
-                    continue
-                intersections = get_pipe_intersections(pipe, upper_level)
-                for point in intersections:
-                    new_sleeve = place_sleeve_at_intersection(pipe, point, family_symbol, upper_level, existing_sleeves)
-                    if new_sleeve:
-                        placed_count += 1
-     
+            levels_to_check = [upper]
+
         else:
-            TaskDialog.Show("Error", "Script only runs in 3D or Floor Plan views, or with pre-selected pipes in supported views")
+            TaskDialog.Show("Error", "This script supports 3D and Floor Plan views only.")
             t.Commit()
             return
-     
+
+        # Actual processing
+        pipes = []
+        if selected_ids.Count > 0:
+            for eid in selected_ids:
+                el = doc.GetElement(eid)
+                if el and el.Category and el.Category.Id.IntegerValue == int(BuiltInCategory.OST_FabricationPipework):
+                    pipes.append(el)
+        else:
+            pipes = visible_pipes if 'visible_pipes' in locals() else \
+                    FilteredElementCollector(doc, curview.Id)\
+                    .OfCategory(BuiltInCategory.OST_FabricationPipework)\
+                    .WhereElementIsNotElementType().ToElements()
+
+        for pipe in pipes:
+            if not is_vertical_pipe(pipe):
+                continue
+            for lvl in levels_to_check:
+                pts = get_pipe_intersections(pipe, lvl)
+                for pt in pts:
+                    if section_box and not (sb_min.X <= pt.X <= sb_max.X and
+                                            sb_min.Y <= pt.Y <= sb_max.Y and
+                                            sb_min.Z <= pt.Z <= sb_max.Z):
+                        continue
+                    sleeve = place_sleeve_at_intersection(pipe, pt, symbol, lvl, existing_sleeves)
+                    if sleeve:
+                        placed += 1
+                        existing_sleeves.Add(sleeve)
+
         t.Commit()
-        TaskDialog.Show("Success","Placed {0} sleeve instances at pipe-level intersections".format(placed_count))
+        TaskDialog.Show("Result", "Placed {} sleeve instances.".format(placed))
+
 if __name__ == '__main__':
     main()

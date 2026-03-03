@@ -7,7 +7,7 @@ title:
 
 # bundle tooltip
 tooltip: >-
-  Renames selected sheets or views.
+  Adds revision to selected sheets or views.
       1. Run command.
       2. Choose Revision to add from dialog.
       3. Choose sheets from dialog to add Revision to.

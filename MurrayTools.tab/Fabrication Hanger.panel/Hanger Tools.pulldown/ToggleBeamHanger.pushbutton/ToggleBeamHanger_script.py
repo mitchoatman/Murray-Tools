@@ -68,14 +68,20 @@ existing_filter_names = {filter.Name for filter in existing_filters}
 existing_filter_dict = {filter.Name: filter.Id for filter in existing_filters}
 applied_filters = {doc.GetElement(id).Name: id for id in view_to_modify.GetFilters()}
 
-if filter_name not in existing_filter_names:
-    param_id = None
-    if Fhangers:
-        for p in Fhangers[0].Parameters:
-            if p.Definition.Name == "FP_Beam Hanger":
-                param_id = p.Id
-                break
 
+# Find parameter ID for "FP_Beam Hanger" from any existing fabrication hanger
+param_id = None
+hanger_collector = FilteredElementCollector(doc)\
+    .OfCategory(BuiltInCategory.OST_FabricationHangers)\
+    .WhereElementIsNotElementType()
+hangers = hanger_collector.ToElements()
+if hangers:
+    for hanger in hangers:
+        param = hanger.LookupParameter("FP_Beam Hanger")
+        if param:
+            param_id = param.Id
+            break
+if filter_name not in existing_filter_names:
     if param_id:
         rule = ParameterFilterRuleFactory.CreateEqualsRule(param_id, "Yes", False)
         filter_element = ElementParameterFilter(rule)

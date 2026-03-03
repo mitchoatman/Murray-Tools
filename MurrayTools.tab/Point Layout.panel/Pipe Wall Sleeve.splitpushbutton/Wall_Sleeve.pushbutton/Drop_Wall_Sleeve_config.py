@@ -1,11 +1,11 @@
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Family, BuiltInCategory, FamilySymbol, LocationCurve, Transaction
 from Autodesk.Revit.UI.Selection import ObjectType
-from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsInteger
-import re
+from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, get_parameter_value_by_name_AsInteger, get_parameter_value_by_name_AsValueString
+import re, os
+import math
 from math import atan2, degrees
 from fractions import Fraction
-import os
 
 path, filename = os.path.split(__file__)
 NewFilename = '\DR-WS.rfa'
@@ -88,6 +88,11 @@ def project_point_on_curve(point, curve):
     result = curve.Project(point)
     return result.XYZPoint
 
+def round_up_to_nearest_quarter(value):
+    value_in_inches = value * 12
+    rounded_value_in_inches = math.ceil(value_in_inches * 4) / 4
+    return rounded_value_in_inches / 12
+
 def place_and_modify_family(pipe, famsymb):
     centerline_curve = get_pipe_centerline(pipe)
     picked_point = pick_point()
@@ -103,16 +108,26 @@ def place_and_modify_family(pipe, famsymb):
     
     new_family_instance = doc.Create.NewFamilyInstance(insertion_point, famsymb, DB.Structure.StructuralType.NonStructural)
 
-    def frac2string(s):
-        i, f = s.groups(0)
-        f = Fraction(f)
-        return str(int(i) + float(f))
+    # Calculate overall size from Outside Diameter + 2 * Insulation Thickness
+    od_param = pipe.LookupParameter('Outside Diameter')
+    if od_param is None:
+        raise Exception("Outside Diameter parameter not found on the selected pipe.")
+    outside_dia = od_param.AsDouble()  # in feet (internal units)
 
-    if '/' in get_parameter_value_by_name_AsString(pipe, 'Overall Size'):
-        diameter = float(re.sub(r'(?:(\d+)[-\s])?(\d+/\d+)[^\d.]', frac2string, get_parameter_value_by_name_AsString(pipe, 'Overall Size'))) / 12 + 0.0833333
-    else:
-        diameter = float(re.sub(r'[^\d.]', '', get_parameter_value_by_name_AsString(pipe, 'Overall Size'))) / 12 + 0.0833333
-    set_parameter_by_name(new_family_instance, "Diameter", diameter)
+    ins_spec_param = pipe.LookupParameter('Insulation Specification')
+    has_insulation = False
+    if ins_spec_param is not None:
+        has_insulation = ins_spec_param.AsInteger() != 0
+
+    ins_thick = 0.0
+    if has_insulation:
+        it_param = pipe.LookupParameter('Insulation Thickness')
+        if it_param is not None:
+            ins_thick = it_param.AsDouble()  # in feet (internal units)
+
+    overall_dia_feet = outside_dia + 2 * ins_thick
+    diameter = overall_dia_feet + 0.0833333
+    set_parameter_by_name(new_family_instance, 'Diameter', round_up_to_nearest_quarter(diameter))
     
     # Get connector locations
     pipe_connectors = list(pipe.ConnectorManager.Connectors)
@@ -138,7 +153,7 @@ def place_and_modify_family(pipe, famsymb):
     DB.ElementTransformUtils.RotateElement(doc, new_family_instance.Id, axis, angle)
     
     # Set FP parameters on new family placed in model
-    set_parameter_by_name(new_family_instance, 'FP_Product Entry', get_parameter_value_by_name_AsString(pipe, 'Overall Size'))
+    set_parameter_by_name(new_family_instance, 'FP_Product Entry', str(overall_dia_feet * 12))
     set_parameter_by_name(new_family_instance, 'FP_Service Name', get_parameter_value_by_name_AsString(pipe, 'Fabrication Service Name'))
     set_parameter_by_name(new_family_instance, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(pipe, 'Fabrication Service Abbreviation'))
     schedule_level_param = new_family_instance.LookupParameter("Schedule Level")

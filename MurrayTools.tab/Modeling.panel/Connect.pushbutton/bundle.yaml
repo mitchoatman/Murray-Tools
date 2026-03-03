@@ -7,16 +7,16 @@ title:
 # bundle tooltip
 tooltip: |-
   Align connectors of selected elements.
-    1. Select first object to connect, the element to move.
+    1. Select first element to connect, the element to move.
       (pick point close to the connector)
-    2. Select second object to be connected.
+    2. Select second element to be connected.
       (pick point close to the connector)
 
   [Shift]+Click:    
-  Align connectors of selected elements. (Legacy Version)
-    1. Select first object to connect, the element to move.
-      (pick point close to the connector)
-    2. Select second object to be connected.
+  Align selected elements to a specified connector.
+    1. Select elements to move. [Finish]
+      (pick point close to the connector on selected elements)
+    2. Select destination connector.
       (pick point close to the connector)
 
 # context directives are listed under `context` key, the order does not matter

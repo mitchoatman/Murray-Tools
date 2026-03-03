@@ -16,53 +16,44 @@ from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, FabricationConfiguration, Transaction, TemporaryViewMode, ParameterValueProvider, FilterStringRule, ElementParameterFilter, FilterStringContains
 from Autodesk.Revit.UI import UIDocument, TaskDialog, TaskDialogCommonButtons
 from Parameters.Add_SharedParameters import Shared_Params
-from Parameters.Get_Set_Params import (get_parameter_value_by_name_AsString, 
-                                     get_parameter_value_by_name_AsValueString, 
+from Parameters.Get_Set_Params import (get_parameter_value_by_name_AsString,
+                                     get_parameter_value_by_name_AsValueString,
                                      get_parameter_value_by_name_AsInteger)
-
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 Config = FabricationConfiguration.GetFabricationConfiguration(doc)
-
 Shared_Params()
-
 class ValueItem(object):
     def __init__(self, property, value):
         self.Property = property
         self.Value = value
-
     def __str__(self):
         return u"{}: {}".format(self.Property, self.Value)
-
 class RemoveFilterDialog(Window):
     def __init__(self, filter_options, filter_keys):
         self.filter_options = filter_options
         self.filter_keys = filter_keys
         self.selected_filter = None
         self.InitializeComponents()
-
     def InitializeComponents(self):
         self.Title = "Remove Filter"
         self.Width = 300
         self.Height = 140
         self.WindowStyle = WindowStyle.SingleBorderWindow
-        self.ResizeMode = 0  # CanMinimize
+        self.ResizeMode = 0 # CanMinimize
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
-        self.Topmost = True  # Ensure dialog appears on top
-
+        self.Topmost = True # Ensure dialog appears on top
         # Create grid for layout
         grid = Grid()
         self.Content = grid
-
         # Define rows
         row_definitions = [
-            RowDefinition(Height=GridLength.Auto),  # Label and ComboBox
-            RowDefinition(Height=GridLength.Auto)   # Buttons
+            RowDefinition(Height=GridLength.Auto), # Label and ComboBox
+            RowDefinition(Height=GridLength.Auto) # Buttons
         ]
         for row in row_definitions:
             grid.RowDefinitions.Add(row)
-
         # Label
         self.label = Label()
         self.label.Content = "Select filter to remove:"
@@ -70,7 +61,6 @@ class RemoveFilterDialog(Window):
         self.label.Visibility = Visibility.Visible
         Grid.SetRow(self.label, 0)
         grid.Children.Add(self.label)
-
         # ComboBox
         self.filter_combo = ComboBox()
         self.filter_combo.Margin = Thickness(10, 30, 10, 0)
@@ -84,15 +74,13 @@ class RemoveFilterDialog(Window):
             self.filter_combo.SelectedIndex = 0
         Grid.SetRow(self.filter_combo, 0)
         grid.Children.Add(self.filter_combo)
-
         # Button panel for Remove, Remove All, and Cancel buttons
         button_panel = StackPanel()
         button_panel.Orientation = Orientation.Horizontal
         button_panel.HorizontalAlignment = HorizontalAlignment.Center
-        button_panel.Margin = Thickness(0, 10, 0, 10)  # Reduced top margin for tighter spacing
+        button_panel.Margin = Thickness(0, 10, 0, 10) # Reduced top margin for tighter spacing
         Grid.SetRow(button_panel, 1)
         grid.Children.Add(button_panel)
-
         # Remove Button
         self.ok_button = Button()
         self.ok_button.Content = "Remove"
@@ -102,7 +90,6 @@ class RemoveFilterDialog(Window):
         self.ok_button.Visibility = Visibility.Visible
         self.ok_button.Click += self.ok_clicked
         button_panel.Children.Add(self.ok_button)
-
         # Remove All Button
         self.remove_all_button = Button()
         self.remove_all_button.Content = "Remove All"
@@ -112,7 +99,6 @@ class RemoveFilterDialog(Window):
         self.remove_all_button.Visibility = Visibility.Visible
         self.remove_all_button.Click += self.remove_all_clicked
         button_panel.Children.Add(self.remove_all_button)
-
         # Cancel Button
         self.cancel_button = Button()
         self.cancel_button.Content = "Cancel"
@@ -122,22 +108,18 @@ class RemoveFilterDialog(Window):
         self.cancel_button.Visibility = Visibility.Visible
         self.cancel_button.Click += self.cancel_clicked
         button_panel.Children.Add(self.cancel_button)
-
     def ok_clicked(self, sender, args):
         if self.filter_combo.SelectedIndex >= 0:
             self.selected_filter = self.filter_keys[self.filter_combo.SelectedIndex]
         self.DialogResult = True
         self.Close()
-
     def remove_all_clicked(self, sender, args):
-        self.selected_filter = None  # Special value to indicate remove all
+        self.selected_filter = None # Special value to indicate remove all
         self.DialogResult = True
         self.Close()
-
     def cancel_clicked(self, sender, args):
         self.DialogResult = False
         self.Close()
-
 class MultiPropertyFilterForm(Window):
     def __init__(self, property_options, fab_elements, all_elements):
         self.property_options = property_options
@@ -151,40 +133,37 @@ class MultiPropertyFilterForm(Window):
                 self.property_combo.SelectedItem = first_property
             self.update_values_list(None, None)
         self.update_filter_display()
-
     def InitializeComponents(self):
         self.Title = "Multi-Property Filter"
         self.Width = 550
         self.Height = 620
         self.WindowStyle = WindowStyle.SingleBorderWindow
-        self.ResizeMode = 0  # CanMinimize
+        self.ResizeMode = 0 # CanMinimize
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
-        self.Topmost = True  # Keep dialog always on top
-
+        self.Topmost = True # Keep dialog always on top
         # Create grid with row and column definitions
         grid = Grid()
         self.Content = grid
         # Define rows with GridLength objects
         row_definitions = [
-            RowDefinition(Height=GridLength(40)),  # Select Property
+            RowDefinition(Height=GridLength(40)), # Select Property
             RowDefinition(Height=GridLength.Auto), # Search
             RowDefinition(Height=GridLength.Auto), # Select Values
             RowDefinition(Height=GridLength(260)), # ListBox
             RowDefinition(Height=GridLength.Auto), # Add/Remove Filter buttons
             RowDefinition(Height=GridLength(140)), # Filter display
-            RowDefinition(Height=GridLength.Auto)  # Button row
+            RowDefinition(Height=GridLength.Auto) # Button row
         ]
         for row in row_definitions:
             grid.RowDefinitions.Add(row)
         # Define columns for all components
         column_definitions = [
-            ColumnDefinition(Width=GridLength(1, GridUnitType.Star)),  # Left padding
-            ColumnDefinition(Width=GridLength.Auto),                   # Main content
-            ColumnDefinition(Width=GridLength(1, GridUnitType.Star))   # Right padding
+            ColumnDefinition(Width=GridLength(1, GridUnitType.Star)), # Left padding
+            ColumnDefinition(Width=GridLength.Auto), # Main content
+            ColumnDefinition(Width=GridLength(1, GridUnitType.Star)) # Right padding
         ]
         for col in column_definitions:
             grid.ColumnDefinitions.Add(col)
-
         # Property selection label
         self.property_label = Label()
         self.property_label.Content = "Select Property:"
@@ -194,7 +173,6 @@ class MultiPropertyFilterForm(Window):
         Grid.SetRow(self.property_label, 0)
         Grid.SetColumn(self.property_label, 1)
         grid.Children.Add(self.property_label)
-
         # Property ComboBox
         self.property_combo = ComboBox()
         self.property_combo.Width = 160
@@ -203,14 +181,13 @@ class MultiPropertyFilterForm(Window):
         self.property_combo.IsDropDownOpen = False
         self.property_combo.Visibility = Visibility.Visible
         self.property_combo.HorizontalAlignment = HorizontalAlignment.Left
-        properties = sorted(self.property_options.keys())  # Sort properties alphabetically
+        properties = sorted(self.property_options.keys()) # Sort properties alphabetically
         for prop in properties:
             self.property_combo.Items.Add(prop)
         self.property_combo.SelectionChanged += self.update_values_list
         Grid.SetRow(self.property_combo, 0)
         Grid.SetColumn(self.property_combo, 1)
         grid.Children.Add(self.property_combo)
-
         # AND/OR toggle
         self.logic_check = CheckBox()
         self.logic_check.Content = "AND logic (unchecked = OR)"
@@ -221,7 +198,6 @@ class MultiPropertyFilterForm(Window):
         Grid.SetRow(self.logic_check, 4)
         Grid.SetColumn(self.logic_check, 1)
         grid.Children.Add(self.logic_check)
-
         # Search label
         self.search_label = Label()
         self.search_label.Content = "Search:"
@@ -231,7 +207,6 @@ class MultiPropertyFilterForm(Window):
         Grid.SetRow(self.search_label, 1)
         Grid.SetColumn(self.search_label, 1)
         grid.Children.Add(self.search_label)
-
         # Search bar
         self.search_box = TextBox()
         self.search_box.Width = 300
@@ -244,7 +219,6 @@ class MultiPropertyFilterForm(Window):
         Grid.SetColumn(self.search_box, 1)
         grid.Children.Add(self.search_box)
         self.search_box.Focus()
-
         # Values list label
         self.values_label = Label()
         self.values_label.Content = "Select Values:"
@@ -254,7 +228,6 @@ class MultiPropertyFilterForm(Window):
         Grid.SetRow(self.values_label, 2)
         Grid.SetColumn(self.search_label, 1)
         grid.Children.Add(self.values_label)
-
         # Values list
         self.values_list = ListBox()
         self.values_list.Width = 500
@@ -267,7 +240,6 @@ class MultiPropertyFilterForm(Window):
         Grid.SetRow(self.values_list, 3)
         Grid.SetColumn(self.values_list, 1)
         grid.Children.Add(self.values_list)
-
         # Add Filter button
         self.add_button = Button()
         self.add_button.Content = "Add Filter"
@@ -281,7 +253,6 @@ class MultiPropertyFilterForm(Window):
         Grid.SetRow(self.add_button, 2)
         Grid.SetColumn(self.add_button, 1)
         grid.Children.Add(self.add_button)
-
         # Filter management button
         self.filter_button = Button()
         self.filter_button.Width = 500
@@ -296,7 +267,6 @@ class MultiPropertyFilterForm(Window):
         Grid.SetRow(self.filter_button, 5)
         Grid.SetColumn(self.filter_button, 1)
         grid.Children.Add(self.filter_button)
-
         # Button panel for Update Data, Reset View, Isolate, Select, and Cancel buttons
         button_panel = StackPanel()
         button_panel.Orientation = Orientation.Horizontal
@@ -305,7 +275,6 @@ class MultiPropertyFilterForm(Window):
         Grid.SetRow(button_panel, 6)
         Grid.SetColumn(button_panel, 1)
         grid.Children.Add(button_panel)
-
         # Update Data Button
         self.reset_filter_button = Button()
         self.reset_filter_button.Content = "Update Data"
@@ -316,7 +285,6 @@ class MultiPropertyFilterForm(Window):
         self.reset_filter_button.ToolTip = "Refreshes filter data based on current view content"
         self.reset_filter_button.Click += self.reset_filter_clicked
         button_panel.Children.Add(self.reset_filter_button)
-
         # Reset View Button
         self.reset_button = Button()
         self.reset_button.Content = "Reset View"
@@ -328,7 +296,6 @@ class MultiPropertyFilterForm(Window):
         self.reset_button.Visibility = Visibility.Visible
         self.reset_button.Click += self.reset_clicked
         button_panel.Children.Add(self.reset_button)
-
         # Isolate Button
         self.isolate_button = Button()
         self.isolate_button.Content = "Isolate"
@@ -338,7 +305,6 @@ class MultiPropertyFilterForm(Window):
         self.isolate_button.Visibility = Visibility.Visible
         self.isolate_button.Click += self.isolate_clicked
         button_panel.Children.Add(self.isolate_button)
-
         # Select Button
         self.select_button = Button()
         self.select_button.Content = "Select"
@@ -348,7 +314,6 @@ class MultiPropertyFilterForm(Window):
         self.select_button.Visibility = Visibility.Visible
         self.select_button.Click += self.select_clicked
         button_panel.Children.Add(self.select_button)
-
         # Cancel Button
         self.cancel_button = Button()
         self.cancel_button.Content = "Close"
@@ -358,16 +323,10 @@ class MultiPropertyFilterForm(Window):
         self.cancel_button.Visibility = Visibility.Visible
         self.cancel_button.Click += self.cancel_clicked
         button_panel.Children.Add(self.cancel_button)
-
     def exit_frame(self, sender, e):
         self.frame.Continue = False
-
     def reset_filter_clicked(self, sender, args):
         try:
-            # # Clear existing filters
-            # self.selected_filters = {}
-            # self.update_filter_display()
-            
             # Refresh elements based on current view
             preselection = [doc.GetElement(id) for id in uidoc.Selection.GetElementIds()]
             self.fab_elements = preselection if preselection else FilteredElementCollector(doc, curview.Id) \
@@ -377,26 +336,24 @@ class MultiPropertyFilterForm(Window):
             self.all_elements = preselection if preselection else FilteredElementCollector(doc, curview.Id) \
                 .WhereElementIsNotElementType() \
                 .ToElements()
-            
+           
             # Rebuild property options
             self.property_options = {}
             for prop in ['CID', 'ServiceType', 'Service Name', 'Service Abbreviation', 'Size',
                         'STRATUS Assembly', 'Line Number', 'STRATUS Status', 'Reference Level',
                         'Item Number', 'Bundle Number', 'REF BS Designation', 'REF Line Number',
-                        'Specification', 'Hanger Rod Size', 'Valve Number', 'Beam Hanger']:
+                        'Specification', 'Hanger Rod Size', 'Valve Number', 'Beam Hanger', 'Product Entry']:
                 values = set(filter(None, [get_property_value(elem, prop, debug=False) for elem in self.fab_elements]))
                 if values:
                     self.property_options[prop] = sorted(values)
-
             for prop in ['Name', 'Comments', 'Category']:
                 if self.all_elements:
                     values = set(filter(None, [get_property_value(elem, prop, debug=False) for elem in self.all_elements]))
                     if values:
                         self.property_options[prop] = sorted(values)
-
             # Update ComboBox
             self.property_combo.Items.Clear()
-            properties = sorted(self.property_options.keys())  # Sort properties alphabetically
+            properties = sorted(self.property_options.keys()) # Sort properties alphabetically
             for prop in properties:
                 self.property_combo.Items.Add(prop)
             if properties:
@@ -413,16 +370,15 @@ class MultiPropertyFilterForm(Window):
                         item.Content = str(value_item)
                         item.Tag = value_item
                         self.values_list.Items.Add(item)
-            
+           
             # Clear search box
             self.search_box.Text = ""
-            
+           
         except Exception as e:
             dialog = TaskDialog("Error")
             dialog.MainInstruction = "Update Data Error: {}".format(str(e))
             dialog.CommonButtons = TaskDialogCommonButtons.Ok
             dialog.Show()
-
     def update_values_list(self, sender, args):
         search_term = self.search_box.Text.lower()
         selected_property = self.property_combo.SelectedItem
@@ -449,14 +405,13 @@ class MultiPropertyFilterForm(Window):
                     item.Content = str(value_item)
                     item.Tag = value_item
                     self.values_list.Items.Add(item)
-
     def add_filter(self, sender, args):
         selected_items = self.values_list.SelectedItems
         if selected_items:
             from collections import defaultdict
             filters_to_add = defaultdict(list)
             for item in selected_items:
-                value_item = item.Tag  # Retrieve ValueItem from Tag
+                value_item = item.Tag # Retrieve ValueItem from Tag
                 filters_to_add[value_item.Property].append(value_item.Value)
             for prop, vals in filters_to_add.items():
                 if prop not in self.selected_filters:
@@ -468,11 +423,10 @@ class MultiPropertyFilterForm(Window):
             dialog.MainInstruction = "Please select at least one value."
             dialog.CommonButtons = TaskDialogCommonButtons.Ok
             dialog.Show()
-
     def remove_filter(self, sender, args):
         if not self.selected_filters:
-            return  # Do nothing if no filters exist
-        
+            return # Do nothing if no filters exist
+       
         filter_options = []
         filter_keys = []
         for prop, filter_list in self.selected_filters.items():
@@ -481,14 +435,14 @@ class MultiPropertyFilterForm(Window):
                 desc = "%s (%s): %s" % (prop, mode, ", ".join(str(v) for v in values))
                 filter_options.append(desc)
                 filter_keys.append((prop, values))
-        
+       
         if not filter_options:
             dialog = TaskDialog("Information")
             dialog.MainInstruction = "No filters to remove."
             dialog.CommonButtons = TaskDialogCommonButtons.Ok
             dialog.Show()
             return
-        
+       
         dialog = RemoveFilterDialog(filter_options, filter_keys)
         if dialog.ShowDialog() == True:
             if dialog.selected_filter is None:
@@ -503,14 +457,13 @@ class MultiPropertyFilterForm(Window):
                 if not self.selected_filters[prop]:
                     del self.selected_filters[prop]
             self.update_filter_display()
-
     def update_filter_display(self, sender=None, args=None):
         if not self.selected_filters:
             self.filter_button.Content = "No Filters Yet..."
         else:
             filter_text = "Filters (Click here to modify):\n"
             for prop, filter_list in self.selected_filters.items():
-                filter_text += "%s:\n    " % prop
+                filter_text += "%s:\n " % prop
                 conditions = []
                 for values, is_and in filter_list:
                     mode = "AND" if is_and else "OR"
@@ -518,7 +471,6 @@ class MultiPropertyFilterForm(Window):
                     conditions.append(condition)
                 filter_text += " ".join(conditions) + "\n"
             self.filter_button.Content = filter_text.strip()
-
     def reset_clicked(self, sender, args):
         try:
             t = Transaction(doc, "Reset Temporary Hide/Isolate")
@@ -530,7 +482,6 @@ class MultiPropertyFilterForm(Window):
             dialog.MainInstruction = "Reset Error: {}".format(str(e))
             dialog.CommonButtons = TaskDialogCommonButtons.Ok
             dialog.Show()
-
     def isolate_clicked(self, sender, args):
         if not self.selected_filters:
             dialog = TaskDialog("Warning")
@@ -543,7 +494,6 @@ class MultiPropertyFilterForm(Window):
             elements_to_filter = self.all_elements if ('Name' in self.selected_filters or 'Comments' in self.selected_filters or 'Category' in self.selected_filters) else self.fab_elements
             if preselection:
                 elements_to_filter = preselection
-
             filtered_ids = []
             for elem in elements_to_filter:
                 if elem is None or not elem.IsValidObject:
@@ -562,7 +512,7 @@ class MultiPropertyFilterForm(Window):
                     matches.append(prop_result)
                 if all(matches):
                     filtered_ids.append(elem.Id)
-            
+           
             if filtered_ids:
                 element_id_list = List[DB.ElementId](filtered_ids)
                 t = Transaction(doc, "Isolate Filtered Elements")
@@ -579,7 +529,6 @@ class MultiPropertyFilterForm(Window):
             dialog.MainInstruction = "Isolate Error: {}".format(str(e))
             dialog.CommonButtons = TaskDialogCommonButtons.Ok
             dialog.Show()
-
     def select_clicked(self, sender, args):
         if not self.selected_filters:
             dialog = TaskDialog("Warning")
@@ -592,7 +541,6 @@ class MultiPropertyFilterForm(Window):
             elements_to_filter = self.all_elements if ('Name' in self.selected_filters or 'Comments' in self.selected_filters or 'Category' in self.selected_filters) else self.fab_elements
             if preselection:
                 elements_to_filter = preselection
-
             filtered_ids = []
             for elem in elements_to_filter:
                 if elem is None or not elem.IsValidObject:
@@ -611,7 +559,7 @@ class MultiPropertyFilterForm(Window):
                     matches.append(prop_result)
                 if all(matches):
                     filtered_ids.append(elem.Id)
-            
+           
             if filtered_ids:
                 element_id_list = List[DB.ElementId](filtered_ids)
                 uidoc.Selection.SetElementIds(element_id_list)
@@ -626,10 +574,8 @@ class MultiPropertyFilterForm(Window):
             dialog.MainInstruction = "Select Error: {}".format(str(e))
             dialog.CommonButtons = TaskDialogCommonButtons.Ok
             dialog.Show()
-
     def cancel_clicked(self, sender, args):
         self.Close()
-
 def get_property_value(elem, property_name, debug=False):
     if elem is None or not elem.IsValidObject:
         return None
@@ -653,6 +599,7 @@ def get_property_value(elem, property_name, debug=False):
         'Hanger Rod Size': lambda x: get_parameter_value_by_name_AsValueString(x, 'FP_Rod Size'),
         'Valve Number': lambda x: get_parameter_value_by_name_AsString(x, 'FP_Valve Number'),
         'Beam Hanger': lambda x: get_parameter_value_by_name_AsString(x, 'FP_Beam Hanger'),
+        'Product Entry': lambda x: get_parameter_value_by_name_AsString(x, 'Product Entry'),
         'Category': lambda x: x.Category.Name if x.Category else None,
     }
     try:
@@ -660,7 +607,6 @@ def get_property_value(elem, property_name, debug=False):
         return value
     except:
         return None
-
 def get_parameter_id(property_name):
     param_map = {
         'STRATUS Assembly': 'STRATUS Assembly',
@@ -678,10 +624,10 @@ def get_parameter_id(property_name):
         'Hanger Rod Size': 'FP_Rod Size',
         'Valve Number': 'FP_Valve Number',
         'Beam Hanger': 'FP_Beam Hanger',
+        'Product Entry': 'Product Entry',
         'Name': 'Family',
     }
     return param_map.get(property_name)
-
 # Collect elements
 preselection = [doc.GetElement(id) for id in uidoc.Selection.GetElementIds()]
 fab_elements = preselection if preselection else FilteredElementCollector(doc, curview.Id) \
@@ -692,31 +638,21 @@ all_elements = preselection if preselection else FilteredElementCollector(doc, c
     .WhereElementIsNotElementType() \
     .ToElements()
 
-if not fab_elements:
-    dialog = TaskDialog("Error")
-    dialog.MainInstruction = "No Fabrication parts found."
-    dialog.CommonButtons = TaskDialogCommonButtons.Ok
-    dialog.Show()
-    import sys
-    sys.exit()
-
 # Build property options for fabrication parts
 property_options = {}
 for prop in ['CID', 'ServiceType', 'Service Name', 'Service Abbreviation', 'Size',
              'STRATUS Assembly', 'Line Number', 'STRATUS Status', 'Reference Level',
              'Item Number', 'Bundle Number', 'REF BS Designation', 'REF Line Number',
-             'Specification', 'Hanger Rod Size', 'Valve Number', 'Beam Hanger']:
+             'Specification', 'Hanger Rod Size', 'Valve Number', 'Beam Hanger', 'Product Entry']:
     values = set(filter(None, [get_property_value(elem, prop, debug=False) for elem in fab_elements]))
     if values:
         property_options[prop] = sorted(values)
-
 # Build property options for all elements
 for prop in ['Name', 'Comments', 'Category']:
     if all_elements:
         values = set(filter(None, [get_property_value(elem, prop, debug=False) for elem in all_elements]))
         if values:
             property_options[prop] = sorted(values)
-
 if not property_options:
     dialog = TaskDialog("Error")
     dialog.MainInstruction = "No properties found for the selected elements."
@@ -724,7 +660,6 @@ if not property_options:
     dialog.Show()
     import sys
     sys.exit()
-
 # Show form as modeless with DispatcherFrame
 form = MultiPropertyFilterForm(property_options, fab_elements, all_elements)
 form.frame = DispatcherFrame()

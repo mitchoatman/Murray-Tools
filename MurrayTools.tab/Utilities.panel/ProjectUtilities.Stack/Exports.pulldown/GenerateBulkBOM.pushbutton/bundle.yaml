@@ -7,7 +7,8 @@ title:
 
 # bundle tooltip
 tooltip: |-
-  Exports a Schedule into Murray MR Template, no Export / Import steps required.
+  Exports a schedule directly into Murray MR Template.
+  Simplifies OOTB export/Import steps.
 
   [Shift]+Click:    
   Creates a Schedule formatted for export to MR Template.

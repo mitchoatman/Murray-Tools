@@ -184,7 +184,26 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                     elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
                         InsertDepth = (-4.0 / 12)
 
-    elif insert_type == 8:  # Custom Cut/Extended Rod
+    elif insert_type == 8:  # Mason West PAL_CIP WD
+        set_parameter_by_name(hanger, 'FP_Insert Type', 'Hilti KCM-WF')
+        if not is_beam_hanger:
+            AnciObj = hanger.GetPartAncillaryUsage()
+            for n in AnciObj:
+                AnciDiam.append(n.AncillaryWidthOrDiameter)
+                for elinfo in AnciDiam:
+                    formatted_elinfo = "{:.6f}".format(elinfo)
+                    if formatted_elinfo == '0.031250':  # 3/8"
+                        InsertDepth = (2.375 / 12)
+                    elif formatted_elinfo == '0.041667':  # 1/2"
+                        InsertDepth = (1.75 / 12)
+                    elif formatted_elinfo == '0.052083':  # 5/8"
+                        InsertDepth = (1.0 / 12)
+                    elif formatted_elinfo == '0.062500':  # 3/4"
+                        InsertDepth = (0.875 / 12)
+                    elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
+                        InsertDepth = (1.0 / 12)
+
+    elif insert_type == 9:  # Custom Cut/Extended Rod
         set_parameter_by_name(hanger, 'FP_Insert Type', 'User Custom')
         if not is_beam_hanger:
             InsertDepth = deck_thickness
@@ -211,7 +230,8 @@ if len(hangers) > 0:
             '(5) Dewalt Wood Knocker': 5,
             '(6) Dewalt BangIt+': 6,
             '(7) Hilti KCM-WF': 7,
-            '(8) Extend or Cut Rod': 8
+            '(8) Mason West PAL_CIP WD': 8,
+            '(9) Extend or Cut Rod': 9
         }),
         Label('Deck Thickness(Decimal In.) | (Num = +Ext or -Cut):'),
         TextBox('Deck', '3'),

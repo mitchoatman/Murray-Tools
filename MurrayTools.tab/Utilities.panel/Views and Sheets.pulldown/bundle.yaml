@@ -1,6 +1,7 @@
 layout:
   - Create Sketch View
   - CreateSheetFromView
+  - CeilingPlansToBack
   - DuplicateView
   - Create3DViews
   - AlignViews

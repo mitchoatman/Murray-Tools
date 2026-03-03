@@ -1,23 +1,20 @@
 import clr
 clr.AddReference('RevitAPI')
 clr.AddReference('RevitAPIUI')
-from Autodesk.Revit.DB import FabricationPart, FilteredElementCollector, ParameterFilterRuleFactory, Transaction, Color, LinePatternElement, BuiltInParameter, BuiltInCategory, ElementId, ParameterFilterElement, FilterInverseRule, ElementParameterFilter, OverrideGraphicSettings, FabricationConfiguration
+from Autodesk.Revit.DB import FabricationPart, FilteredElementCollector, ParameterFilterRuleFactory, Transaction, Color, LinePatternElement, BuiltInParameter, BuiltInCategory, ElementId, ParameterFilterElement, FilterInverseRule, ElementParameterFilter, OverrideGraphicSettings, FabricationConfiguration, View
 from Autodesk.Revit.UI import UIApplication
 from System.Collections.Generic import List
 from collections import OrderedDict
 from random import randint
 from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import get_parameter_value_by_name_AsString
-
 Shared_Params()
-
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float(RevitVersion)
-
 # Get all loaded fabrication services from the project
 SNamelist = []
 Config = FabricationConfiguration.GetFabricationConfiguration(doc)
@@ -27,29 +24,23 @@ if Config:
 else:
     print 'No Fabrication Configuration found in the project'
     raise Exception('No Fabrication Configuration found in the project')
-
 SNamelist_set = set(SNamelist)
-
 # Create list of categories that will be used for the filter
 categories = List[ElementId]()
 categories.Add(ElementId(BuiltInCategory.OST_FabricationHangers))
 categories.Add(ElementId(BuiltInCategory.OST_FabricationPipework))
 categories.Add(ElementId(BuiltInCategory.OST_FabricationDuctwork))
-
 # Fabrication service name parameter
 fabrication_service_name_parameter = ElementId(BuiltInParameter.FABRICATION_SERVICE_NAME)
-
 # Collect existing ParameterFilterElements
 existing_filters = FilteredElementCollector(doc).OfClass(ParameterFilterElement).ToElements()
 existing_filter_names = {filter.Name for filter in existing_filters}
 existing_filter_dict = {filter.Name: filter.Id for filter in existing_filters}
-
 def random_color():
     r = randint(0, 230)
     g = randint(0, 230)
     b = randint(0, 230)
     return r, g, b
-
 # Look for Dashed line pattern to collect its ID
 line_patterns = FilteredElementCollector(doc).OfClass(LinePatternElement)
 dashed_pattern_id = None
@@ -57,11 +48,9 @@ for pattern in line_patterns:
     if pattern.Name == "Dash":
         dashed_pattern_id = pattern.Id
         break
-
 # Check if the dashed line pattern was found
 if dashed_pattern_id is None:
     raise ValueError("Dashed line pattern not found in the document.")
-
 # Define a dictionary to map system names to their RGB values
 system_colors = {
     # mech pipe
@@ -87,7 +76,6 @@ system_colors = {
     'UG CHILLED WATER SUPPLY': (255, 191, 0),
     'UG CONDENSER WATER RETURN': (0, 191, 255),
     'UG CONDENSER WATER SUPPLY': (0, 63, 255),
-
     # waters
     'IRRIGATION WATER': (170, 191, 255),
     'INDUSTRIAL COLD WATER': (0, 191, 255),
@@ -99,8 +87,8 @@ system_colors = {
     'DE-IONIZED WATER RETURN': (204, 102, 153),
     'UG DOMESTIC COLD WATER': (0, 63, 255),
     'UG DOMESTIC HOT WATER': (227, 34, 143),
-
     # waste and vent
+    'ACID WASTE': (189, 189, 126),
     'ACID VENT': (255, 0, 127),
     'SUMP PUMP DISCHARGE': (115, 117, 8),
     'TRAP PRIMER': (12, 38, 207),
@@ -126,7 +114,6 @@ system_colors = {
     'UG TRAP PRIMER': (12, 38, 207),
     'UG GREASE WASTE': (189, 189, 126),
     'FUEL OIL SUPPLY': (175, 175, 0),
-
     # gasses
     'CARBON DIOXIDE': (22, 107, 37),
     'LAB AIR': (76, 153, 133),
@@ -139,6 +126,7 @@ system_colors = {
     'NITROGEN': (41, 5, 66),
     'OXYGEN': (6, 59, 2),
     'GAS': (0, 129, 0),
+    'GAS VENT': (170, 255, 191),
     'GAS - LOW PRESSURE': (0, 129, 0),
     'UG NITROGEN': (41, 5, 66),
     'UG OXYGEN': (6, 59, 2),
@@ -146,7 +134,6 @@ system_colors = {
     'UG COMPRESSED AIR': (105, 110, 13),
     'UG MEDICAL AIR': (76, 153, 133),
     'UG MEDICAL VACUUM': (255, 0, 191),
-
     # duct
     'GEN EXH (-2 WG)': (0, 191, 255),
     'GEN EXH (-3 WG)': (0, 191, 255),
@@ -172,7 +159,6 @@ system_colors = {
     'RELF EXH (-3 WG)': (0, 94, 189),
     'RELF EXH (-4 WG)': (0, 94, 189),
 }
-
 # Define a dictionary to store custom filters (OrderedDict to preserve order)
 custom_filters = OrderedDict()
 custom_filters["FP_INSULATION"] = {
@@ -180,112 +166,129 @@ custom_filters["FP_INSULATION"] = {
     "condition": "DoesNotContain",
     "value": "XYZ",
     "categories": [BuiltInCategory.OST_FabricationPipeworkInsulation, BuiltInCategory.OST_FabricationDuctworkInsulation, BuiltInCategory.OST_FabricationDuctworkLining],
-    "color": (0, 0, 0)  # Black
+    "color": (0, 0, 0) # Black
 }
 custom_filters["REVIEW"] = {
     "parameter_name": "Comments",
     "condition": "Contains",
     "value": "REVIEW",
     "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
-    "color": (255, 165, 0)  # Orange
+    "color": (255, 165, 0) # Orange
 }
 custom_filters["PLACEHOLDER"] = {
     "parameter_name": "Comments",
     "condition": "Contains",
     "value": "PLACEHOLDER",
     "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
-    "color": (255, 0, 0)  # Red
+    "color": (255, 0, 0) # Red
 }
 custom_filters["SPOOL 1"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "1",
     "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
-    "color": (255, 0, 0)  # Red
+    "color": (255, 0, 0) # Red
 }
 custom_filters["SPOOL 2"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "2",
     "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
-    "color": (79, 0, 59)  # Dark magenta
+    "color": (79, 0, 59) # Dark magenta
 }
 custom_filters["SPOOL 3"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "3",
     "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
-    "color": (0, 0, 255)  # Blue
+    "color": (0, 0, 255) # Blue
 }
 custom_filters["SPOOL 4"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "4",
     "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
-    "color": (0, 255, 0)  # Green
+    "color": (0, 255, 0) # Green
 }
 custom_filters["SPOOL 5"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "5",
     "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
-    "color": (255, 0, 0)  # Red
+    "color": (255, 0, 0) # Red
 }
 custom_filters["SPOOL 6"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "6",
     "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
-    "color": (79, 0, 59)  # Dark magenta
+    "color": (79, 0, 59) # Dark magenta
 }
 custom_filters["SPOOL 7"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "7",
     "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
-    "color": (0, 0, 255)  # Blue
+    "color": (0, 0, 255) # Blue
 }
 custom_filters["SPOOL 8"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "8",
     "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
-    "color": (0, 255, 0)  # Green
+    "color": (0, 255, 0) # Green
 }
 custom_filters["SPOOL 9"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "9",
     "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
-    "color": (255, 0, 0)  # Red
+    "color": (255, 0, 0) # Red
 }
 custom_filters["SPOOL 0"] = {
     "parameter_name": "STRATUS Assembly",
     "condition": "EndsWith",
     "value": "0",
     "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
-    "color": (79, 0, 59)  # Dark magenta
+    "color": (79, 0, 59) # Dark magenta
 }
 custom_filters["BEAM HANGER"] = {
     "parameter_name": "FP_Beam Hanger",
     "condition": "Equals",
     "value": "Yes",
     "categories": [BuiltInCategory.OST_FabricationPipework, BuiltInCategory.OST_FabricationHangers, BuiltInCategory.OST_FabricationDuctwork],
-    "color": (0, 255, 255)  # Cyan
+    "color": (0, 255, 255) # Cyan
 }
-
 # Get filters already applied to the view
 view_template_id = curview.ViewTemplateId
 if not view_template_id.Equals(ElementId.InvalidElementId):
     view_to_modify = doc.GetElement(view_template_id)
 else:
     view_to_modify = curview
-
 applied_filters = {doc.GetElement(id).Name: id for id in view_to_modify.GetFilters()}
-
+# Pre-collect colors for unplanned service filters from other views/templates
+# This guarantees the same random color is reused across the entire project
+service_color_dict = {}
+views_collector = FilteredElementCollector(doc).OfClass(View)
+for view_elem in views_collector:
+    if view_elem.Id.Equals(view_to_modify.Id):
+        continue # skip current view/template so we respect its existing overrides if already applied
+    try:
+        applied_filter_ids = view_elem.GetFilters()
+        for f_id in applied_filter_ids:
+            f_elem = doc.GetElement(f_id)
+            if f_elem and f_elem.Name in SNamelist_set:
+                try:
+                    ovr = view_elem.GetFilterOverrides(f_id)
+                    col = ovr.ProjectionLineColor
+                    if f_elem.Name not in service_color_dict:
+                        service_color_dict[f_elem.Name] = (col.Red, col.Green, col.Blue)
+                except Exception:
+                    pass
+    except Exception:
+        pass # some views (schedules, legends, etc.) do not support filters
 with Transaction(doc, "Create and Apply Filters") as t:
     t.Start()
-
     # Apply custom filters
     for filter_name, filter_props in custom_filters.items():
         param_name = filter_props["parameter_name"]
@@ -293,7 +296,6 @@ with Transaction(doc, "Create and Apply Filters") as t:
         value = filter_props["value"]
         filter_categories = List[ElementId]([ElementId(cat) for cat in filter_props["categories"]])
         color = Color(*filter_props["color"])
-
         # Check if the filter already exists in the model
         if filter_name in existing_filter_names:
             filter_id = existing_filter_dict[filter_name]
@@ -303,7 +305,6 @@ with Transaction(doc, "Create and Apply Filters") as t:
             if not sample_element:
                 print 'No FabricationPart elements found to retrieve parameter ID for filter: ' + filter_name
                 continue
-
             param_id = None
             for p in sample_element.Parameters:
                 if p.Definition.Name == param_name:
@@ -312,7 +313,6 @@ with Transaction(doc, "Create and Apply Filters") as t:
             if not param_id:
                 print 'Parameter ' + param_name + ' not found for filter: ' + filter_name
                 continue
-
             if RevitINT < 2023:
                 if condition == "EndsWith":
                     rule = ParameterFilterRuleFactory.CreateEndsWithRule(param_id, value, False)
@@ -339,12 +339,10 @@ with Transaction(doc, "Create and Apply Filters") as t:
                 else:
                     print 'Condition not supported for filter: ' + filter_name
                     continue
-
             filter_element = ElementParameterFilter(rule)
             filter_elem = ParameterFilterElement.Create(doc, filter_name, filter_categories)
             filter_elem.SetElementFilter(filter_element)
             filter_id = filter_elem.Id
-
         # Set up graphic overrides
         overrides = OverrideGraphicSettings()
         overrides.SetProjectionLineColor(color)
@@ -352,21 +350,19 @@ with Transaction(doc, "Create and Apply Filters") as t:
             overrides.SetSurfaceTransparency(100)
             overrides.SetProjectionLinePatternId(dashed_pattern_id)
             overrides.SetHalftone(True)
-
         # Check if the filter is already applied to the view
         if filter_name not in applied_filters:
             view_to_modify.AddFilter(filter_id)
             view_to_modify.SetFilterVisibility(filter_id, True)
-
+            if filter_name.startswith("SPOOL "):
+                view_to_modify.SetIsFilterEnabled(filter_id, False)
         # Update filter overrides (works even if filter was already applied)
         view_to_modify.SetFilterOverrides(filter_id, overrides)
-
     # Apply service name filters for all loaded services
     for service_name in SNamelist_set:
-        if not service_name:  # Skip empty or None service names
+        if not service_name: # Skip empty or None service names
             print 'Skipping empty or None service name'
             continue
-
         # Determine color based on whether filter exists and is applied
         if service_name in existing_filter_names:
             paramFilterId = existing_filter_dict[service_name]
@@ -378,14 +374,17 @@ with Transaction(doc, "Create and Apply Filters") as t:
             else:
                 if service_name in system_colors:
                     r, g, b = system_colors[service_name]
+                elif service_name in service_color_dict:
+                    r, g, b = service_color_dict[service_name]
                 else:
                     r, g, b = random_color()
         else:
             if service_name in system_colors:
                 r, g, b = system_colors[service_name]
+            elif service_name in service_color_dict:
+                r, g, b = service_color_dict[service_name]
             else:
                 r, g, b = random_color()
-
             try:
                 if RevitINT < 2023:
                     rule = ParameterFilterRuleFactory.CreateEqualsRule(fabrication_service_name_parameter, service_name, False)
@@ -398,11 +397,9 @@ with Transaction(doc, "Create and Apply Filters") as t:
             except Exception as e:
                 print 'Failed to create filter for service: ' + service_name + '. Error: ' + str(e)
                 continue
-
         # Set up graphic overrides
         overrides = OverrideGraphicSettings()
         overrides.SetProjectionLineColor(Color(r, g, b))
-
         # Check if the filter is already applied to the view
         if service_name not in applied_filters:
             try:
@@ -411,13 +408,11 @@ with Transaction(doc, "Create and Apply Filters") as t:
             except Exception as e:
                 print 'Failed to apply filter for service: ' + service_name + ' to view. Error: ' + str(e)
                 continue
-
         # Update filter overrides
         try:
             view_to_modify.SetFilterOverrides(paramFilterId, overrides)
         except Exception as e:
             print 'Failed to set overrides for service: ' + service_name + '. Error: ' + str(e)
-
     try:
         t.Commit()
     except Exception as e:

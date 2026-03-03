@@ -50,6 +50,20 @@ fieldNames_hangers = [
     ("FP_Service Type", "FP_Service Type")
 ]
 
+# Define the fields for hanger schedule
+fieldNames_hanger_rod = [
+    ("Count", "Qty"),
+    ("FP_Rod Length A", "Length"),
+    ("FP_Rod Length B", "Length"),
+    #("Total Rod Length", "Total Rod Length"),
+    ("FP_Rod Size", "Size"),
+    ("Family", "Description"),
+    ("FP_Part Material", "Material"),
+    ("FP_Unit Cost", "Unit Cost"),
+    ("FP_Total", "Total"),
+    ("FP_Service Type", "FP_Service Type")
+]
+
 # Get the category ids
 pipework_category_id = ElementId(BuiltInCategory.OST_FabricationPipework)
 hanger_category_id = ElementId(BuiltInCategory.OST_FabricationHangers)
@@ -85,53 +99,96 @@ def create_schedule(schedule_name, category_id, filters, fieldNames):
                     field = definition.AddField(ScheduleFieldType.Count)
                     field.ColumnHeading = userColumnName
                     field_ids[paramName] = field.FieldId
+
                 elif paramName == "Family":
                     paramId = ElementId(BuiltInParameter.ELEM_FAMILY_PARAM)
                     field = definition.AddField(ScheduleFieldType.Instance, paramId)
                     field.ColumnHeading = userColumnName
                     field_ids[paramName] = field.FieldId
+
+                # elif paramName == "Total Rod Length":
+                    # try:
+                        # # Correct overload: AddField(ScheduleFieldType) with no second argument for formula fields
+                        # field = definition.AddField(ScheduleFieldType.Formula)
+                        # field.ColumnHeading = userColumnName
+                        
+                        # # Set the formula use double quotes around parameter names (most reliable via API)
+                        # # Ensure exact spelling/case matches your shared parameters
+                        # field.SetFormula('"FP_Rod Length A" + "FP_Rod Length B"')
+                        
+                        # # Enable totals display (grand total at the bottom of the schedule)
+                        # field.DisplayType = ScheduleFieldDisplayType.Totals
+                        
+                        # field_ids[paramName] = field.FieldId
+                        # print("Successfully added calculated field: Total Rod Length with formula '{}'".format(field.GetFormula()))
+                    # except Exception as ex:
+                        # print("Failed to add calculated field 'Total Rod Length': {}".format(str(ex)))
+
                 else:
-                    # Attempt to find a shared parameter with matching name
+                    # Shared/project parameters
                     parameter = next((p for p in parameters if p.Name == paramName), None)
                     if parameter is not None:
                         paramId = parameter.Id
                         field = definition.AddField(ScheduleFieldType.Instance, paramId)
                         field.ColumnHeading = userColumnName
                         field_ids[paramName] = field.FieldId
-                        # Configure FP_Centerline Length: Calculate totals
-                        if paramName == "FP_Centerline Length":
+
+                        # Enable totals for length fields
+                        if paramName in ("FP_Centerline Length", "FP_Bearer Length", "FP_Rod Length A", "FP_Rod Length B", "Total Rod Length"):
                             field.DisplayType = ScheduleFieldDisplayType.Totals
-                        # Configure FP_Bearer Length: Calculate totals
-                        if paramName == "FP_Bearer Length":
-                            field.DisplayType = ScheduleFieldDisplayType.Totals
-                        # Set FP_Service Type as hidden
-                        if paramName == "FP_Service Type":
+
+                        # Hide internal/helper fields
+                        if paramName in ("FP_Service Type", "FP_Rod Length A", "FP_Rod Length B"):
                             try:
                                 field.IsHidden = True
-                            except Exception:
-                                pass
+                            except:
+                                pass  # Some versions restrict IsHidden timing
                     else:
-                        print("Parameter '{}' not found in document for '{}'.".format(paramName, schedule_name))
-            except Exception:
-                pass
+                        print("Parameter not found: '{}' in schedule '{}'".format(paramName, schedule_name))
+
+            except Exception as ex:
+                print("Failed to add field '{}': {}".format(paramName, str(ex)))
 
         # Add fields to the schedule in the specified order
         for paramName, userColumnName in fieldNames:
             add_field_by_name(definition, paramName, userColumnName, parameters)
 
-        # Add sorting and grouping by Family, Size, and Material
-        sort_group_fields = [
-            ("Family", "Description"),
-            ("FP_Product Entry", "Size"),
-            ("FP_Part Material", "Material")
-        ]
+        # Sorting and grouping apply different rules for hanger rod schedule
+        if schedule_name == "MEP FAB HANGER ROD":
+            # Hanger rod: Group by FP_Rod Size first, then Family; footer with totals only on rod size
+            sort_group_fields = [
+                ("FP_Rod Size", "Size"),
+                ("Family", "Description")
+            ]
 
-        for paramName, userColumnName in sort_group_fields:
-            if paramName in field_ids:
-                sort_field = ScheduleSortGroupField(field_ids[paramName])
-                sort_field.SortOrder = ScheduleSortOrder.Ascending
-                sort_field.ShowHeader = False  # Disable grouping header
-                definition.AddSortGroupField(sort_field)
+            for index, (paramName, userColumnName) in enumerate(sort_group_fields):
+                if paramName in field_ids:
+                    sort_field = ScheduleSortGroupField(field_ids[paramName])
+                    sort_field.SortOrder = ScheduleSortOrder.Ascending
+                    sort_field.ShowHeader = False
+
+                    if index == 0:  # Primary group: FP_Rod Size
+                        sort_field.ShowFooter = True
+                        sort_field.ShowFooterTitle = True
+                        sort_field.ShowFooterCount = False
+                    else:
+                        sort_field.ShowFooter = False
+                    definition.AddSortGroupField(sort_field)
+
+        else:
+            # All other schedules: original grouping (Family Size Material)
+            sort_group_fields = [
+                ("Family", "Description"),
+                ("FP_Product Entry", "Size"),
+                ("FP_Part Material", "Material")
+            ]
+
+            for paramName, userColumnName in sort_group_fields:
+                if paramName in field_ids:
+                    sort_field = ScheduleSortGroupField(field_ids[paramName])
+                    sort_field.SortOrder = ScheduleSortOrder.Ascending
+                    sort_field.ShowHeader = False
+                    definition.AddSortGroupField(sort_field)
 
         # Apply filters
         try:
@@ -179,3 +236,4 @@ create_schedule("MEP FAB PIPE", pipework_category_id, pipework_filters, fieldNam
 create_schedule("MEP FAB VALVES", pipework_category_id, valve_filters, fieldNames_default)
 create_schedule("MEP FAB HANGERS", hanger_category_id, hanger_filters, fieldNames_hangers)
 create_schedule("MEP FAB COPPER PIPE", pipework_category_id, copper_filters, fieldNames_default)
+create_schedule("MEP FAB HANGER ROD", hanger_category_id, hanger_filters, fieldNames_hanger_rod)

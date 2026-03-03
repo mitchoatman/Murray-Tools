@@ -1,17 +1,15 @@
 #highlight: new
-
 # bundle title
-title:
-  "Copy VG\nFilters"
+title: "Copy VG\nFilters"
 
 # bundle tooltip
 tooltip: |-
-    Copying filter overrides from selected or active view to chosen view templates. 
+    Copying filter overrides from selected or active view to chosen view templates.
     If VG override for this filter already exists in a template it will be updated.
+    [Shift]+Click:
+    Copies filter overrides from active view to all view templates without prompt.
 
-# context directives are listed under `context` key, the order does not matter
-context:
-  zero-doc
+context: zero-doc
 
 # bundle help url
 #help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"

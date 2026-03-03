@@ -1,0 +1,27 @@
+#highlight: new
+title:
+  "Pipe\nRiser"
+
+tooltip: |-
+  Place pipe riser family on pipe centerline at vertical pipe and
+  level line intersection. Fabrication service name and abbreviation
+  will be added to the sleeves.  It will also assign the proper
+  schedule level while not duplicating existing sleeves.
+  
+  1.  Click the button.
+  2.  Pipe Risers are placed on pipes in the active view that cross a level line.
+
+  Floorplan View - pipe risers are placed on level below.
+  3D View - visible pipes crossing level lines are populated with pipe riser.
+  
+  Pre-Selected - Riser family is placed on the selected element(s) only.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://youtu.be/2464K7fS2iY"
+
+# bundle author
+author: Mitchell Oatman
