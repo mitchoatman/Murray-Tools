@@ -150,6 +150,9 @@ def is_duplicate_sleeve(point, existing, tol=0.02):
             return True
     return False
 
+def clean_size_string(size_str):
+    return re.sub(r'["\']|ø', '', size_str.strip())
+
 def place_sleeve_at_intersection(pipe, pt, symbol, level, existing):
     if is_duplicate_sleeve(pt, existing):
         return None
@@ -158,7 +161,7 @@ def place_sleeve_at_intersection(pipe, pt, symbol, level, existing):
         pt, symbol, level, DB.Structure.StructuralType.NonStructural)
 
     size_str = pipe.get_Parameter(DB.BuiltInParameter.RBS_REFERENCE_OVERALLSIZE).AsString() or ""
-    cleaned = re.sub(r'["\']', '', size_str.strip())
+    cleaned = clean_size_string(size_str)
 
     try:
         dia_in = float(cleaned)
@@ -186,7 +189,8 @@ def place_sleeve_at_intersection(pipe, pt, symbol, level, existing):
     for fam_p, pipe_p in mapping.items():
         try:
             val = get_parameter_value_by_name_AsString(pipe, pipe_p)
-            set_parameter_by_name(inst, fam_p, val if val is not None else "")
+            cleaned_val = clean_size_string(val)
+            set_parameter_by_name(inst, fam_p, cleaned_val if cleaned_val is not None else "")
         except:
             set_parameter_by_name(inst, fam_p, "")
 

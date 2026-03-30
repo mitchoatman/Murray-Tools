@@ -1,6 +1,5 @@
 from Autodesk.Revit.DB import (
     FilteredElementCollector, BuiltInCategory, BuiltInParameter,
-    ElementParameterFilter, FilterStringRule, ParameterValueProvider, FilterStringEndsWith,
     ElementId, Transaction, FabricationPart
 )
 import clr
@@ -9,7 +8,6 @@ clr.AddReference('PresentationCore')
 clr.AddReference('WindowsBase')
 clr.AddReference("System.Core")
 from Autodesk.Revit.UI import TaskDialog
-from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 from System.Collections.Generic import List, HashSet
 from System.Windows import Application, Window, Thickness, WindowStyle, ResizeMode, WindowStartupLocation, GridLength
 from System.Windows.Controls import Label, ListBox, Button, Grid, RowDefinition
@@ -19,54 +17,65 @@ import System
 from System import Action
 import System.Windows.Threading
 
-# Get the active document and UI document
+# Revit contexts
 uidoc = __revit__.ActiveUIDocument
-doc = uidoc.Document
+doc   = uidoc.Document
 curview = doc.ActiveView
-app = doc.Application
+app   = doc.Application
 RevitVersion = float(app.VersionNumber)
 
-# Utility to read string parameters
-def get_param_str(elem, name):
-    p = elem.LookupParameter(name)
+# Utility to get a string parameter
+def get_parameter_value_by_name_AsValueString(elem, param_name):
+    p = elem.LookupParameter(param_name)
     if p and p.HasValue:
         return p.AsValueString() or p.AsString()
     return ""
 
-# Build the same cast-iron/length filter and collect pipe_data
+# Collect pipes of any of the three materials, over length 20.002
+# Collect pipes of any of the three materials, over length 20.002
 def collect_pipes():
-    param_id = ElementId(BuiltInParameter.FABRICATION_PART_MATERIAL)
-    prov = ParameterValueProvider(param_id)
-    evalr = FilterStringEndsWith()
-    rule = FilterStringRule(prov, evalr, "Cast Iron", True) if RevitVersion <= 2021 \
-           else FilterStringRule(prov, evalr, "Cast Iron")
-    material_filt = ElementParameterFilter(rule)
-
-    pipes = FilteredElementCollector(doc, curview.Id) \
+    wanted_materials = ["copper", "carbon steel", "pvc"]
+    all_pipes = FilteredElementCollector(doc, curview.Id) \
         .OfCategory(BuiltInCategory.OST_FabricationPipework) \
         .WhereElementIsNotElementType() \
-        .WherePasses(material_filt) \
         .ToElements()
 
     out = []
-    eps = 1e-3
-    for p in pipes:
+    for p in all_pipes:
         try:
-            if p.ItemCustomId == 2041:
-                L = p.get_Parameter(BuiltInParameter.FABRICATION_PART_LENGTH).AsDouble()
-                D = get_param_str(p, 'Product Entry')
-                if (L > 10.0 or (L >= 9.9789 and L < 10.0)) and abs(L - 10.0) >= eps:
-                    fam = get_param_str(p, 'Family')
-                    txt = "{}: {:.3f}   DIA. {}".format(fam, L, D)
-                    out.append((fam, L, txt, p.Id))
-        except:
-            pass
-    out.sort(key=lambda x: (x[0], x[1]))
-    return [(t, eid) for (_, _, t, eid) in out]
+            if p.ItemCustomId != 2041:
+                continue
 
-# The WPF form
+            # read and normalize the material value
+            matParam = p.get_Parameter(BuiltInParameter.FABRICATION_PART_MATERIAL)
+            raw = matParam.AsValueString() or matParam.AsString() or ""
+            matVal = raw.strip().lower()
+
+            # skip if not one of our three
+            if not any(matVal.find(m) != -1 for m in wanted_materials):
+                continue
+
+            # length check
+            L = p.get_Parameter(BuiltInParameter.FABRICATION_PART_LENGTH).AsDouble()
+            if L <= 20.002:
+                continue
+
+            # build display text
+            D   = get_parameter_value_by_name_AsValueString(p, 'Product Entry')
+            fam = get_parameter_value_by_name_AsValueString(p, 'Family')
+            txt = "{}: {:.2f}   DIA. {}".format(fam, L, D)
+
+            out.append((fam, L, txt, p.Id))
+        except Exception:
+            # swallow any element that misbehaves
+            pass
+
+    out.sort(key=lambda x: (x[0], x[1]))
+    return [(txt, eid) for (_, _, txt, eid) in out]
+
+# WPF dialog exactly as before
 class PipeListForm(Window):
-    def __init__(self, pipe_data):
+    def __init__(self, data):
         Window.__init__(self)
         self.Title = "Filtered Pipe List"
         self.Width = 400
@@ -76,30 +85,34 @@ class PipeListForm(Window):
         self.ResizeMode = ResizeMode.CanResize
         self.Topmost = True
 
-        self.pipe_data = pipe_data  # store for refresh
         self.doc = doc
         self.uidoc = uidoc
+        self.pipe_data = data
 
-        g = Grid(); g.Margin = Thickness(10)
-        g.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
-        g.RowDefinitions.Add(RowDefinition(Height=GridLength(2)))
-        g.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
-        g.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
-        self.Content = g
+        grid = Grid()
+        grid.Margin = Thickness(10)
+        grid.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
+        grid.RowDefinitions.Add(RowDefinition(Height=GridLength(2)))
+        grid.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
+        grid.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
+        self.Content = grid
 
-        lbl = Label(Content="Double-click to zoom, or click Update/Optimize:")
+        lbl = Label(Content="Double-click to zoom:")
         lbl.Foreground = Brushes.Black
-        Grid.SetRow(lbl, 0); g.Children.Add(lbl)
+        Grid.SetRow(lbl, 0)
+        grid.Children.Add(lbl)
 
         self.lb = ListBox(Height=300)
-        Grid.SetRow(self.lb, 2); g.Children.Add(self.lb)
         self.lb.MouseDoubleClick += self.on_double
+        Grid.SetRow(self.lb, 2)
+        grid.Children.Add(self.lb)
 
         btn = Button(Content="Update/Optimize")
         btn.Click += self.on_click
-        Grid.SetRow(btn, 3); g.Children.Add(btn)
+        Grid.SetRow(btn, 3)
+        grid.Children.Add(btn)
 
-        self.populate(pipe_data)
+        self.populate(self.pipe_data)
 
     def populate(self, data):
         self.lb.Items.Clear()
@@ -108,41 +121,39 @@ class PipeListForm(Window):
             self.lb.Items.Add(txt)
             self.map[txt] = eid
 
-    def on_double(self, s, e):
+    def on_double(self, sender, args):
         txt = self.lb.SelectedItem
         if not txt: return
         eid = self.map[txt]
         self.uidoc.Selection.SetElementIds(List[ElementId]([eid]))
         self.uidoc.ShowElements(eid)
 
-    def on_click(self, s, e):
-        # optimize selected
+    def on_click(self, sender, args):
         txt = self.lb.SelectedItem
         if txt:
             eid = self.map[txt]
             self.optimize_one(eid)
-        # then refresh list
         self.pipe_data = collect_pipes()
         self.populate(self.pipe_data)
 
     def optimize_one(self, eid):
         try:
-            ids = HashSet[ElementId](); ids.Add(eid)
+            ids = HashSet[ElementId]()
+            ids.Add(eid)
             t = Transaction(self.doc, "Optimize lengths")
             t.Start()
-            optimized = FabricationPart.OptimizeLengths(self.doc, ids)
+            FabricationPart.OptimizeLengths(self.doc, ids)
             t.Commit()
-            # TaskDialog.Show("Optimization", 
-                # "Optimization complete for {0} straight parts.".format(len(optimized)))
+            # you can uncomment to show a TaskDialog:
+            # TaskDialog.Show("Optimization", "Done.")
         except Exception as ex:
             TaskDialog.Show("Error", "Optimization failed: {0}".format(str(ex)))
 
-# --- Launch ---
+# Launch
 data = collect_pipes()
 if data:
     w = PipeListForm(data)
     w.Show()
-    # keep responsive
     disp = System.Windows.Threading.Dispatcher.CurrentDispatcher
     while w.IsVisible:
         disp.Invoke(System.Windows.Threading.DispatcherPriority.Background, Action(lambda: None))

@@ -158,7 +158,7 @@ class FilterSelectionByCategory(Window):
         self.checkbox_panel.Children.Clear()
         self.checkboxes = []
         for category in categories:
-            checkbox = System.Windows.Controls.CheckBox(Content=category.Name)
+            checkbox = System.Windows.Controls.CheckBox(Content=category.Name.upper())  # Change made here
             checkbox.Tag = category
             checkbox.Click += self.checkbox_clicked
             if category.Name in self.selected_categories:

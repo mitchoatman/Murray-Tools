@@ -1,4 +1,5 @@
 layout:
+  - ToggleFPSync
   - SyncData
   - HideIsolate
   - SelectFilter

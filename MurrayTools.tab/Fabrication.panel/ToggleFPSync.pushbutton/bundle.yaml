@@ -1,0 +1,16 @@
+# highlight: updated
+title:
+  "Auto\nSync"
+
+tooltip: |-
+  Enables FP data sync into elements as they are modified.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+help_url: "https://youtu.be/2464K7fS2iY"
+
+# bundle author
+author: Mitchell Oatman

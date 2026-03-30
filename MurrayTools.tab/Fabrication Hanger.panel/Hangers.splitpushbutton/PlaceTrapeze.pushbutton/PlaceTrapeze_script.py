@@ -110,7 +110,7 @@ try:
             if not is_ptrap:
                 # Distance from End Label
                 label_end_dist = Label()
-                label_end_dist.Content = "Distance from End (Ft):"
+                label_end_dist.Content = "Distance from End (In):"
                 label_end_dist.FontSize = 12
                 label_end_dist.FontFamily = FontFamily("Arial")
                 label_end_dist.Margin = Thickness(0, 0, 0, 0)
@@ -121,7 +121,7 @@ try:
                 self.textbox_end_dist.Height = 20
                 self.textbox_end_dist.FontSize = 12
                 self.textbox_end_dist.FontFamily = FontFamily("Arial")
-                self.textbox_end_dist.Text = lines[1]
+                self.textbox_end_dist.Text = str(round(float(lines[1]) * 12.0, 4))
                 self.textbox_end_dist.Margin = Thickness(0, 0, 0, 10)
                 self.textbox_end_dist.HorizontalAlignment = HorizontalAlignment.Left
                 stack.Children.Add(self.textbox_end_dist)
@@ -237,7 +237,7 @@ try:
          
             # Validate numeric inputs
             try:
-                distancefromend = float(distancefromend)
+                distancefromend = float(distancefromend) / 12.0
                 Spacing = float(Spacing)
             except ValueError:
                 print("Invalid input: Distance from End or Spacing must be numeric.")

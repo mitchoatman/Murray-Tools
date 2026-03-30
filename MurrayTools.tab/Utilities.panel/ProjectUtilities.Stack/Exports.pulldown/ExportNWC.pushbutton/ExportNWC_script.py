@@ -200,27 +200,30 @@ for view, file_name in view_file_mapping:
         with revit.Transaction("Assign Materials to Parts"):
             assigned_count = 0
             element_assignment_errors = []
+            
             for element_id, material_id in elements_to_update.items():
                 element = doc.GetElement(element_id)
-                if element:
-                    param = element.LookupParameter(SHARED_PARAM_NAME)
-                    if param is None:
-                        element_assignment_errors.append("Element {} in view {} does not have parameter {}.".format(element_id.IntegerValue, view.Name, SHARED_PARAM_NAME))
-                        continue
-                    try:
-                        current_material_id = param.AsElementId()
-                        current_material_name = doc.GetElement(current_material_id).Name if current_material_id and current_material_id != ElementId.InvalidElementId else "None"
-                        new_material_name = doc.GetElement(material_id).Name if material_id else "None"
-                        if current_material_id != material_id:
-                            param.Set(material_id)
-                            assigned_count += 1
-                            # Log assignment for debugging
-                            # print("Assigned material {} to element {} in view {}".format(new_material_name, element_id.IntegerValue, view.Name))
-                    except Exception as e:
-                        element_assignment_errors.append("Failed to assign material {} to element {} in view {}: {}".format(new_material_name, element_id.IntegerValue, view.Name, str(e)))
-            
-            if element_assignment_errors:
-                TaskDialog.Show("Error", "Element material assignment errors in view {}:\n{}".format(view.Name, "\n".join(element_assignment_errors)))
+                if element is None or element.Id == ElementId.InvalidElementId:
+                    element_assignment_errors.append("Element ID {} is invalid.".format(element_id.IntegerValue))
+                    continue
+                
+                param = element.LookupParameter(SHARED_PARAM_NAME)
+                if param is None:
+                    element_assignment_errors.append("Element {} in view {} does not have parameter {}.".format(element_id.IntegerValue, view.Name, SHARED_PARAM_NAME))
+                    continue
+                
+                try:
+                    current_material_id = param.AsElementId()
+                    current_material_name = doc.GetElement(current_material_id).Name if current_material_id and current_material_id != ElementId.InvalidElementId else "None"
+                    new_material_name = doc.GetElement(material_id).Name if material_id else "None"
+                    
+                    if current_material_id != material_id:
+                        param.Set(material_id)
+                        assigned_count += 1
+                except Exception as e:
+                    element_assignment_errors.append("Failed to assign material {} to element {} in view {}: {}".format(new_material_name, element_id.IntegerValue, view.Name, str(e)))            
+                    if element_assignment_errors:
+                        TaskDialog.Show("Error", "Element material assignment errors in view {}:\n{}".format(view.Name, "\n".join(element_assignment_errors)))
             
             default_color = DB.Color(128, 128, 128)
             insulation_material_id = get_or_update_material(doc, "Insulation_Material", default_color)
@@ -246,7 +249,8 @@ for view, file_name in view_file_mapping:
         tg.Assimilate()
         
     except Exception as e:
-        TaskDialog.Show("Error", "Error during material assignment for view {}: {}".format(view.Name, str(e)))
+        if "referenced object is not valid" not in str(e).lower():
+            TaskDialog.Show("Error", "Error during material assignment for view {}: {}".format(view.Name, str(e)))
         if tg.HasStarted():
             tg.RollBack()
     finally:

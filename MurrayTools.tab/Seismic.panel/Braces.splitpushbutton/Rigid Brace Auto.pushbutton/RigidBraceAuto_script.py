@@ -1,13 +1,18 @@
-from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family, Structure, XYZ, FabricationPart, FabricationConfiguration, TransactionGroup, BuiltInParameter, ElementTransformUtils, Line
-from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
-from Parameters.Get_Set_Params import get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsDouble, set_parameter_by_name, get_parameter_value_by_name_AsString
-import math
 import os
 import sys
+import math
 
-# import for dialog
-from rpw.ui.forms import FlexForm, Label, TextBox, Button
+from Autodesk.Revit import DB
+from Autodesk.Revit.DB import (FilteredElementCollector, Transaction, BuiltInCategory,
+                               FamilySymbol, Family, Structure, XYZ, FabricationPart,
+                               FabricationConfiguration, TransactionGroup, BuiltInParameter,
+                               ElementTransformUtils, Line)
+from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+from Parameters.Get_Set_Params import (get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsString,
+                                        set_parameter_by_name)
+
+from Parameters.Add_SharedParameters import Shared_Params
+Shared_Params()
 
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
@@ -30,18 +35,36 @@ Fam_is_in_project = target_family is not None
 
 def stretch_brace(family_instance, valuenum):
     set_parameter_by_name(family_instance, "Top of Steel", valuenum)
-    BraceAngle = get_parameter_value_by_name_AsDouble(new_family_instance, "BraceMainAngle")
+    BraceAngle = get_parameter_value_by_name(family_instance, "BraceMainAngle")
     sinofangle = math.sin(BraceAngle)
-    BraceElevation = get_parameter_value_by_name_AsDouble(new_family_instance, 'Offset from Host')
+    BraceElevation = get_parameter_value_by_name(family_instance, 'Offset from Host')
     Height = ((valuenum - BraceElevation) - 0.2330)
     newhypotenus = ((Height / sinofangle) - 0.2290)
     if newhypotenus < 0:
         newhypotenus = 1
-    # Writes new Brace length to parameter
-    set_parameter_by_name(new_family_instance, "BraceLength", newhypotenus)
+    set_parameter_by_name(family_instance, "BraceLength", (newhypotenus + 0.083333))
     # Writes Level into Brace
     set_parameter_by_name(new_family_instance, "ISAT Brace Level", HangerLevel)
-    set_parameter_by_name(new_family_instance, "FP_Service Name", HangerService)
+    # Only set FP_Service Name if parameter exists
+    if new_family_instance.LookupParameter("FP_Service Name"):
+        set_parameter_by_name(new_family_instance, "FP_Service Name", HangerService)
+
+def set_parameter_by_name(element, parameterName, value):
+    try:
+        param = element.LookupParameter(parameterName)
+        if param and not param.IsReadOnly:
+            param.Set(value)
+    except Exception:
+        pass
+
+def get_parameter_value_by_name(element, parameterName):
+    try:
+        param = element.LookupParameter(parameterName)
+        if param:
+            return param.AsDouble()
+        return 0.0
+    except Exception:
+        return 0.0
 
 def calculate_distance(point1, point2):
     return math.sqrt((point2.X - point1.X)**2 + (point2.Y - point1.Y)**2)
@@ -81,6 +104,39 @@ class CustomISelectionFilter(ISelectionFilter):
     def AllowReference(self, ref, point):
         return True
 
+# Folder and file for storing seismic brace defaults
+folder_name = "C:\\Temp"
+filepath = os.path.join(folder_name, 'Ribbon_SeismicAutoBrace.txt')
+
+# Default spacing values (feet)
+default_transverse = 20
+default_longitudinal = 40
+
+# Ensure folder exists
+if not os.path.exists(folder_name):
+    os.makedirs(folder_name)
+
+# Read values from file or create it with default values
+if not os.path.exists(filepath):
+    with open(filepath, 'w') as f:
+        f.write("{},{}".format(default_transverse, default_longitudinal))
+    transverse_spacing = default_transverse
+    longitudinal_spacing = default_longitudinal
+else:
+    try:
+        with open(filepath, 'r') as f:
+            data = f.read().split(',')
+            transverse_spacing = float(data[0])
+            longitudinal_spacing = float(data[1])
+    except (ValueError, IndexError):
+        transverse_spacing = default_transverse
+        longitudinal_spacing = default_longitudinal
+
+# Validate inputs
+if transverse_spacing <= 0 or longitudinal_spacing <= 0:
+    TaskDialog.Show("Error", "Invalid spacing values. Please check the values in the file.")
+    sys.exit(0)
+
 # Parse elevation input (feet, feet-inches, decimal)
 def parse_spacing(input_str):
     try:
@@ -100,27 +156,6 @@ def parse_spacing(input_str):
             return float(input_str)
     except (ValueError, IndexError):
         return None
-
-components = [
-    Label('Transverse Spacing:'),
-    TextBox('transverse_spacing', '20'),
-    Label('Longitudinal Spacing:'),
-    TextBox('longitudinal_spacing', '40'),
-    Button('Ok')
-]
-# Prompt user for spacing
-form = FlexForm("Seismic Brace Spacing", components)
-
-if not form.show():
-    sys.exit(0)
-
-transverse_spacing = parse_spacing(form.values["transverse_spacing"])
-longitudinal_spacing = parse_spacing(form.values["longitudinal_spacing"])
-
-# Validate inputs
-if (transverse_spacing is None or longitudinal_spacing is None or
-    transverse_spacing <= 0 or longitudinal_spacing <= 0):
-    forms.alert("Invalid spacing values. Please enter positive numbers.", exitscript=True)
 
 try:
     first_hanger_sel = uidoc.Selection.PickObject(ObjectType.Element, CustomISelectionFilter("MEP Fabrication Hangers"), "Select first hanger for initial brace")
@@ -470,7 +505,7 @@ if target_famtype and len(Fhangers) > 1:
                         combined_xyz = XYZ(rodloc1.X, rodloc1.Y, (last_middle_bottom.Z + 0.2815))
                     elif RackType == '1.625 Double Strut Trapeze':
                         combined_xyz = XYZ(rodloc1.X, rodloc1.Y, (last_middle_bottom.Z + 0.364584))
-                    elif RackType == '050 Doublestrut Trapeze':
+                    elif RackType == '050 Doublestrut Trapeeze':
                         combined_xyz = XYZ(rodloc1.X, rodloc1.Y, (last_middle_bottom.Z + 0.4165))
                     elif 'Seismic' in RackType:
                         combined_xyz = XYZ(rodloc1.X, rodloc1.Y, (last_middle_top.Z - BraceOffsetZ + 0.13541))

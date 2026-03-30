@@ -1,4 +1,4 @@
-#Imports
+# Imports
 import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.UI import *
@@ -20,15 +20,13 @@ class CustomISelectionFilter(ISelectionFilter):
     def __init__(self, nom_categorie):
         self.nom_categorie = nom_categorie
     def AllowElement(self, e):
-        if e.Category.Name == self.nom_categorie:
-            return True
-        else:
-            return False
+        return e.Category.Name == self.nom_categorie
+
     def AllowReference(self, ref, point):
         return True
 
 pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
-CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers")            
+    CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers")            
 Hanger = [doc.GetElement(elId) for elId in pipesel]
 
 folder_name = "c:\\Temp"
@@ -44,7 +42,6 @@ with open(filepath, 'r') as f:
     PrevInput = f.read()
 
 def get_existing_rod_controls():
-    # Collect all existing FP_Rod Control family instances in the document.
     rod_controls = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_StructuralFoundation)\
                                                .WhereElementIsNotElementType()\
                                                .ToElements()
@@ -57,29 +54,26 @@ def get_existing_rod_controls():
     return existing_locations
 
 def is_location_occupied(target_point, existing_locations, tolerance=0.01):
-    # Check if a target point is within tolerance of any existing Rod Control location.
     for loc in existing_locations.values():
         distance = target_point.DistanceTo(loc)
-        if distance <= tolerance:  # Tolerance in feet
+        if distance <= tolerance:
             return True
     return False
 
 if len(Hanger) > 0:
     path, filename = os.path.split(__file__)
-    NewFilename = '\FP_Rod Control.rfa'
+    NewFilename = '\\FP_Rod Control.rfa'
 
-    # Search project for all Families
     families = FilteredElementCollector(doc).OfClass(Family)
-    # Set desired family name and type name:
     FamilyName = 'FP_Rod Control'
     FamilyType = 'FP_Rod Control'
-    # Check if the family is in the project
     Fam_is_in_project = any(f.Name == FamilyName for f in families)
 
     class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
         def OnFamilyFound(self, familyInUse, overwriteParameterValues):
             overwriteParameterValues.Value = False
             return True
+
         def OnSharedFamilyFound(self, sharedFamily, familyInUse, source, overwriteParameterValues):
             source.Value = DB.FamilySource.Family
             overwriteParameterValues.Value = False
@@ -100,7 +94,6 @@ if len(Hanger) > 0:
         doc.LoadFamily(family_pathCC, fload_handler)
     t.Commit()
 
-    # Get existing Rod Control locations
     existing_rod_locations = get_existing_rod_controls()
 
     familyTypes = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_StructuralFoundation)\
@@ -126,13 +119,15 @@ if len(Hanger) > 0:
                     familyInst = doc.Create.NewFamilyInstance(hangerlocation, famtype, Structure.StructuralType.NonStructural)
     t.Commit()
 
+    tg.Assimilate()
+
     t = Transaction(doc, 'Attach Rod to Structure')
     t.Start()
     for e in Hanger:
         rod_info = e.GetRodInfo()
+        rod_info.CanRodsBeHosted = True
         rod_count = rod_info.RodCount
         for n in range(rod_count):
             rod_info.AttachToStructure()
     t.Commit()
 
-    tg.Assimilate()

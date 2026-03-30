@@ -1,6 +1,7 @@
 layout:
   - Braces
   - Extend Braces
+  - AutoBraceConfig
 
 
 background:

@@ -1,4 +1,4 @@
-highlight: updated
+# highlight: updated
 
 # bundle title
 title:
@@ -6,18 +6,13 @@ title:
 
 # bundle tooltip
 tooltip: >-
-  Inserts a Rigid Seismic Braces on a run of hangers spaced at 20ft/40ft intervals.
+  Inserts a Rigid Seismic Braces on a run of hangers spaced at user specified intervals (20ft/40ft).
 
     1. Run Command.
     2. Select fabrication hanger to start.
-    3. Select entire run of hangers to calculate brace spacing.
+    3. Select entire run of hangers to calculate brace spacing along.
     4. Click finish.
     
-    [Shift]-Click to place braces at user picked XY location.
-        1. Run Command.
-        2. Select where you would like to place family.
-
-
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Walls

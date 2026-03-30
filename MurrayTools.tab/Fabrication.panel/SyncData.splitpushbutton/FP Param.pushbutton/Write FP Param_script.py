@@ -166,10 +166,10 @@ if selection:
                                 set_parameter_by_name(x, 'FP_Product Entry', HangerSize)
                                 if HostSize == HangerSize:
                                     set_parameter_by_name(x, 'FP_Hanger Shield', 'No')
+                                    set_parameter_by_name(x, 'FP_Hanger Host Diameter', HostSize)
                                 else:
                                     set_parameter_by_name(x, 'FP_Hanger Shield', 'Yes')
-                                    set_parameter_by_name(x, 'Comments', HostSize)
-                                    set_parameter_by_name(x, 'FP_Hanger Host Diameter', HostSize)
+
                             except:
                                 pass
 
@@ -179,30 +179,28 @@ if selection:
                                     RLA = x.GetDimensionValue(dta) or 0.0
                                 if dta.Name == 'Length B':
                                     RLB = x.GetDimensionValue(dta) or 0.0
-                            set_parameter_by_name(x, 'FP_Rod Length', RLA)
                             set_parameter_by_name(x, 'FP_Rod Length A', RLA)
                             set_parameter_by_name(x, 'FP_Rod Length B', RLB)
 
-                    else:
-                        ItmDims = x.GetDimensions()
-                        for dta in ItmDims:
-                            if dta.Name == 'Length A':
-                                RLA = x.GetDimensionValue(dta) or 0.0
-                            if dta.Name == 'Length B':
-                                RLB = x.GetDimensionValue(dta) or 0.0
-                            if dta.Name == 'Width':
-                                TrapWidth = x.GetDimensionValue(dta)
-                            if dta.Name == 'Bearer Extn':
-                                TrapExtn = x.GetDimensionValue(dta)
-                            if dta.Name == 'Right Rod Offset':
-                                TrapRRod = x.GetDimensionValue(dta)
-                            if dta.Name == 'Left Rod Offset':
-                                TrapLRod = x.GetDimensionValue(dta)
-                        BearerLength = TrapWidth + TrapExtn + TrapExtn
-                        set_parameter_by_name(x, 'FP_Bearer Length', BearerLength)
-                        set_parameter_by_name(x, 'FP_Rod Length', RLA)
-                        set_parameter_by_name(x, 'FP_Rod Length A', RLA)
-                        set_parameter_by_name(x, 'FP_Rod Length B', RLB)
+                        else:
+                            ItmDims = x.GetDimensions()
+                            for dta in ItmDims:
+                                if dta.Name == 'Length A':
+                                    RLA = x.GetDimensionValue(dta) or 0.0
+                                if dta.Name == 'Length B':
+                                    RLB = x.GetDimensionValue(dta) or 0.0
+                                if dta.Name == 'Width':
+                                    TrapWidth = x.GetDimensionValue(dta)
+                                if dta.Name == 'Bearer Extn':
+                                    TrapExtn = x.GetDimensionValue(dta)
+                                if dta.Name == 'Right Rod Offset':
+                                    TrapRRod = x.GetDimensionValue(dta)
+                                if dta.Name == 'Left Rod Offset':
+                                    TrapLRod = x.GetDimensionValue(dta)
+                            BearerLength = TrapWidth + TrapExtn + TrapExtn
+                            set_parameter_by_name(x, 'FP_Bearer Length', BearerLength)
+                            set_parameter_by_name(x, 'FP_Rod Length A', RLA)
+                            set_parameter_by_name(x, 'FP_Rod Length B', RLB)
             except:
                 pass
             try:
@@ -258,7 +256,6 @@ else:
                 HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size').strip('"')
                 HangerSize = get_parameter_value_by_name_AsString(hanger, 'Product Entry')
                 set_parameter_by_name(hanger, 'FP_Product Entry', HangerSize)
-                set_parameter_by_name(hanger, 'Comments', HostSize)
                 set_parameter_by_name(hanger, 'FP_Hanger Host Diameter', HostSize)
                 if HostSize == HangerSize:
                     set_parameter_by_name(hanger, 'FP_Hanger Shield', 'No')

@@ -81,18 +81,32 @@ if len(Braces) > 0:
     t.Start()
 
     for Brace in Braces:
-        # Write data to TOS Parameter
-        set_parameter_by_name(Brace, "Top of Steel", valuenum)
-        # Read brace angle
-        BraceAngle = get_parameter_value_by_name(Brace, "BraceMainAngle")
-        sinofangle = math.sin(BraceAngle)
-        # Read brace elevation
-        BraceElevation = get_parameter_value_by_name(Brace, 'Offset from Host')
-        # Equation to get the new hypotenuse
-        Height = ((valuenum - BraceElevation) - 0.2330)
-        newhypotenus = ((Height / sinofangle) - 0.2290)
-        # Write new brace length to parameter
-        set_parameter_by_name(Brace, "BraceLength", newhypotenus)
+        if Brace.Name == 'RIGID SEISMIC BRACE':
+            # Write data to TOS Parameter
+            set_parameter_by_name(Brace, "Top of Steel", valuenum)
+            # Read brace angle
+            BraceAngle = get_parameter_value_by_name(Brace, "BraceMainAngle")
+            sinofangle = math.sin(BraceAngle)
+            # Read brace elevation
+            BraceElevation = get_parameter_value_by_name(Brace, 'Offset from Host')
+            # Equation to get the new hypotenuse
+            Height = ((valuenum - BraceElevation) - 0.2330)
+            newhypotenus = ((Height / sinofangle) - 0.2290)
+            # Write new brace length to parameter
+            set_parameter_by_name(Brace, "BraceLength", newhypotenus)
+        else:
+            # Write data to TOS Parameter
+            set_parameter_by_name(Brace, "Top of Steel", valuenum)
+            # Read brace angle
+            BraceAngle = get_parameter_value_by_name(Brace, "BraceMainAngle")
+            sinofangle = math.sin(BraceAngle)
+            # Read brace elevation
+            BraceElevation = get_parameter_value_by_name(Brace, 'Offset from Host')
+            # Equation to get the new hypotenuse
+            Height = ((valuenum - BraceElevation) - 0.2330)
+            newhypotenus = ((Height / sinofangle) - 0.175)
+            # Write new brace length to parameter
+            set_parameter_by_name(Brace, "BraceLength", newhypotenus)            
 
     # End transaction
     t.Commit()

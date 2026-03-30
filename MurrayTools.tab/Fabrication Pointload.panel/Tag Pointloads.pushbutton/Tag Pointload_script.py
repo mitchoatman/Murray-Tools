@@ -18,7 +18,8 @@ from Autodesk.Revit.DB import (
     TagMode,
     TagOrientation,
     ViewType,
-    View3D
+    View3D, 
+    ElementId
 )
 
 # Get the current script's directory path and define the family file name
@@ -170,6 +171,20 @@ try:
                                                .ToElements()
 
     ItmList1 = list()
+
+    # Ensure Fabrication Hanger Tags category is visible in the active view
+    try:
+        tag_cat_id = ElementId(BuiltInCategory.OST_FabricationHangerTags)
+        
+        # Check if the category is hidden
+        if curview.GetCategoryHidden(tag_cat_id):
+            TaskDialog.Show(
+                "Warning",
+                "Mep Fabrication Hanger Tags category is not visible."
+            )
+    except Exception as e:
+        # Silently fail: you can log the error if needed
+        pass
 
     # Tag creation transaction
     t = Transaction(doc, 'Tag Pointloads')

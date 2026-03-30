@@ -1,5 +1,3 @@
 layout:
   - SelectLongNoHubPipe
-  - SelectLongCopperPipe
-  - SelectLongCarbonSteelPipe
-  - SelectLongPVCPipe
+  - SelectLong20ftPipe

@@ -6,7 +6,7 @@ clr.AddReference('PresentationCore')
 clr.AddReference('WindowsBase')
 clr.AddReference('System.Xaml')
 import System
-from System.Windows.Controls import Label, TextBox, Button, ScrollViewer, StackPanel, Grid, Orientation, CheckBox
+from System.Windows.Controls import Label, TextBox, Button, ScrollViewer, StackPanel, Grid, Orientation, CheckBox, TextBlock
 from System.Windows import Window, Thickness, SizeToContent, ResizeMode, HorizontalAlignment, VerticalAlignment, GridLength, GridUnitType
 from System.Windows.Media import Brushes, FontFamily
 from Autodesk.Revit.DB import FilteredElementCollector, BoundingBoxXYZ, XYZ, BuiltInCategory, Transaction, ViewSheet, Viewport, BuiltInParameter
@@ -94,7 +94,9 @@ class ViewSelectionFilter(Window):
         self.checkboxes = []
         for view in views:
             display_name = "{} ({})".format(view.Name, view.ViewType)
-            checkbox = CheckBox(Content=display_name)
+            tb = TextBlock()
+            tb.Text = display_name
+            checkbox = CheckBox(Content=tb)
             checkbox.Tag = view
             checkbox.Click += self.checkbox_clicked
             if view in self.selected_views:
@@ -196,8 +198,10 @@ class TitleblockSelectionFilter(Window):
             family_name = tb.FamilyName
             type_name = tb.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
             display_name = "{} - {}".format(family_name, type_name)
-            checkbox = CheckBox(Content=display_name)
-            checkbox.Tag = tb
+            tb_display = TextBlock()
+            tb_display.Text = display_name
+            checkbox = CheckBox(Content=tb_display)
+            checkbox.Tag = tb  # <-- ACTUAL Revit Titleblock element
             checkbox.Click += self.checkbox_clicked
             if self.selected_titleblock and type_name == self.selected_titleblock.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString():
                 checkbox.IsChecked = True

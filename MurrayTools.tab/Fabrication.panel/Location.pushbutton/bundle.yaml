@@ -12,7 +12,7 @@ tooltip: |-
     4. Click Ok
 
   [Shift]+Click:    
-  Automatically assigns location to elements based on their proximity to Scope Box bounding box (in active view only).
+  Automatically assigns location to elements based on their proximity to Scope Box bounding box (in 3D active view only).
   Works on:
   - Fabrication Parts
   - Pipe Accessories

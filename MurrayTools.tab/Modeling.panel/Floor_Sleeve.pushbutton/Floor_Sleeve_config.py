@@ -11,7 +11,7 @@ if view.ViewType == ViewType.ThreeD:
     sys.exit()
 
 path, filename = os.path.split(__file__)
-NewFilename = '\Round Floor Sleeve'
+NewFilename = '\Round Floor Sleeve.rfa'
 
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document

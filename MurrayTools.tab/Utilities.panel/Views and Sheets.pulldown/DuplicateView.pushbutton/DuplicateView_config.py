@@ -139,6 +139,26 @@ class FilterSelectionByCategory(Window):
         self.selected_items = [cb.Content for cb in self.checkboxes if cb.IsChecked]
 
     def checkbox_clicked(self, sender, args):
+        checkbox = sender
+        if System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Shift:
+            # Shift-click: Toggle this checkbox and all others in between
+            index = self.checkboxes.index(checkbox)
+            last_checked_index = next((i for i, cb in enumerate(self.checkboxes) if cb.IsChecked), -1)
+
+            if last_checked_index != -1:
+                if index < last_checked_index:
+                    start, end = index, last_checked_index
+                else:
+                    start, end = last_checked_index, index
+
+                for i in range(start, end + 1):
+                    self.checkboxes[i].IsChecked = checkbox.IsChecked
+
+        elif System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Control:
+            # Ctrl-click: Toggle this checkbox only
+            checkbox.IsChecked = not checkbox.IsChecked
+
+        # Update selected_items based on current checked state
         self.selected_items = [cb.Content for cb in self.checkboxes if cb.IsChecked]
 
     def select_clicked(self, sender, args):

@@ -4,6 +4,7 @@ layout:
   - TagValves
   - SelectValves
   - ValveSchedule
+  - LastValveNumber
 
 
 background:

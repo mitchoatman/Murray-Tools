@@ -15,27 +15,58 @@ curview = doc.ActiveView
 app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float(RevitVersion)
-# Get all loaded fabrication services from the project
-SNamelist = []
-Config = FabricationConfiguration.GetFabricationConfiguration(doc)
-if Config:
-    LoadedServices = Config.GetAllUsedServices()
-    SNamelist = [service.Name.split(':')[1].strip() for service in LoadedServices if service.Name and ':' in service.Name]
-else:
-    print 'No Fabrication Configuration found in the project'
-    raise Exception('No Fabrication Configuration found in the project')
-SNamelist_set = set(SNamelist)
+
+# Check if user has fabrication part(s) selected
+selected_ids = uidoc.Selection.GetElementIds()
+selected_service_names = []
+if selected_ids.Count > 0:
+    for elem_id in selected_ids:
+        selected_element = doc.GetElement(elem_id)
+        if isinstance(selected_element, FabricationPart):
+            service_name = selected_element.get_Parameter(BuiltInParameter.FABRICATION_SERVICE_NAME).AsString()
+            if service_name and service_name not in selected_service_names:
+                selected_service_names.append(service_name)
+    
+    if selected_service_names:
+        SNamelist = selected_service_names
+        SNamelist_set = set(SNamelist)
+    else:
+        # No fabrication parts selected, get all services
+        SNamelist = []
+        Config = FabricationConfiguration.GetFabricationConfiguration(doc)
+        if Config:
+            LoadedServices = Config.GetAllUsedServices()
+            SNamelist = [service.Name.split(':')[1].strip() for service in LoadedServices if service.Name and ':' in service.Name]
+        else:
+            print 'No Fabrication Configuration found in the project'
+            raise Exception('No Fabrication Configuration found in the project')
+        SNamelist_set = set(SNamelist)
+else:    
+    # Get all loaded fabrication services from the project
+    SNamelist = []
+    Config = FabricationConfiguration.GetFabricationConfiguration(doc)
+    if Config:
+        LoadedServices = Config.GetAllUsedServices()
+        SNamelist = [service.Name.split(':')[1].strip() for service in LoadedServices if service.Name and ':' in service.Name]
+    else:
+        print 'No Fabrication Configuration found in the project'
+        raise Exception('No Fabrication Configuration found in the project')
+    SNamelist_set = set(SNamelist)
+
 # Create list of categories that will be used for the filter
 categories = List[ElementId]()
 categories.Add(ElementId(BuiltInCategory.OST_FabricationHangers))
 categories.Add(ElementId(BuiltInCategory.OST_FabricationPipework))
 categories.Add(ElementId(BuiltInCategory.OST_FabricationDuctwork))
+
 # Fabrication service name parameter
 fabrication_service_name_parameter = ElementId(BuiltInParameter.FABRICATION_SERVICE_NAME)
+
 # Collect existing ParameterFilterElements
 existing_filters = FilteredElementCollector(doc).OfClass(ParameterFilterElement).ToElements()
 existing_filter_names = {filter.Name for filter in existing_filters}
 existing_filter_dict = {filter.Name: filter.Id for filter in existing_filters}
+
 def random_color():
     r = randint(0, 230)
     g = randint(0, 230)

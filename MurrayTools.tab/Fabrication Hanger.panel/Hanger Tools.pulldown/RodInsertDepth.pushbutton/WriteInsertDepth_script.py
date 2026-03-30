@@ -47,13 +47,12 @@ def set_fp_parameters(element, InsertDepth, TRL, is_beam_hanger):
 # Updated function to process each hanger individually with beam hanger check
 def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
     AnciDiam = list()
-    # Check if this is a beam hanger
     is_beam_hanger = False
     try:
         beam_hanger_param = get_parameter_value_by_name(hanger, 'FP_Beam Hanger')
         is_beam_hanger = beam_hanger_param == 'Yes'
     except:
-        pass  # If parameter doesn't exist or fails, assume it's not a beam hanger
+        pass
 
     # If it's a beam hanger, set InsertDepth to 0
     InsertDepth = 0 if is_beam_hanger else None
@@ -262,17 +261,17 @@ if len(hangers) > 0:
             pass
         # Get hanger dimensions
         ItmDims = e.GetDimensions()
-        RLA = None
-        RLB = None
+        RLA = 0.0
+        RLB = 0.0
         TrapWidth = None
         TrapExtn = None
         
         for dta in ItmDims:
             try:
                 if dta.Name == 'Length A':
-                    RLA = e.GetDimensionValue(dta)
+                    RLA = e.GetDimensionValue(dta) or 0.0
                 elif dta.Name == 'Length B':
-                    RLB = e.GetDimensionValue(dta)
+                    RLB = e.GetDimensionValue(dta) or 0.0
                 elif dta.Name == 'Width':
                     TrapWidth = e.GetDimensionValue(dta)
                 elif dta.Name == 'Bearer Extn':
@@ -289,17 +288,14 @@ if len(hangers) > 0:
             pass
 
         try:
-            if RLA is not None:
-                set_parameter_by_name(e, 'FP_Rod Length', RLA)
                 set_parameter_by_name(e, 'FP_Rod Length A', RLA)
-            if RLB is not None:
                 set_parameter_by_name(e, 'FP_Rod Length B', RLB)
         except Exception:
             pass
 
         # Process insert type for this hanger
         rod_size = get_parameter_value_by_name(e, 'FP_Rod Size')
-        if rod_size is not None:  # Only process if we have a rod size
+        if rod_size is not None:
             process_hanger_insert(e, InsertType, DeckThickness, RLA)
 
     t.Commit()

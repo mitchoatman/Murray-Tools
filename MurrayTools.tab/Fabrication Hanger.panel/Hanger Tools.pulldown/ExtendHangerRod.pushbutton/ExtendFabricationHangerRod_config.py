@@ -4,10 +4,10 @@ from Autodesk.Revit import DB
 from Autodesk.Revit.UI import *
 from Autodesk.Revit.UI.Selection import *
 from rpw.ui.forms import FlexForm, Label, ComboBox, TextBox, Separator, Button, CheckBox
-from pyrevit import script
 from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, FamilySymbol, Structure, Transaction, BuiltInParameter, \
                                 Family, TransactionGroup, FamilyInstance
 import os
+import sys
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -49,11 +49,13 @@ if len(Hanger) > 0:
     components = [
         Label('TOS Elevation from 0 *Input in this format FT-IN*'),
         TextBox('Elevation', PrevInput),
-        CheckBox('checkboxvalue', 'Add Rod Control', default=True),
+        CheckBox('checkboxvalue', 'Add Rod Control', default=False),
         Button('Ok')
     ]
     form = FlexForm('Modify Hanger Rod', components)
-    form.show()
+
+    if not form.show():
+        sys.exit()
 
     # Convert dialog input into variable
     value = form.values['Elevation']

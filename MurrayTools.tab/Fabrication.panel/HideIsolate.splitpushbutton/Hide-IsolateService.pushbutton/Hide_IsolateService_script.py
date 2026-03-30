@@ -15,6 +15,7 @@ from System.Windows.Controls import Button, TextBox, CheckBox, Grid, RowDefiniti
     ColumnDefinition, Label, StackPanel, ScrollViewer, Orientation, ScrollBarVisibility
 from System.Windows.Media import Brushes, FontFamily
 from System.Windows.Controls.Primitives import UniformGrid
+from System.Windows.Input import Keyboard, ModifierKeys
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -186,7 +187,27 @@ class ServiceSelectionForm(object):
         pass
 
     def checkbox_changed(self, sender, args):
-        self.selected_services = [cb.Content for cb in self.checkboxes if cb.IsChecked]
+        try:
+            current_index = self.checkboxes.index(sender)
+
+            # If Shift is held and we have a previous selection
+            if Keyboard.Modifiers == ModifierKeys.Shift and self.last_checked_index is not None:
+                start = min(self.last_checked_index, current_index)
+                end = max(self.last_checked_index, current_index)
+
+                state = sender.IsChecked
+
+                for i in range(start, end + 1):
+                    self.checkboxes[i].IsChecked = state
+
+            # Update last checked index
+            self.last_checked_index = current_index
+
+            # Update selected list
+            self.selected_services = [cb.Content for cb in self.checkboxes if cb.IsChecked]
+
+        except Exception as e:
+            print("Checkbox Error: {}".format(str(e)))
 
     def reset_clicked(self, sender, args):
         try:

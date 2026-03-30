@@ -30,27 +30,60 @@ def sync_with_central():
     except:
         pass
 
+import os
+import subprocess
+import time
+from pyrevit import forms
+from pyrevit.framework import Media
+
 def run_batch_file_with_progress(batch_file_path):
     if not os.path.isfile(batch_file_path):
         return False
+
     try:
-        # Start batch file process
+        # Start the batch file process
         process = subprocess.Popen(batch_file_path, shell=True)
 
-        with ProgressBar(title='Running database update batch file...', cancellable=True) as pb:
-            counter = 0
-            max_value = 100
+        # Define colors (ARGB format)
+        accent_color = Media.Color.FromArgb(0xFF, 0xFF, 0xFF, 0x00)  # Bright yellow
+        text_color   = Media.Color.FromArgb(0xFF, 0x00, 0x00, 0x00)  # Pure black
+
+        # Create the progress bar instance
+        pb = forms.ProgressBar(
+            title='Running database update batch file...',
+            cancellable=True
+        )
+
+        # Apply custom accent brush (progress fill/indicator)
+        pb.Resources["pyRevitAccentBrush"] = Media.SolidColorBrush(accent_color)
+
+        # Apply black text color to title and progress percentage
+        pb.Foreground = Media.SolidColorBrush(text_color)
+
+        with pb:
+            counter = 0.0
+            max_value = 100.0
+
             while process.poll() is None:
                 if pb.cancelled:
                     process.terminate()
                     return False
+
+                # Update with a cycling pseudo-progress animation
                 pb.update_progress(counter % max_value, max_value)
-                counter += 0.1
+                counter += 0.5  # Adjust increment for smoother/faster animation
                 time.sleep(0.3)
 
+        # Process completed normally
         return True
 
-    except Exception as e:
+    except Exception as ex:
+        forms.alert("Error running batch file: {}".format(str(ex)))
+        return False
+
+    except Exception as ex:
+        # Consider logging the exception if needed
+        forms.alert("Error running batch file: {}".format(str(ex)))
         return False
 
 def reload_fabrication_config():

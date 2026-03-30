@@ -22,6 +22,8 @@ tooltip: |-
 #  - Walls
 #  - Text Notes
 
+max_revit_version: 2024
+
 # bundle help url
 #help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
 

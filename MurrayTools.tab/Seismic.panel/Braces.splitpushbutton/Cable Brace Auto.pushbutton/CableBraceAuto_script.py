@@ -1,13 +1,18 @@
-from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family, Structure, XYZ, FabricationPart, FabricationConfiguration, TransactionGroup, BuiltInParameter, ElementTransformUtils, Line
-from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
-from Parameters.Get_Set_Params import get_parameter_value_by_name_AsValueString
-import math
 import os
 import sys
+import math
 
-# Import for dialog
-from rpw.ui.forms import FlexForm, Label, TextBox, Button
+from Autodesk.Revit import DB
+from Autodesk.Revit.DB import (FilteredElementCollector, Transaction, BuiltInCategory,
+                               FamilySymbol, Family, Structure, XYZ, FabricationPart,
+                               FabricationConfiguration, TransactionGroup, BuiltInParameter,
+                               ElementTransformUtils, Line)
+from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+from Parameters.Get_Set_Params import (get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsString,
+                                        set_parameter_by_name)
+
+from Parameters.Add_SharedParameters import Shared_Params
+Shared_Params()
 
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
@@ -38,6 +43,11 @@ def stretch_brace(family_instance, valuenum):
     if newhypotenus < 0:
         newhypotenus = 1
     set_parameter_by_name(family_instance, "BraceLength", (newhypotenus + 0.083333))
+    # Writes Level into Brace
+    set_parameter_by_name(new_family_instance, "ISAT Brace Level", HangerLevel)
+    # Only set FP_Service Name if parameter exists
+    if new_family_instance.LookupParameter("FP_Service Name"):
+        set_parameter_by_name(new_family_instance, "FP_Service Name", HangerService)
 
 def set_parameter_by_name(element, parameterName, value):
     try:
@@ -94,6 +104,39 @@ class CustomISelectionFilter(ISelectionFilter):
     def AllowReference(self, ref, point):
         return True
 
+# Folder and file for storing seismic brace defaults
+folder_name = "C:\\Temp"
+filepath = os.path.join(folder_name, 'Ribbon_SeismicAutoBrace.txt')
+
+# Default spacing values (feet)
+default_transverse = 20
+default_longitudinal = 40
+
+# Ensure folder exists
+if not os.path.exists(folder_name):
+    os.makedirs(folder_name)
+
+# Read values from file or create it with default values
+if not os.path.exists(filepath):
+    with open(filepath, 'w') as f:
+        f.write("{},{}".format(default_transverse, default_longitudinal))
+    transverse_spacing = default_transverse
+    longitudinal_spacing = default_longitudinal
+else:
+    try:
+        with open(filepath, 'r') as f:
+            data = f.read().split(',')
+            transverse_spacing = float(data[0])
+            longitudinal_spacing = float(data[1])
+    except (ValueError, IndexError):
+        transverse_spacing = default_transverse
+        longitudinal_spacing = default_longitudinal
+
+# Validate inputs
+if transverse_spacing <= 0 or longitudinal_spacing <= 0:
+    TaskDialog.Show("Error", "Invalid spacing values. Please check the values in the file.")
+    sys.exit(0)
+
 # Parse spacing input (feet, feet-inches, decimal)
 def parse_spacing(input_str):
     try:
@@ -113,27 +156,6 @@ def parse_spacing(input_str):
             return float(input_str)
     except (ValueError, IndexError):
         return None
-
-# Prompt user for spacing
-components = [
-    Label('Transverse Spacing:'),
-    TextBox('transverse_spacing', '20'),
-    Label('Longitudinal Spacing:'),
-    TextBox('longitudinal_spacing', '40'),
-    Button('Ok')
-]
-form = FlexForm("Seismic Brace Spacing", components)
-if not form.show():
-    sys.exit(0)
-
-transverse_spacing = parse_spacing(form.values["transverse_spacing"])
-longitudinal_spacing = parse_spacing(form.values["longitudinal_spacing"])
-
-# Validate inputs
-if (transverse_spacing is None or longitudinal_spacing is None or
-    transverse_spacing <= 0 or longitudinal_spacing <= 0):
-    from rpw import ui
-    ui.forms.Alert("Invalid spacing values. Please enter positive numbers.", exit=True)
 
 try:
     first_hanger_sel = uidoc.Selection.PickObject(ObjectType.Element, CustomISelectionFilter("MEP Fabrication Hangers"), "Select first hanger for initial brace")
@@ -183,6 +205,8 @@ if target_famtype and len(Fhangers) > 1:
 
     hanger_positions = []
     for hanger in Fhangers:
+        HangerLevel = get_parameter_value_by_name_AsValueString(hanger, 'Reference Level')
+        HangerService = get_parameter_value_by_name_AsString(hanger, 'Fabrication Service Name')
         bounding_box = hanger.get_BoundingBox(None)
         if bounding_box:
             middle_top_point = XYZ((bounding_box.Min.X + bounding_box.Max.X) / 2,
@@ -244,11 +268,17 @@ if target_famtype and len(Fhangers) > 1:
             ElementTransformUtils.RotateElement(doc, new_family_instance.Id, Line.CreateBound(new_insertion_point, XYZ(new_insertion_point.X, new_insertion_point.Y, new_insertion_point.Z + 1)), base_angle + math.pi/2)
             stretch_brace(new_family_instance, valuenum)
             braces_placed.add(pos_key)
+            # Set the parameters for the new family instance
+            set_parameter_by_name(new_family_instance, "ISAT Brace Level", HangerLevel)
+            set_parameter_by_name(new_family_instance, "FP_Service Name", HangerService)
         if pos_key2 not in braces_placed:
             new_family_instance2 = doc.Create.NewFamilyInstance(new_insertion_point, target_famtype, DB.Structure.StructuralType.NonStructural)
             ElementTransformUtils.RotateElement(doc, new_family_instance2.Id, Line.CreateBound(new_insertion_point, XYZ(new_insertion_point.X, new_insertion_point.Y, new_insertion_point.Z + 1)), base_angle + math.pi + math.pi/2)
             stretch_brace(new_family_instance2, valuenum)
             braces_placed.add(pos_key2)
+            # Set the parameters for the new family instance
+            set_parameter_by_name(new_family_instance2, "ISAT Brace Level", HangerLevel)
+            set_parameter_by_name(new_family_instance2, "FP_Service Name", HangerService)
     else:
         for n in range(STName):
             rodloc = STName1.GetRodEndPosition(n)
@@ -277,6 +307,9 @@ if target_famtype and len(Fhangers) > 1:
                 ElementTransformUtils.RotateElement(doc, new_family_instance.Id, Line.CreateBound(combined_xyz, XYZ(combined_xyz.X, combined_xyz.Y, combined_xyz.Z + 1)), brace_angle)
                 stretch_brace(new_family_instance, valuenum)
                 braces_placed.add(pos_key)
+                # Set the parameters for the new family instance
+                set_parameter_by_name(new_family_instance, "ISAT Brace Level", HangerLevel)
+                set_parameter_by_name(new_family_instance, "FP_Service Name", HangerService)
 
     # Place transverse braces
     reference_position = hanger_positions[0][1]
@@ -319,11 +352,17 @@ if target_famtype and len(Fhangers) > 1:
                     ElementTransformUtils.RotateElement(doc, new_family_instance.Id, Line.CreateBound(new_insertion_point, XYZ(new_insertion_point.X, new_insertion_point.Y, new_insertion_point.Z + 1)), base_angle + math.pi/2)
                     stretch_brace(new_family_instance, valuenum)
                     braces_placed.add(pos_key)
+                    # Set the parameters for the new family instance
+                    set_parameter_by_name(new_family_instance, "ISAT Brace Level", HangerLevel)
+                    set_parameter_by_name(new_family_instance, "FP_Service Name", HangerService)
                 if pos_key2 not in braces_placed:
                     new_family_instance2 = doc.Create.NewFamilyInstance(new_insertion_point, target_famtype, DB.Structure.StructuralType.NonStructural)
                     ElementTransformUtils.RotateElement(doc, new_family_instance2.Id, Line.CreateBound(new_insertion_point, XYZ(new_insertion_point.X, new_insertion_point.Y, new_insertion_point.Z + 1)), base_angle + math.pi + math.pi/2)
                     stretch_brace(new_family_instance2, valuenum)
                     braces_placed.add(pos_key2)
+                    # Set the parameters for the new family instance
+                    set_parameter_by_name(new_family_instance2, "ISAT Brace Level", HangerLevel)
+                    set_parameter_by_name(new_family_instance2, "FP_Service Name", HangerService)
             else:
                 for n in range(STName):
                     rodloc = STName1.GetRodEndPosition(n)
@@ -352,7 +391,9 @@ if target_famtype and len(Fhangers) > 1:
                         ElementTransformUtils.RotateElement(doc, new_family_instance.Id, Line.CreateBound(combined_xyz, XYZ(combined_xyz.X, combined_xyz.Y, combined_xyz.Z + 1)), brace_angle)
                         stretch_brace(new_family_instance, valuenum)
                         braces_placed.add(pos_key)
-            
+                         # Set the parameters for the new family instance
+                        set_parameter_by_name(new_family_instance, "ISAT Brace Level", HangerLevel)
+                        set_parameter_by_name(new_family_instance, "FP_Service Name", HangerService)           
             reference_position = middle_top
             last_brace_position = middle_top
             i = closest_hanger_index + 1
@@ -401,11 +442,17 @@ if target_famtype and len(Fhangers) > 1:
                     ElementTransformUtils.RotateElement(doc, new_family_instance3.Id, Line.CreateBound(new_insertion_point, XYZ(new_insertion_point.X, new_insertion_point.Y, new_insertion_point.Z + 1)), base_angle)
                     stretch_brace(new_family_instance3, valuenum)
                     braces_placed.add(pos_key3)
+                     # Set the parameters for the new family instance
+                    set_parameter_by_name(new_family_instance3, "ISAT Brace Level", HangerLevel)
+                    set_parameter_by_name(new_family_instance3, "FP_Service Name", HangerService) 
                 if pos_key4 not in braces_placed:
                     new_family_instance4 = doc.Create.NewFamilyInstance(new_insertion_point, target_famtype, DB.Structure.StructuralType.NonStructural)
                     ElementTransformUtils.RotateElement(doc, new_family_instance4.Id, Line.CreateBound(new_insertion_point, XYZ(new_insertion_point.X, new_insertion_point.Y, new_insertion_point.Z + 1)), base_angle + math.pi)
                     stretch_brace(new_family_instance4, valuenum)
                     braces_placed.add(pos_key4)
+                     # Set the parameters for the new family instance
+                    set_parameter_by_name(new_family_instance4, "ISAT Brace Level", HangerLevel)
+                    set_parameter_by_name(new_family_instance4, "FP_Service Name", HangerService) 
             else:
                 for n in range(STName):
                     rodloc = STName1.GetRodEndPosition(n)
@@ -436,7 +483,9 @@ if target_famtype and len(Fhangers) > 1:
                         ElementTransformUtils.RotateElement(doc, new_family_instance2.Id, Line.CreateBound(combined_xyz, XYZ(combined_xyz.X, combined_xyz.Y, combined_xyz.Z + 1)), base_angle + math.pi)
                         stretch_brace(new_family_instance2, valuenum)
                         braces_placed.add(pos_key2)
-            
+                         # Set the parameters for the new family instance
+                        set_parameter_by_name(new_family_instance2, "ISAT Brace Level", HangerLevel)
+                        set_parameter_by_name(new_family_instance2, "FP_Service Name", HangerService)             
             reference_position = middle_top
             last_brace_position = middle_top
             for idx, hanger_idx in enumerate(transverse_hanger_indices):
@@ -477,11 +526,18 @@ if target_famtype and len(Fhangers) > 1:
                     ElementTransformUtils.RotateElement(doc, new_family_instance.Id, Line.CreateBound(new_insertion_point, XYZ(new_insertion_point.X, new_insertion_point.Y, new_insertion_point.Z + 1)), base_angle + math.pi/2)
                     stretch_brace(new_family_instance, valuenum)
                     braces_placed.add(pos_key_20)
+                     # Set the parameters for the new family instance
+                    set_parameter_by_name(new_family_instance, "ISAT Brace Level", HangerLevel)
+                    set_parameter_by_name(new_family_instance, "FP_Service Name", HangerService)  
+
                 if pos_key_20_2 not in braces_placed:
                     new_family_instance2 = doc.Create.NewFamilyInstance(new_insertion_point, target_famtype, DB.Structure.StructuralType.NonStructural)
                     ElementTransformUtils.RotateElement(doc, new_family_instance2.Id, Line.CreateBound(new_insertion_point, XYZ(new_insertion_point.X, new_insertion_point.Y, new_insertion_point.Z + 1)), base_angle + math.pi + math.pi/2)
                     stretch_brace(new_family_instance2, valuenum)
                     braces_placed.add(pos_key_20_2)
+                     # Set the parameters for the new family instance
+                    set_parameter_by_name(new_family_instance2, "ISAT Brace Level", HangerLevel)
+                    set_parameter_by_name(new_family_instance2, "FP_Service Name", HangerService)  
             else:
                 for n in range(STName):
                     rodloc = STName1.GetRodEndPosition(n)
@@ -510,6 +566,8 @@ if target_famtype and len(Fhangers) > 1:
                         ElementTransformUtils.RotateElement(doc, new_family_instance.Id, Line.CreateBound(combined_xyz, XYZ(combined_xyz.X, combined_xyz.Y, combined_xyz.Z + 1)), brace_angle)
                         stretch_brace(new_family_instance, valuenum)
                         braces_placed.add(pos_key)
-
+                         # Set the parameters for the new family instance
+                        set_parameter_by_name(new_family_instance, "ISAT Brace Level", HangerLevel)
+                        set_parameter_by_name(new_family_instance, "FP_Service Name", HangerService) 
     t.Commit()
 tg.Assimilate()

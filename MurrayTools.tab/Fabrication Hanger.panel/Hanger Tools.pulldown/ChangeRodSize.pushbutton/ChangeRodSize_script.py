@@ -62,7 +62,7 @@ try:
                 grid.Children.Add(label)
 
                 self.combo = ComboBox()
-                self.combo.ItemsSource = Array[object](['3/8', '1/2', '5/8', '3/4', '7/8', '1', '1-1/4'])
+                self.combo.ItemsSource = Array[object](['3/8', '1/2', '5/8', '3/4', '7/8', '1', '1-1/4', '1-1/2'])
                 self.combo.SelectedIndex = 0  # Default to '3/8'
                 self.combo.Width = 150
                 self.combo.Margin = Thickness(0, 0, 0, 10)
@@ -102,6 +102,8 @@ try:
                 newrodkit = 67
             elif value == '1-1/4':
                 newrodkit = 70
+            elif value == '1-1/2':
+                newrodkit = 143
 
             tg = TransactionGroup(doc, "Change Hanger Rod")
             tg.Start()

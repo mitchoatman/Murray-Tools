@@ -4,6 +4,7 @@ from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCate
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 from Parameters.Get_Set_Params import get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsDouble, set_parameter_by_name, get_parameter_value_by_name_AsString
 from Parameters.Add_SharedParameters import Shared_Params
+from Autodesk.Revit.UI import TaskDialog
 import math
 import os
 import sys  # Added for sys.exit
@@ -121,31 +122,11 @@ if target_famtype:
     doc.Regenerate()
 
     for hanger in Fhangers:
-        HangerLevel = get_parameter_value_by_name_AsValueString(hanger, 'Reference Level')
-        HangerService = get_parameter_value_by_name_AsString(hanger, 'Fabrication Service Name')
-        
-        STName = hanger.GetRodInfo().RodCount
-        STName1 = hanger.GetRodInfo()
+        RackType = get_parameter_value_by_name_AsValueString(hanger, 'Family')
+        rack_type_lower = RackType.lower()
 
-        ItmDims = hanger.GetDimensions()
-        for dta in ItmDims:
-            if dta.Name == 'Rod Length':
-                RodLength = hanger.GetDimensionValue(dta)
-                BraceOffsetZ = RodLength
-            elif dta.Name == 'RodLength':  # Check for 'RodLength' if 'Rod Length' isn't found
-                RodLength = hanger.GetDimensionValue(dta)
-                BraceOffsetZ = RodLength
-            elif dta.Name == 'Rod Extn Above':
-                RodLength = hanger.GetDimensionValue(dta)
-                BraceOffsetZ = RodLength
-            # if dta.Name == 'Total Height':
-                # HangerHeight = hanger.GetDimensionValue(dta)
-                # BraceOffsetZ = HangerHeight + 0.01041666
-            # if dta.Name == 'Weld Lug Height':
-                # HangerHeight = hanger.GetDimensionValue(dta)
-                # BraceOffsetZ = HangerHeight + 0.1197916  
+        if not 'strap' in rack_type_lower:
 
-        if STName == 1:
             bounding_box = hanger.get_BoundingBox(None)
             if bounding_box is not None:
                 middle_bottom_point = XYZ((bounding_box.Min.X + bounding_box.Max.X) / 2,
@@ -156,50 +137,69 @@ if target_famtype:
                                           (bounding_box.Min.Y + bounding_box.Max.Y) / 2,
                                           bounding_box.Max.Z)
 
-            rodloc = STName1.GetRodEndPosition(0)
-            valuenum = rodloc.Z
- 
-            new_insertion_point = XYZ(middle_top_point.X, middle_top_point.Y, middle_top_point.Z - BraceOffsetZ)
-            new_family_instance = doc.Create.NewFamilyInstance(new_insertion_point, target_famtype, DB.Structure.StructuralType.NonStructural)
+            HangerLevel = get_parameter_value_by_name_AsValueString(hanger, 'Reference Level')
+            HangerService = get_parameter_value_by_name_AsString(hanger, 'Fabrication Service Name')
+            
+            STName = hanger.GetRodInfo().RodCount
+            STName1 = hanger.GetRodInfo()
 
-            stretch_brace()
+            ItmDims = hanger.GetDimensions()
+            for dta in ItmDims:
+                if dta.Name == 'Rod Length':
+                    RodLength = hanger.GetDimensionValue(dta)
+                    BraceOffsetZ = RodLength
+                elif dta.Name == 'RodLength':  # Check for 'RodLength' if 'Rod Length' isn't found
+                    RodLength = hanger.GetDimensionValue(dta)
+                    BraceOffsetZ = RodLength
+                elif dta.Name == 'Rod Extn Above':
+                    RodLength = hanger.GetDimensionValue(dta)
+                    BraceOffsetZ = RodLength
+                # if dta.Name == 'Total Height':
+                    # HangerHeight = hanger.GetDimensionValue(dta)
+                    # BraceOffsetZ = HangerHeight + 0.01041666
+                # if dta.Name == 'Weld Lug Height':
+                    # HangerHeight = hanger.GetDimensionValue(dta)
+                    # BraceOffsetZ = HangerHeight + 0.1197916  
 
-        if STName > 1:
-            RackType = get_parameter_value_by_name_AsValueString(hanger, 'Family')
-            bounding_box = hanger.get_BoundingBox(None)
-            if bounding_box is not None:
-                middle_bottom_point = XYZ((bounding_box.Min.X + bounding_box.Max.X) / 2,
-                                          (bounding_box.Min.Y + bounding_box.Max.Y) / 2,
-                                          bounding_box.Min.Z)
-
-            if bounding_box is not None:
-                middle_top_point = XYZ((bounding_box.Min.X + bounding_box.Max.X) / 2,
-                                          (bounding_box.Min.Y + bounding_box.Max.Y) / 2,
-                                          bounding_box.Max.Z)
-
-            for n in range(STName):
-                rodloc = STName1.GetRodEndPosition(n)
+            if STName == 1:
+                rodloc = STName1.GetRodEndPosition(0)
                 valuenum = rodloc.Z
-                if "1.625" in RackType and "Single" in RackType:
-                    combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_bottom_point.Z + 0.229166666))
-                    new_family_instance = doc.Create.NewFamilyInstance(combined_xyz, target_famtype, DB.Structure.StructuralType.NonStructural)
-                elif RackType == '038 Unistrut Trapeeze':
-                    combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_bottom_point.Z + 0.25))
-                    new_family_instance = doc.Create.NewFamilyInstance(combined_xyz, target_famtype, DB.Structure.StructuralType.NonStructural)
-                elif RackType == '050 Unistrut Trapeeze':
-                    combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_bottom_point.Z + 0.2815))
-                    new_family_instance = doc.Create.NewFamilyInstance(combined_xyz, target_famtype, DB.Structure.StructuralType.NonStructural)
-                elif "1.625" in RackType and "Double" in RackType:
-                    combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_bottom_point.Z + 0.364584))
-                    new_family_instance = doc.Create.NewFamilyInstance(combined_xyz, target_famtype, DB.Structure.StructuralType.NonStructural)
-                elif RackType == '050 Doublestrut Trapeeze':
-                    combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_bottom_point.Z + 0.4165))
-                    new_family_instance = doc.Create.NewFamilyInstance(combined_xyz, target_famtype, DB.Structure.StructuralType.NonStructural)
-                elif 'Seismic' in RackType:
-                    combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_top_point.Z - BraceOffsetZ + 0.13541))
-                    new_family_instance = doc.Create.NewFamilyInstance(combined_xyz, target_famtype, DB.Structure.StructuralType.NonStructural)
+
+                combined_xyz = XYZ(rodloc.X, rodloc.Y, (middle_top_point.Z - BraceOffsetZ + 0.13541))
+     
+                new_insertion_point = XYZ(middle_top_point.X, middle_top_point.Y, middle_top_point.Z - BraceOffsetZ)
+                new_family_instance = doc.Create.NewFamilyInstance(new_insertion_point, target_famtype, DB.Structure.StructuralType.NonStructural)
 
                 stretch_brace()
+
+            if STName > 1:
+                for n in range(STName):
+                    rodloc = STName1.GetRodEndPosition(n)
+                    valuenum = rodloc.Z
+                    combined_xyz = XYZ(rodloc.X, rodloc.Y, rodloc.Z)
+
+                    if "1.625" in rack_type_lower:
+                        if "single" in rack_type_lower:
+                            combined_xyz = XYZ(rodloc.X, rodloc.Y, middle_bottom_point.Z + 0.2292)
+                        elif "double" in rack_type_lower:
+                            combined_xyz = XYZ(rodloc.X, rodloc.Y, middle_bottom_point.Z + 0.3646)
+                    elif "unistrut" in rack_type_lower:
+                        if "038" in rack_type_lower or "1-5/8" in rack_type_lower:
+                            combined_xyz = XYZ(rodloc.X, rodloc.Y, middle_bottom_point.Z + 0.25)
+                        elif "050" in rack_type_lower:
+                            if "double" in rack_type_lower or "doublestrut" in rack_type_lower:
+                                combined_xyz = XYZ(rodloc.X, rodloc.Y, middle_bottom_point.Z + 0.4165)
+                            else:
+                                combined_xyz = XYZ(rodloc.X, rodloc.Y, middle_bottom_point.Z + 0.2815)
+
+                    elif "seismic" in rack_type_lower:
+                        combined_xyz = XYZ(rodloc.X, rodloc.Y, middle_top_point.Z - BraceOffsetZ + 0.13541)
+
+                    new_family_instance = doc.Create.NewFamilyInstance(combined_xyz, target_famtype, DB.Structure.StructuralType.NonStructural)
+                    stretch_brace()
+
+        else:
+            TaskDialog.Show("Error", "Cannot Place Seismic on that Support!")
 
     t.Commit()
 tg.Assimilate()

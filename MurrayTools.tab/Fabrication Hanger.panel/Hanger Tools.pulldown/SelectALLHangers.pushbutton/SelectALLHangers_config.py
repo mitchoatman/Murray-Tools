@@ -67,10 +67,12 @@ hangers_without_host = False
 for hanger in hangers:
     hosted_info = hanger.GetHostedInfo()
     if hosted_info is None or hosted_info.HostId == DB.ElementId.InvalidElementId:
-        hangers_without_host = True
         family_name = get_parameter_value_by_name_AsValueString(hanger, 'Family')
-        text = "{}: {}".format(family_name, hanger.Id)
-        hanger_data.append((text, hanger.Id))
+        # Check if 'Trapeze' is not in the family name
+        if 'Trapeze' not in family_name:
+            hangers_without_host = True
+            text = "{}: {}".format(family_name, hanger.Id)
+            hanger_data.append((text, hanger.Id))
 
 # WPF Window
 class HangerListForm(Window):
