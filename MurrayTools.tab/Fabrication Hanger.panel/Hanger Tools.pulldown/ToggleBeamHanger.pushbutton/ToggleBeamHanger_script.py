@@ -28,7 +28,7 @@ pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
 
 Fhangers = [doc.GetElement(elId) for elId in pipesel]
 view = doc.ActiveView
-filter_name = "BEAM HANGERS"
+filter_name = "BEAM HANGER"
 filter_color = DB.Color(0, 255, 255)
 
 fill_patterns = FilteredElementCollector(doc).OfClass(FillPatternElement).ToElements()

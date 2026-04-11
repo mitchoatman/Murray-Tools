@@ -12,6 +12,11 @@ tooltip: >-
     2. Select fabrication hanger to start.
     3. Select entire run of hangers to calculate brace spacing along.
     4. Click finish.
+
+    [Shift]-Click to place 2 braces (transverse / longitudinal)
+    at selected hanger location.
+        1. Run Command.
+        2. Select where you would like to place families.
     
 # context directives are listed under `context` key, the order does not matter
 #context:

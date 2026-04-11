@@ -5,14 +5,15 @@ clr.AddReference('PresentationFramework')
 clr.AddReference('PresentationCore')
 clr.AddReference('WindowsBase')
 clr.AddReference('System.Xaml')
+
 import System
 from System.Windows.Controls import Label, TextBox, Button, ScrollViewer, StackPanel, Grid, Orientation, CheckBox, TextBlock
-from System.Windows import Window, Thickness, SizeToContent, ResizeMode, HorizontalAlignment, VerticalAlignment, GridLength, GridUnitType
+from System.Windows import Window, Thickness, ResizeMode, HorizontalAlignment, GridLength, GridUnitType
 from System.Windows.Media import Brushes, FontFamily
-from Autodesk.Revit.DB import FilteredElementCollector, BoundingBoxXYZ, XYZ, BuiltInCategory, Transaction, ViewSheet, Viewport, BuiltInParameter
-from Autodesk.Revit.UI import TaskDialog, Selection
+from Autodesk.Revit.DB import FilteredElementCollector, XYZ, BuiltInCategory, Transaction, ViewSheet, Viewport, BuiltInParameter
+from Autodesk.Revit.UI import TaskDialog
 import sys
-from collections import defaultdict
+from collections import OrderedDict
 
 # Define the active Revit application and document
 DB = Autodesk.Revit.DB
@@ -23,6 +24,7 @@ fec = FilteredElementCollector
 app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float(RevitVersion)
+
 
 class ViewSelectionFilter(Window):
     def __init__(self, views):
@@ -85,7 +87,6 @@ class ViewSelectionFilter(Window):
         Grid.SetRow(button_panel, 3)
         grid.Children.Add(button_panel)
 
-        # Set window content
         self.Content = grid
         self.SizeChanged += self.on_resize
 
@@ -126,10 +127,14 @@ class ViewSelectionFilter(Window):
     def on_resize(self, sender, args):
         pass
 
+
 class TitleblockSelectionFilter(Window):
     def __init__(self, titleblocks):
         self.selected_titleblock = None
-        self.titleblock_list = sorted(titleblocks, key=lambda x: x.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString())
+        self.titleblock_list = sorted(
+            titleblocks,
+            key=lambda x: x.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
+        )
         self.checkboxes = []
         self.check_all_state = False
         self.InitializeComponents()
@@ -145,12 +150,11 @@ class TitleblockSelectionFilter(Window):
 
         grid = Grid()
         grid.Margin = Thickness(5)
-        for i in range(4):  # rows for: label, search box, scroll, buttons
+        for i in range(4):
             row = GridLength(1, GridUnitType.Star) if i == 2 else GridLength.Auto
             grid.RowDefinitions.Add(System.Windows.Controls.RowDefinition(Height=row))
         grid.ColumnDefinitions.Add(System.Windows.Controls.ColumnDefinition())
 
-        # Row 0 - Label
         self.label = Label(Content="Select a titleblock:")
         self.label.FontFamily = FontFamily("Arial")
         self.label.FontSize = 16
@@ -158,13 +162,11 @@ class TitleblockSelectionFilter(Window):
         Grid.SetRow(self.label, 0)
         grid.Children.Add(self.label)
 
-        # Row 1 - Search Box
         self.search_box = TextBox(Height=20, FontFamily=FontFamily("Arial"), FontSize=12)
         self.search_box.TextChanged += self.search_changed
         Grid.SetRow(self.search_box, 1)
         grid.Children.Add(self.search_box)
 
-        # Row 2 - Scrollable Checkbox Panel
         self.checkbox_panel = StackPanel(Orientation=System.Windows.Controls.Orientation.Vertical)
         scroll_viewer = ScrollViewer(Content=self.checkbox_panel, VerticalScrollBarVisibility=System.Windows.Controls.ScrollBarVisibility.Auto)
         scroll_viewer.Margin = Thickness(0, 1, 0, 1)
@@ -173,7 +175,6 @@ class TitleblockSelectionFilter(Window):
 
         self.update_checkboxes(self.titleblock_list)
 
-        # Row 3 - Button Panel
         button_panel = StackPanel(Orientation=System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment=HorizontalAlignment.Center, Margin=Thickness(0, 10, 0, 10))
 
         self.select_button = Button(Content="Select", FontFamily=FontFamily("Arial"), FontSize=12, Height=25, Margin=Thickness(10, 0, 10, 0), Width=50, HorizontalAlignment=HorizontalAlignment.Center)
@@ -187,7 +188,6 @@ class TitleblockSelectionFilter(Window):
         Grid.SetRow(button_panel, 3)
         grid.Children.Add(button_panel)
 
-        # Set window content
         self.Content = grid
         self.SizeChanged += self.on_resize
 
@@ -198,19 +198,28 @@ class TitleblockSelectionFilter(Window):
             family_name = tb.FamilyName
             type_name = tb.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
             display_name = "{} - {}".format(family_name, type_name)
+
             tb_display = TextBlock()
             tb_display.Text = display_name
+
             checkbox = CheckBox(Content=tb_display)
-            checkbox.Tag = tb  # <-- ACTUAL Revit Titleblock element
+            checkbox.Tag = tb
             checkbox.Click += self.checkbox_clicked
-            if self.selected_titleblock and type_name == self.selected_titleblock.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString():
+
+            if self.selected_titleblock and tb.Id == self.selected_titleblock.Id:
                 checkbox.IsChecked = True
+
             self.checkbox_panel.Children.Add(checkbox)
             self.checkboxes.append(checkbox)
 
     def search_changed(self, sender, args):
         search_text = self.search_box.Text.lower()
-        filtered = [tb for tb in self.titleblock_list if search_text in tb.FamilyName.lower() or search_text in tb.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString().lower()]
+        filtered = []
+        for tb in self.titleblock_list:
+            family_name = tb.FamilyName or ""
+            type_name = tb.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString() or ""
+            if search_text in family_name.lower() or search_text in type_name.lower():
+                filtered.append(tb)
         self.update_checkboxes(filtered)
 
     def check_all_clicked(self, sender, args):
@@ -237,12 +246,13 @@ class TitleblockSelectionFilter(Window):
     def on_resize(self, sender, args):
         pass
 
-# Define sheet number and name input dialog
+
 class SheetInputForm(Window):
-    def __init__(self, multiple_views_selected):
+    def __init__(self, default_number="", default_name=""):
         self.sheet_number = ""
         self.sheet_name = ""
-        self.multiple_views_selected = multiple_views_selected
+        self.default_number = default_number
+        self.default_name = default_name
         self.InitializeComponents()
 
     def InitializeComponents(self):
@@ -258,28 +268,36 @@ class SheetInputForm(Window):
             grid.RowDefinitions.Add(System.Windows.Controls.RowDefinition(Height=GridLength.Auto))
         grid.ColumnDefinitions.Add(System.Windows.Controls.ColumnDefinition())
 
-        # Row 0 - Sheet Number Label
         label1 = Label(Content="Sheet Number:", FontFamily=FontFamily("Arial"), FontSize=12, Margin=Thickness(0, 2, 0, 2))
         Grid.SetRow(label1, 0)
         grid.Children.Add(label1)
 
-        # Row 1 - Sheet Number Input
-        default_sheet_number = 'Varies - Don\'t Change' if self.multiple_views_selected else 'Sheet Number'
-        self.sheet_number_input = TextBox(Text=default_sheet_number, FontFamily=FontFamily("Arial"), FontSize=12, Height=20, Width=200, Margin=Thickness(0, 2, 0, 2))
+        self.sheet_number_input = TextBox(
+            Text=self.default_number,
+            FontFamily=FontFamily("Arial"),
+            FontSize=12,
+            Height=20,
+            Width=240,
+            Margin=Thickness(0, 2, 0, 2)
+        )
         Grid.SetRow(self.sheet_number_input, 1)
         grid.Children.Add(self.sheet_number_input)
 
-        # Row 2 - Sheet Name Label
         label2 = Label(Content="Sheet Name:", FontFamily=FontFamily("Arial"), FontSize=12, Margin=Thickness(0, 2, 0, 2))
         Grid.SetRow(label2, 2)
         grid.Children.Add(label2)
 
-        # Row 3 - Sheet Name Input
-        self.sheet_name_input = TextBox(Text="Sheet Name", FontFamily=FontFamily("Arial"), FontSize=12, Height=20, Width=200, Margin=Thickness(0, 2, 0, 2))
+        self.sheet_name_input = TextBox(
+            Text=self.default_name,
+            FontFamily=FontFamily("Arial"),
+            FontSize=12,
+            Height=20,
+            Width=240,
+            Margin=Thickness(0, 2, 0, 2)
+        )
         Grid.SetRow(self.sheet_name_input, 3)
         grid.Children.Add(self.sheet_name_input)
 
-        # Row 4 - Button
         button = Button(Content="OK", FontFamily=FontFamily("Arial"), FontSize=12, Margin=Thickness(0, 10, 0, 0), Height=30, Width=60)
         Grid.SetRow(button, 4)
         grid.Children.Add(button)
@@ -288,15 +306,228 @@ class SheetInputForm(Window):
         self.Content = grid
 
     def ok_clicked(self, sender, args):
-        self.sheet_number = self.sheet_number_input.Text
-        self.sheet_name = self.sheet_name_input.Text
+        self.sheet_number = self.sheet_number_input.Text.strip()
+        self.sheet_name = self.sheet_name_input.Text.strip()
+
+        if not self.sheet_number or not self.sheet_name:
+            TaskDialog.Show("Error", "Sheet number and sheet name are required.")
+            return
+
         self.DialogResult = True
         self.Close()
+
+
+class MultiSheetInputForm(Window):
+    def __init__(self, sheet_targets):
+        self.sheet_targets = sheet_targets
+        self.sheet_data = []
+        self.row_inputs = []
+        self.InitializeComponents()
+
+    def InitializeComponents(self):
+        self.Title = "Sheet Information"
+        self.Width = 600
+        self.Height = 400
+        self.MinWidth = 500
+        self.MinHeight = 400
+        self.ResizeMode = ResizeMode.CanResize
+        self.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen
+
+        root = Grid()
+        root.Margin = Thickness(10)
+        root.RowDefinitions.Add(System.Windows.Controls.RowDefinition(Height=GridLength.Auto))
+        root.RowDefinitions.Add(System.Windows.Controls.RowDefinition(Height=GridLength(1, GridUnitType.Star)))
+        root.RowDefinitions.Add(System.Windows.Controls.RowDefinition(Height=GridLength.Auto))
+
+        header = Grid()
+        header.Margin = Thickness(0, 0, 18, 6)
+        header.ColumnDefinitions.Add(System.Windows.Controls.ColumnDefinition(Width=GridLength(180)))
+        header.ColumnDefinitions.Add(System.Windows.Controls.ColumnDefinition(Width=GridLength(1, GridUnitType.Star)))
+
+        num_header = TextBlock(Text="NUMBER", FontFamily=FontFamily("Arial"), FontSize=18, Margin=Thickness(4, 0, 10, 0))
+        name_header = TextBlock(Text="NAME", FontFamily=FontFamily("Arial"), FontSize=18, Margin=Thickness(4, 0, 0, 0))
+
+        Grid.SetColumn(num_header, 0)
+        Grid.SetColumn(name_header, 1)
+
+        header.Children.Add(num_header)
+        header.Children.Add(name_header)
+
+        Grid.SetRow(header, 0)
+        root.Children.Add(header)
+
+        self.rows_panel = StackPanel(Orientation=Orientation.Vertical)
+
+        for item in self.sheet_targets:
+            row = Grid()
+            row.Margin = Thickness(0, 0, 0, 4)
+            row.ColumnDefinitions.Add(System.Windows.Controls.ColumnDefinition(Width=GridLength(180)))
+            row.ColumnDefinitions.Add(System.Windows.Controls.ColumnDefinition(Width=GridLength(1, GridUnitType.Star)))
+
+            num_box = TextBox(
+                Text=item["default_number"],
+                Height=16,
+                Padding=Thickness(2, 0, 2, 0),
+                Margin=Thickness(0, 0, 12, 0),
+                FontFamily=FontFamily("Arial"),
+                FontSize=11
+            )
+
+            name_box = TextBox(
+                Text=item["default_name"],
+                Height=16,
+                Padding=Thickness(2, 0, 2, 0),
+                FontFamily=FontFamily("Arial"),
+                FontSize=12
+            )
+
+            Grid.SetColumn(num_box, 0)
+            Grid.SetColumn(name_box, 1)
+
+            row.Children.Add(num_box)
+            row.Children.Add(name_box)
+            self.rows_panel.Children.Add(row)
+
+            self.row_inputs.append({
+                "item": item,
+                "number_box": num_box,
+                "name_box": name_box
+            })
+
+        scroll = ScrollViewer()
+        scroll.VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto
+        scroll.Content = self.rows_panel
+
+        Grid.SetRow(scroll, 1)
+        root.Children.Add(scroll)
+
+        button_panel = StackPanel(
+            Orientation=Orientation.Horizontal,
+            HorizontalAlignment=HorizontalAlignment.Right,
+            Margin=Thickness(0, 10, 0, 0)
+        )
+
+        ok_button = Button(Content="OK", Width=80, Height=30, Margin=Thickness(6, 0, 0, 0))
+        ok_button.Click += self.ok_clicked
+        button_panel.Children.Add(ok_button)
+
+        cancel_button = Button(Content="Cancel", Width=80, Height=30, Margin=Thickness(6, 0, 0, 0))
+        cancel_button.Click += self.cancel_clicked
+        button_panel.Children.Add(cancel_button)
+
+        Grid.SetRow(button_panel, 2)
+        root.Children.Add(button_panel)
+
+        self.Content = root
+
+    def ok_clicked(self, sender, args):
+        self.sheet_data = []
+        numbers = []
+
+        for row in self.row_inputs:
+            sheet_number = row["number_box"].Text.strip()
+            sheet_name = row["name_box"].Text.strip()
+
+            if not sheet_number or not sheet_name:
+                TaskDialog.Show("Error", "All sheet number and sheet name fields must be filled in.")
+                return
+
+            numbers.append(sheet_number)
+
+            self.sheet_data.append({
+                "label": row["item"]["label"],
+                "views": row["item"]["views"],
+                "sheet_number": sheet_number,
+                "sheet_name": sheet_name
+            })
+
+        duplicates = []
+        for n in set(numbers):
+            if numbers.count(n) > 1:
+                duplicates.append(n)
+
+        if duplicates:
+            TaskDialog.Show("Error", "Duplicate sheet numbers entered:\n{}".format("\n".join(sorted(duplicates))))
+            self.sheet_data = []
+            return
+
+        self.DialogResult = True
+        self.Close()
+
+    def cancel_clicked(self, sender, args):
+        self.DialogResult = False
+        self.Close()
+
+def build_sheet_targets(selected_views):
+    grouped = OrderedDict()
+
+    for view in selected_views:
+        level_id = -1
+        scope_id = -1
+
+        if view.ViewType in [DB.ViewType.FloorPlan, DB.ViewType.CeilingPlan]:
+            level_param = view.get_Parameter(BuiltInParameter.PLAN_VIEW_LEVEL)
+            if level_param:
+                level_id = level_param.AsElementId().IntegerValue
+
+        scope_param = view.get_Parameter(BuiltInParameter.VIEWER_VOLUME_OF_INTEREST_CROP)
+        if scope_param:
+            scope_id = scope_param.AsElementId().IntegerValue
+
+        key = (level_id, scope_id)
+        if key not in grouped:
+            grouped[key] = []
+        grouped[key].append(view)
+
+    sheet_targets = []
+
+    for key, views in grouped.items():
+        level_id, scope_id = key
+
+        floor_plan = next((v for v in views if v.ViewType == DB.ViewType.FloorPlan), None)
+        ceiling_plan = next((v for v in views if v.ViewType == DB.ViewType.CeilingPlan), None)
+
+        if floor_plan and ceiling_plan and level_id != -1 and scope_id != -1:
+            sheet_targets.append({
+                "label": "{} + {}".format(ceiling_plan.Name, floor_plan.Name),
+                "views": [ceiling_plan, floor_plan],
+                "default_number": ceiling_plan.Name,
+                "default_name": ceiling_plan.Name
+            })
+
+            for view in views:
+                if view.Id != floor_plan.Id and view.Id != ceiling_plan.Id:
+                    sheet_targets.append({
+                        "label": view.Name,
+                        "views": [view],
+                        "default_number": view.Name,
+                        "default_name": view.Name
+                    })
+        else:
+            for view in views:
+                sheet_targets.append({
+                    "label": view.Name,
+                    "views": [view],
+                    "default_number": view.Name,
+                    "default_name": view.Name
+                })
+
+    return sheet_targets
+
 
 # Get pre-selected views
 selected_view_ids = uidoc.Selection.GetElementIds()
 selected_views = []
-valid_view_types = [DB.ViewType.FloorPlan, DB.ViewType.CeilingPlan, DB.ViewType.Elevation, DB.ViewType.Section, DB.ViewType.ThreeD, DB.ViewType.DraftingView]
+
+valid_view_types = [
+    DB.ViewType.FloorPlan,
+    DB.ViewType.CeilingPlan,
+    DB.ViewType.Elevation,
+    DB.ViewType.Section,
+    DB.ViewType.ThreeD,
+    DB.ViewType.DraftingView
+]
+
 if selected_view_ids:
     for view_id in selected_view_ids:
         element = doc.GetElement(view_id)
@@ -330,90 +561,107 @@ if not tb_form.ShowDialog() or not tb_form.selected_titleblock:
     sys.exit()
 selected_titleblock = tb_form.selected_titleblock
 
-# Show sheet input dialog
-sheet_form = SheetInputForm(len(selected_views) > 1)
-if not sheet_form.ShowDialog():
-    TaskDialog.Show("Error", "No sheet information provided.")
-    sys.exit()
-snumber = sheet_form.sheet_number
-sname = sheet_form.sheet_name
+# Check if selected views are already placed on any sheet
+all_viewports = list(fec(doc).OfClass(Viewport).ToElements())
+views_on_sheets = []
+valid_views = []
 
-# Check if sheet number already exists (only if single view and user provided a custom sheet number)
-if len(selected_views) == 1 and snumber != 'Varies - Don\'t Change':
-    sheet_exists = any(sheet.SheetNumber == snumber for sheet in fec(doc).OfClass(ViewSheet).ToElements())
-    if sheet_exists:
-        TaskDialog.Show("Error", "Sheet with number {} already exists.".format(snumber))
+for view in selected_views:
+    is_on_sheet = False
+    for viewport in all_viewports:
+        if viewport.ViewId == view.Id:
+            views_on_sheets.append(view.Name)
+            is_on_sheet = True
+            break
+    if not is_on_sheet:
+        valid_views.append(view)
+
+# Show warning if any views are already on sheets
+if views_on_sheets:
+    warning_message = "The following views are already on sheets and will be skipped:\n\n" + "\n".join(views_on_sheets)
+    if valid_views:
+        warning_message += "\n\nContinuing with {} remaining view(s).".format(len(valid_views))
+        TaskDialog.Show("Warning", warning_message)
+    else:
+        warning_message += "\n\nNo valid views remaining to process."
+        TaskDialog.Show("Error", warning_message)
         sys.exit()
 
-# Check if selected views are already placed on any sheet
-for view in selected_views:
-    viewports = fec(doc).OfClass(Viewport).ToElements()
-    for viewport in viewports:
-        if viewport.ViewId == view.Id:
-            TaskDialog.Show("Error", "View '{}' is already placed on another sheet.".format(view.Name))
-            sys.exit()
+# Exit if no valid views remain
+if not valid_views:
+    TaskDialog.Show("Error", "No valid views to process.")
+    sys.exit()
 
-# Group views by level and scope box for FloorPlan and CeilingPlan pairing
-view_groups = defaultdict(list)
-for view in selected_views:
-    level_id = view.get_Parameter(BuiltInParameter.PLAN_VIEW_LEVEL).AsElementId() if view.ViewType in [DB.ViewType.FloorPlan, DB.ViewType.CeilingPlan] else None
-    scope_box_id = view.get_Parameter(BuiltInParameter.VIEWER_VOLUME_OF_INTEREST_CROP).AsElementId() if view.get_Parameter(BuiltInParameter.VIEWER_VOLUME_OF_INTEREST_CROP) else None
-    key = (level_id, scope_box_id)
-    view_groups[key].append(view)
+# Update selected_views to only include valid views
+selected_views = valid_views
 
-# Define a transaction and describe the transaction
+# Build target sheet list first
+sheet_targets = build_sheet_targets(selected_views)
+
+# Show input dialog
+if len(sheet_targets) == 1:
+    sheet_form = SheetInputForm(
+        sheet_targets[0]["default_number"],
+        sheet_targets[0]["default_name"]
+    )
+    if not sheet_form.ShowDialog():
+        # TaskDialog.Show("Error", "No sheet information provided.")
+        sys.exit()
+
+    sheet_targets[0]["sheet_number"] = sheet_form.sheet_number
+    sheet_targets[0]["sheet_name"] = sheet_form.sheet_name
+else:
+    multi_form = MultiSheetInputForm(sheet_targets)
+    if not multi_form.ShowDialog():
+        # TaskDialog.Show("Error", "No sheet information provided.")
+        sys.exit()
+
+    sheet_targets = multi_form.sheet_data
+
+# Check against existing sheet numbers
+existing_sheet_numbers = set(sheet.SheetNumber for sheet in fec(doc).OfClass(ViewSheet).ToElements())
+for target in sheet_targets:
+    if target["sheet_number"] in existing_sheet_numbers:
+        TaskDialog.Show("Error", "Sheet with number {} already exists.".format(target["sheet_number"]))
+        sys.exit()
+
+# Create sheets
 t = Transaction(doc, 'Sheet From View')
-
-# Begin new transaction
 t.Start()
-last_sheet = None
-for i, (key, views) in enumerate(view_groups.items()):
-    level_id, scope_box_id = key
-    # Check if we have both FloorPlan and CeilingPlan with matching level and scope box
-    floor_plan = next((v for v in views if v.ViewType == DB.ViewType.FloorPlan), None)
-    ceiling_plan = next((v for v in views if v.ViewType == DB.ViewType.CeilingPlan), None)
-    other_views = [v for v in views if v.ViewType not in [DB.ViewType.FloorPlan, DB.ViewType.CeilingPlan]]
 
-    if floor_plan and ceiling_plan and level_id and scope_box_id:  # Pair FloorPlan and CeilingPlan only if both level and scope box match
-        # Use user-provided sheet number for single pair, else use CeilingPlan name
-        current_sheet_number = snumber if len(view_groups) == 1 and snumber != 'Varies - Don\'t Change' else ceiling_plan.Name
-        if any(sheet.SheetNumber == current_sheet_number for sheet in fec(doc).OfClass(ViewSheet).ToElements()):
+last_sheet = None
+
+try:
+    for target in sheet_targets:
+        current_sheet_number = target["sheet_number"]
+        current_sheet_name = target["sheet_name"]
+
+        if current_sheet_number in existing_sheet_numbers:
             TaskDialog.Show("Error", "Sheet with number {} already exists.".format(current_sheet_number))
             t.RollBack()
             sys.exit()
 
-        # Create new sheet
         SHEET = ViewSheet.Create(doc, selected_titleblock.Id)
-        SHEET.Name = sname
+        SHEET.Name = current_sheet_name
         SHEET.SheetNumber = current_sheet_number
-        last_sheet = SHEET
 
-        # Place both CeilingPlan and FloorPlan at the same location
         x = SHEET.Outline.Max.Add(SHEET.Outline.Min).Divide(2.0)[0]
         y = SHEET.Outline.Max.Add(SHEET.Outline.Min).Divide(2.0)[1]
         ViewLocation = XYZ(x, y, 0.0)
-        Viewport.Create(doc, SHEET.Id, ceiling_plan.Id, ViewLocation)
-        Viewport.Create(doc, SHEET.Id, floor_plan.Id, ViewLocation)
-    else:
-        # Handle non-paired views or single FloorPlan/CeilingPlan separately
-        for view in views:
-            current_sheet_number = snumber if len(view_groups) == 1 and len(views) == 1 and snumber != 'Varies - Don\'t Change' else view.Name
-            if any(sheet.SheetNumber == current_sheet_number for sheet in fec(doc).OfClass(ViewSheet).ToElements()):
-                TaskDialog.Show("Error", "Sheet with number {} already exists.".format(current_sheet_number))
-                t.RollBack()
-                sys.exit()
 
-            # Create new sheet
-            SHEET = ViewSheet.Create(doc, selected_titleblock.Id)
-            SHEET.Name = sname
-            SHEET.SheetNumber = current_sheet_number
-            x = SHEET.Outline.Max.Add(SHEET.Outline.Min).Divide(2.0)[0]
-            y = SHEET.Outline.Max.Add(SHEET.Outline.Min).Divide(2.0)[1]
-            ViewLocation = XYZ(x, y, 0.0)
+        for view in target["views"]:
             Viewport.Create(doc, SHEET.Id, view.Id, ViewLocation)
-            last_sheet = SHEET
 
-t.Commit()
+        existing_sheet_numbers.add(current_sheet_number)
+        last_sheet = SHEET
+
+    t.Commit()
+
+except Exception as ex:
+    if t.HasStarted():
+        t.RollBack()
+    TaskDialog.Show("Error", str(ex))
+    sys.exit()
 
 # Set the active view to the last created sheet
 if last_sheet:

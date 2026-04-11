@@ -1,76 +1,70 @@
-from __future__ import print_function
-from Autodesk.Revit.DB import Workset, Transaction, FilteredWorksetCollector
-from pyrevit import revit
+from Autodesk.Revit.DB import Workset, Transaction, FilteredWorksetCollector, WorksetKind
 from Autodesk.Revit.UI import TaskDialog
-
 
 doc = __revit__.ActiveUIDocument.Document
 
-WorksetToAdd = [
+# Desired worksets
+WORKSETS_TO_ADD = [
     'MURRAY Levels and Grids',
     'LINKS',
     'POINTLAYOUT'
 ]
 
-worksetaddedlist = []
 
-# Step 1: Enable worksharing if not already enabled (outside any transaction)
-worksharing_enabled = False
+def get_user_workset_names(document):
+    """Return a list of existing user workset names."""
+    return [ws.Name for ws in FilteredWorksetCollector(document).OfKind(WorksetKind.UserWorkset)]
+
+
+# --------------------------------------------------------------------
+# Step 1: Enable worksharing if needed
+# --------------------------------------------------------------------
 if not doc.IsWorkshared:
     try:
         if doc.IsModelInCloud:
             if doc.CanEnableCloudWorksharing():
                 doc.EnableCloudWorksharing()
                 TaskDialog.Show("Success", "Cloud worksharing enabled successfully.")
-                worksharing_enabled = True
             else:
-                TaskDialog.Show("Error", "Cloud worksharing cannot be enabled for this model.")
-                raise Exception("Worksharing enablement prerequisites not met.")
+                raise Exception("Cloud worksharing cannot be enabled for this model.")
         elif doc.CanEnableWorksharing():
-            doc.EnableWorksharing('Workset1', 'Workset1')
-            #print("Local worksharing enabled successfully.")
-            worksharing_enabled = True
+            # First name = shared workset
+            # Second name = levels and grids workset
+            doc.EnableWorksharing('Workset1', 'MURRAY Levels and Grids')
         else:
-            TaskDialog.Show("Error", "Worksharing cannot be enabled for this model.")
-            raise Exception("Worksharing enablement prerequisites not met.")
-    except Exception as e:
-        TaskDialog.Show("Error", "Error enabling worksharing: {}".format(str(e)))
-        # Halt script execution if worksharing is required
-else:
-    worksharing_enabled = True
-    TaskDialog.Show("Warning", "Worksharing is already enabled.")
+            raise Exception("Worksharing cannot be enabled for this model.")
 
-# Step 2: Verify worksharing is active before proceeding
+    except Exception as e:
+        TaskDialog.Show("Error", "Error enabling worksharing:\n\n{}".format(str(e)))
+
+# --------------------------------------------------------------------
+# Step 2: Stop if worksharing still isn't enabled
+# --------------------------------------------------------------------
 if not doc.IsWorkshared:
-    TaskDialog.Show("Error", "Worksharing enablement failed; cannot create worksets.")
+    TaskDialog.Show("Error", "Worksharing is not enabled. Cannot create worksets.")
 
 else:
-    # Collect current workset names (refreshed after potential enablement)
-    WorksetNames = []
-    AllWorksets = FilteredWorksetCollector(doc)
-    for c in AllWorksets:
-        WorksetNames.append(c.Name)
+    existing_worksets = get_user_workset_names(doc)
+    missing_worksets = [ws for ws in WORKSETS_TO_ADD if ws not in existing_worksets]
 
-    # Step 3: Create additional worksets if needed
-    t = Transaction(doc, 'Create Worksets')
-    t.Start()
-    try:
-        WorksetList = list(set(WorksetToAdd).difference(set(WorksetNames)))
-        if len(WorksetList) > 0:
-            for wset in WorksetList:
-                Workset.Create(doc, str(wset))
-                worksetaddedlist.append(wset)
-            message = "Worksharing cannot be enabled for this model.\n\nAdded Workset(s):\n"
-            if worksetaddedlist:
-                message += "\n".join(worksetaddedlist)
-            else:
-                message += "  (none)"
+    if not missing_worksets:
+        TaskDialog.Show("Worksets", "All specified worksets already exist.")
 
-            TaskDialog.Show("Worksharing", message)
+    else:
+        t = Transaction(doc, 'Create Murray Worksets')
+        t.Start()
 
-        else:
-            TaskDialog.Show("Warning", "Specified worksets already exist")
-        t.Commit()
-    except Exception as e:
-        t.RollBack()
-        TaskDialog.Show("Error", "Error creating worksets: {}".format(str(e)))
+        try:
+            for workset_name in missing_worksets:
+                Workset.Create(doc, workset_name)
+
+            t.Commit()
+
+            TaskDialog.Show(
+                "Worksets Created",
+                "Added the following workset(s):\n\n{}".format("\n".join(missing_worksets))
+            )
+
+        except Exception as e:
+            t.RollBack()
+            TaskDialog.Show("Error", "Error creating worksets:\n\n{}".format(str(e)))

@@ -448,7 +448,7 @@ try:
                 for dim in hanger.GetDimensions():
                     dim_name = dim.Name
                     try:
-                        if dim_name == "Width":
+                        if dim_name in ("Width", "Duct Width"):
                             hanger.SetDimensionValue(dim, newwidth)
                         if dim_name == "Bearer Extn":
                             hanger.SetDimensionValue(dim, 0.25)

@@ -158,32 +158,32 @@ class FilterSelectionByCategory(Window):
         self.checkbox_panel.Children.Clear()
         self.checkboxes = []
         for category in categories:
-            checkbox = System.Windows.Controls.CheckBox(Content=category.Name.upper())  # Change made here
-            checkbox.Tag = category
+            checkbox = System.Windows.Controls.CheckBox(Content=category.Name.upper())
+            checkbox.Tag = category   # keep actual category object here
             checkbox.Click += self.checkbox_clicked
             if category.Name in self.selected_categories:
                 checkbox.IsChecked = True
             self.checkbox_panel.Children.Add(checkbox)
             self.checkboxes.append(checkbox)
 
-    def search_changed(self, sender, args):
-        search_text = self.search_box.Text.lower()
-        filtered = [c for c in self.category_list if search_text in c.Name.lower()]
-        self.update_checkboxes(filtered)
-
     def check_all_clicked(self, sender, args):
         self.check_all_state = not self.check_all_state
         for cb in self.checkboxes:
             cb.IsChecked = self.check_all_state
-        self.selected_categories = [cb.Content for cb in self.checkboxes if cb.IsChecked]
+        self.selected_categories = [cb.Tag.Name for cb in self.checkboxes if cb.IsChecked]
 
     def checkbox_clicked(self, sender, args):
-        self.selected_categories = [cb.Content for cb in self.checkboxes if cb.IsChecked]
+        self.selected_categories = [cb.Tag.Name for cb in self.checkboxes if cb.IsChecked]
 
     def select_clicked(self, sender, args):
-        self.selected_categories = [cb.Content for cb in self.checkboxes if cb.IsChecked]
+        self.selected_categories = [cb.Tag.Name for cb in self.checkboxes if cb.IsChecked]
         self.DialogResult = True
         self.Close()
+
+    def search_changed(self, sender, args):
+        search_text = self.search_box.Text.lower()
+        filtered = [c for c in self.category_list if search_text in c.Name.lower()]
+        self.update_checkboxes(filtered)
 
     def on_resize(self, sender, args):
         pass

@@ -1,56 +1,50 @@
-
-from Autodesk.Revit.DB import FilteredElementCollector, View
+from Autodesk.Revit.DB import FilteredElementCollector, View, ViewSchedule, ElementId
 from Autodesk.Revit.UI import TaskDialog
 import System, os, re
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
-curview = doc.ActiveView
 app = doc.Application
-RevitVersion = app.VersionNumber
-RevitINT = float(RevitVersion)
+
 file_path = doc.PathName
 file_name = System.IO.Path.GetFileNameWithoutExtension(file_path)
 
-folder_name = "c:\\Temp"
-
-# Replace spaces in the project name with underscores
+folder_name = r"c:\Temp"
 project_name = file_name.replace(" ", "_")
-
-# Dynamically generate the file name with the project name
 filepath = os.path.join(folder_name, 'Ribbon_OpenViews_{}.txt'.format(project_name))
 
-AllViews = FilteredElementCollector(doc).OfClass(View)
-AllViewNames = [view.Name for view in AllViews]
+def get_id_value(eid):
+    try:
+        return eid.Value        # Revit 2026+
+    except:
+        return eid.IntegerValue # older versions
 
-# Check if the file with the dynamically generated name exists
 if os.path.isfile(filepath):
     with open(filepath, 'r') as file:
-        lines = file.readlines()
-        lines = [line.rstrip() for line in lines]
+        lines = [line.rstrip() for line in file.readlines()]
 
-    # Extract the IDs from the strings
-    saved_view_ids = [int(re.search(r'\[(\d+)\]', line).group(1)) for line in lines[1][1:-1].split(', ')]
+    saved_view_ids = [int(re.search(r'\[(\d+)\]', s).group(1))
+                      for s in lines[1][1:-1].split(', ')]
 
     if lines[0] == str(file_name):
-        if RevitINT > 2025:
-            for view in AllViews:
-                # Check if the view's Id is in the saved list
-                if view.Id.Value in saved_view_ids:
-                    if not view.IsTemplate and view.CanBePrinted:  # Check if the view is not a template and can be printed
-                        ViewToOpen = doc.GetElement(view.Id)  # Use the Id property of the view
-                        uidoc.RequestViewChange(ViewToOpen)
-        else:
-            for view in AllViews:
-                # Check if the view's Id is in the saved list
-                if view.Id.IntegerValue in saved_view_ids:
-                    if not view.IsTemplate and view.CanBePrinted:  # Check if the view is not a template and can be printed
-                        ViewToOpen = doc.GetElement(view.Id)  # Use the Id property of the view
-                        uidoc.RequestViewChange(ViewToOpen)
+        for saved_id in saved_view_ids:
+            view = doc.GetElement(ElementId(saved_id))
+            if not view or not isinstance(view, View):
+                continue
+            if view.IsTemplate:
+                continue
+
+            # Skip internal schedule views that Revit won't activate
+            if isinstance(view, ViewSchedule):
+                if view.IsInternalKeynoteSchedule or view.IsTitleblockRevisionSchedule:
+                    continue
+
+            try:
+                uidoc.ActiveView = view
+            except Exception as ex:
+                TaskDialog.Show("Restore Views",
+                                "Could not open view '{}'\n{}".format(view.Name, ex))
     else:
-        TaskDialog.Show("Invalid Views", 'Saved views are not from this project')
+        TaskDialog.Show("Invalid Views", "Saved views are not from this project")
 else:
-    TaskDialog.Show("Restore Views", 'No Saved Views Found') 
-
-
-
+    TaskDialog.Show("Restore Views", "No Saved Views Found")

@@ -1,4 +1,4 @@
-#highlight: updated
+highlight: updated
 
 title:
   "Hide\nIsolate"
@@ -9,6 +9,8 @@ tooltip: >-
     2. Select a fabrication service(s) in the list
     3. Select hide or isolate button.
     4. Service(s) will be hidden or isolated.
+  
+    Pre-selected services will be checked in list.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

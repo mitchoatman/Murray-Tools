@@ -311,7 +311,7 @@ try:
          
             def get_level_elevation(level):
                 if level:
-                    return level.Elevation
+                    return level.ProjectElevation
                 return 0.0
          
             # Determine pipe direction from the first pipe's location curve
@@ -368,7 +368,7 @@ try:
             # Compute lowest bottom Z across both pipes using bounding box
             combined_min_z = float('inf')
             for pipe in selected_elements:
-                pipe_bb = pipe.get_BoundingBox(curview)
+                pipe_bb = pipe.get_BoundingBox(None)
                 if pipe_bb:
                     bottom_z = pipe_bb.Min.Z
                     thick = pipe.InsulationThickness if hasattr(pipe, 'InsulationThickness') and pipe.HasInsulation else 0.0
@@ -463,7 +463,7 @@ try:
                 for dim in hanger.GetDimensions():
                     dim_name = dim.Name
                     try:
-                        if dim_name == "Width":
+                        if dim_name in ("Width", "Duct Width"):
                             hanger.SetDimensionValue(dim, newwidth)
                         if dim_name == "Bearer Extn":
                             hanger.SetDimensionValue(dim, 0.25)

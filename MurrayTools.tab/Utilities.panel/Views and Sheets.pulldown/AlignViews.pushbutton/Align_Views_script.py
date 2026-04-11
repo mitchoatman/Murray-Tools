@@ -5,13 +5,16 @@ from Autodesk.Revit import DB
 from Autodesk.Revit.DB import ViewSheet, Viewport, FilteredElementCollector, XYZ
 from Autodesk.Revit.UI import TaskDialog
 import clr, sys
+
 clr.AddReference('PresentationFramework')
 clr.AddReference('PresentationCore')
 clr.AddReference('WindowsBase')
 clr.AddReference('System.Xaml')
+
 import System
 from System.Windows.Controls import Label, TextBox, Button, ScrollViewer, StackPanel, Grid, Orientation
 from System.Windows import Window, Thickness, SizeToContent, ResizeMode, HorizontalAlignment, GridLength, GridUnitType
+from System.Windows.Input import Keyboard, ModifierKeys  # ✅ ADDED
 
 doc = __revit__.ActiveUIDocument.Document
 
@@ -24,6 +27,8 @@ class SheetSelectionWindow(Window):
         self.multiselect = multiselect
         self.checkboxes = []
         self.check_all_state = False
+        self.last_checked_index = None  # ✅ ADDED
+        self._is_updating = False       # ✅ ADDED
         self.InitializeComponents(title)
 
     def InitializeComponents(self, title):
@@ -37,7 +42,7 @@ class SheetSelectionWindow(Window):
 
         grid = Grid()
         grid.Margin = Thickness(5)
-        for i in range(4):  # rows for: label, search box, scroll, buttons
+        for i in range(4):
             row = GridLength(1, GridUnitType.Star) if i == 2 else GridLength.Auto
             grid.RowDefinitions.Add(System.Windows.Controls.RowDefinition(Height=row))
         grid.ColumnDefinitions.Add(System.Windows.Controls.ColumnDefinition())
@@ -80,7 +85,6 @@ class SheetSelectionWindow(Window):
         Grid.SetRow(button_panel, 3)
         grid.Children.Add(button_panel)
 
-        # Set window content
         self.Content = grid
 
     def update_checkboxes(self, sheets):
@@ -90,9 +94,14 @@ class SheetSelectionWindow(Window):
             display_name = sheet.SheetNumber + " - " + sheet.Name
             checkbox = System.Windows.Controls.CheckBox(Content=display_name)
             checkbox.Tag = sheet
-            checkbox.Click += self.checkbox_clicked
+
+            # ✅ CHANGED EVENTS
+            checkbox.Checked += self.checkbox_changed
+            checkbox.Unchecked += self.checkbox_changed
+
             if display_name in self.selected_sheets:
                 checkbox.IsChecked = True
+
             self.checkbox_panel.Children.Add(checkbox)
             self.checkboxes.append(checkbox)
 
@@ -107,12 +116,40 @@ class SheetSelectionWindow(Window):
             cb.IsChecked = self.check_all_state
         self.selected_sheets = [cb.Tag for cb in self.checkboxes if cb.IsChecked]
 
-    def checkbox_clicked(self, sender, args):
-        if not self.multiselect:
-            for cb in self.checkboxes:
-                cb.IsChecked = False
-            sender.IsChecked = True
-        self.selected_sheets = [cb.Tag for cb in self.checkboxes if cb.IsChecked]
+    # ✅ REPLACED HANDLER (SHIFT SUPPORT + NO FREEZE)
+    def checkbox_changed(self, sender, args):
+        if self._is_updating:
+            return
+
+        try:
+            self._is_updating = True
+
+            current_index = self.checkboxes.index(sender)
+
+            # SHIFT selection
+            if self.multiselect and Keyboard.Modifiers == ModifierKeys.Shift and self.last_checked_index is not None:
+                start = min(self.last_checked_index, current_index)
+                end = max(self.last_checked_index, current_index)
+                state = sender.IsChecked
+
+                for i in range(start, end + 1):
+                    if self.checkboxes[i] != sender:
+                        self.checkboxes[i].IsChecked = state
+
+            # Single select behavior
+            elif not self.multiselect:
+                for cb in self.checkboxes:
+                    if cb != sender:
+                        cb.IsChecked = False
+
+            self.last_checked_index = current_index
+            self.selected_sheets = [cb.Tag for cb in self.checkboxes if cb.IsChecked]
+
+        except Exception as e:
+            print("Checkbox Error: {}".format(str(e)))
+
+        finally:
+            self._is_updating = False
 
     def select_clicked(self, sender, args):
         self.selected_sheets = [cb.Tag for cb in self.checkboxes if cb.IsChecked]
@@ -122,13 +159,13 @@ class SheetSelectionWindow(Window):
 # Get all sheets
 all_sheets = FilteredElementCollector(doc).OfClass(ViewSheet).ToElements()
 
-# Step 1 - User selects template sheet
+# Step 1 - Template sheet
 form = SheetSelectionWindow(all_sheets, multiselect=False, title="Select Template Sheet (To Get View Position)")
 if not form.ShowDialog() or not form.selected_sheets:
     sys.exit()
 template_sheet = form.selected_sheets[0]
 
-# Step 2 - Get first viewport's position from template sheet
+# Step 2 - Get viewport position
 template_vp = None
 for vp_id in template_sheet.GetAllViewports():
     template_vp = doc.GetElement(vp_id)
@@ -140,13 +177,13 @@ if not template_vp:
 
 template_position = template_vp.GetBoxCenter()
 
-# Step 3 - Select target sheets to align views
+# Step 3 - Target sheets (SHIFT WORKS HERE)
 form = SheetSelectionWindow(all_sheets, multiselect=True, title="Select Sheets to Align Views")
 if not form.ShowDialog() or not form.selected_sheets:
     sys.exit()
 target_sheets = form.selected_sheets
 
-# Step 4 - Align views on selected sheets
+# Step 4 - Align
 aligned = 0
 trans = DB.Transaction(doc, "Align Views on Sheets")
 try:

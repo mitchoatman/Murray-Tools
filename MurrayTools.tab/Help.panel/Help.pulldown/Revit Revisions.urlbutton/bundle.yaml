@@ -1,0 +1,12 @@
+#highlight: new
+# bundle title
+title:
+  "Revit Revisions"
+
+# bundle tooltip
+tooltip: >-
+  Will open browser to helpful page.
+
+hyperlink: "https://apple-puppy-32a.notion.site/Revit-Revisions-33b42e29c188800fa5caf42726db5c74"
+context: zero-doc
+
