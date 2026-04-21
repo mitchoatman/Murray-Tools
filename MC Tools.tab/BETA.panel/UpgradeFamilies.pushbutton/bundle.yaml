@@ -1,0 +1,13 @@
+#highlight: new
+
+# bundle title
+title:
+  "Upgrade\nFamilies"
+
+# bundle tooltip
+tooltip: |-
+  Opens and Saves (upgrading...) a specified folder of .rfa files.
+  
+
+# bundle author
+author: Mitchell Oatman

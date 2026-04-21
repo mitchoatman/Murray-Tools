@@ -1,0 +1,13 @@
+# highlight: new
+
+# bundle title
+title:
+  "Murray\nACC"
+
+# bundle tooltip
+tooltip: >-
+  Opens Browser to Autodesk Construction Cloud Website
+
+hyperlink: "https://acc.autodesk.com/home"
+context: zero-doc
+

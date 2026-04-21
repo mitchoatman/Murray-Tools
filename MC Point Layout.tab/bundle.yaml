@@ -1,0 +1,11 @@
+layout:
+  - Point Layout
+
+
+highlight: new      # highlight as new
+#highlight: updated  # highlight as updated
+
+
+templates:
+  youtube: https://www.youtube.com/watch?v=
+  author: Mitchell Oatman

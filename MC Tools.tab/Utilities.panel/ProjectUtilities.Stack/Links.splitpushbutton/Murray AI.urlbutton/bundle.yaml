@@ -1,0 +1,13 @@
+# highlight: new
+
+# bundle title
+title:
+  "Murray\nAI"
+
+# bundle tooltip
+tooltip: >-
+  Opens Browser to Autodesk Construction Cloud Website
+
+hyperlink: "https://hub.murraycompany.com/murrayai"
+context: zero-doc
+

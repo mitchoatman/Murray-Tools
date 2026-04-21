@@ -1,0 +1,21 @@
+layout:
+  - Help
+  - Utilities
+  - Modeling
+  - Fabrication
+  - Fabrication Pipe
+  - Fabrication Hanger
+  - Fabrication Pointload
+  - Fabrication Spooling
+  - Annotation
+  - Seismic
+  - BETA[afterall:]
+
+
+highlight: new      # highlight as new
+#highlight: updated  # highlight as updated
+
+
+templates:
+  youtube: https://www.youtube.com/watch?v=
+  author: Mitchell Oatman

@@ -1,0 +1,20 @@
+#highlight: new
+
+# bundle title
+title:
+  "Restore\nViews"
+
+# bundle tooltip
+tooltip: |-
+  Opens the view list stored with the "Save Views" button.
+  Can be used as a way to continue where you left off in a previous session.
+  
+
+  [Shift]+Click:
+  Saves a list of open views to be used with Restore function.
+
+# bundle help url
+help_url: "https://youtu.be/AvDcEcJ7OFk"
+
+# bundle author
+author: Mitchell Oatman

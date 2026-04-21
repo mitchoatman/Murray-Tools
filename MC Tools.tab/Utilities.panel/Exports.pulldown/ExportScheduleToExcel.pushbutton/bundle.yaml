@@ -1,0 +1,18 @@
+# highlight: updated
+#highlight: new
+
+# bundle title
+title:
+  "Import_Export\nSchedule"
+
+# bundle tooltip
+tooltip: |-
+  Exports a schedule to excel so modifications can be imported.
+      1. Run command.
+      2. Select Schedule.
+      3. Choose save location.
+
+max_revit_version: 2024
+
+# bundle author
+author: Mitchell Oatman
