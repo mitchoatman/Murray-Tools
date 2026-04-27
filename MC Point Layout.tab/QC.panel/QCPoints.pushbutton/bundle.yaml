@@ -1,19 +1,18 @@
-# highlight: new
+# highlight: updated
+#highlight: new
 
 # bundle title
 title:
-  "Write\nInsert Depth"
+  "QC\nPoints"
 
 # bundle tooltip
 tooltip: |-
-  Writes Fabrication Hanger Rod Insert Depth by user defined insert type and deck thickness.
-    1. Run Command.
-    2. Select Fabrication Hangers (Using Window Selection).
-    3. Choose insert type and define concrete thickness.
+  Displays all the point data so it can be copied into AutoCAD
 
 # context directives are listed under `context` key, the order does not matter
 #context:
-#  - Selection
+#  - Walls
+#  - Text Notes
 
 # bundle help url
 #help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"

@@ -1,15 +1,14 @@
-# highlight: new
+
+#highlight: new
 
 # bundle title
 title:
-  "Write\nInsert Depth"
+  "Import\nControl"
 
 # bundle tooltip
 tooltip: |-
-  Writes Fabrication Hanger Rod Insert Depth by user defined insert type and deck thickness.
-    1. Run Command.
-    2. Select Fabrication Hangers (Using Window Selection).
-    3. Choose insert type and define concrete thickness.
+  This will Import the Control Point Family into the Revit Project
+  from excel file data.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

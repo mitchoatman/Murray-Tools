@@ -1,6 +1,5 @@
 import os
 from Autodesk.Revit.DB import BuiltInCategory, Transaction, TransactionGroup, FilteredElementCollector, ParameterElement, SharedParameterElement
-
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 app = doc.Application
@@ -11,7 +10,7 @@ def Shared_Params():
     path, filename = os.path.split(__file__)
     NewFilename = 'MC Shared Parameters.txt'
     fullPath = os.path.join(path, NewFilename)
-
+    
     # Define categories
     cat1 = doc.Settings.Categories.get_Item(BuiltInCategory.OST_FabricationPipework)
     cat2 = doc.Settings.Categories.get_Item(BuiltInCategory.OST_FabricationHangers)
@@ -24,7 +23,8 @@ def Shared_Params():
     cat9 = doc.Settings.Categories.get_Item(BuiltInCategory.OST_DuctAccessory)
     cat10 = doc.Settings.Categories.get_Item(BuiltInCategory.OST_FlexDuctCurves)
     cat11 = doc.Settings.Categories.get_Item(BuiltInCategory.OST_StructuralStiffener)
-
+    cat12 = doc.Settings.Categories.get_Item(BuiltInCategory.OST_MechanicalEquipment)
+    
     STRATUScatSet = app.Create.NewCategorySet()
     STRATUScatSet.Insert(cat1)
     STRATUScatSet.Insert(cat2)
@@ -37,17 +37,13 @@ def Shared_Params():
     STRATUScatSet.Insert(cat9)
     STRATUScatSet.Insert(cat10)
     STRATUScatSet.Insert(cat11)
-
+    STRATUScatSet.Insert(cat12)
+    
     t = Transaction(doc, 'Add Parameters')
     t.Start()
-
     app.SharedParametersFilename = fullPath
     spFile = app.OpenSharedParameterFile()
-
-    # Get existing parameters in the model
-    existing_params = FilteredElementCollector(doc).OfClass(SharedParameterElement).ToElements()
-    existing_param_names = {p.Name: str(p.GuidValue) for p in existing_params}
-
+    
     def add_parameters(group_name, category_set, group_type):
         for dG in spFile.Groups:
             if dG.Name == group_name:
@@ -55,17 +51,14 @@ def Shared_Params():
                 for eD in definitions:
                     param_name = eD.Name
                     param_guid = str(eD.GUID)
-                    # Check if parameter already exists
-                    if param_name in existing_param_names:
-                        if existing_param_names[param_name] == param_guid:
-                            # print("Parameter '{}' already exists with matching GUID, skipping.".format(param_name))
-                            continue
-                        else:
-                            continue
                     newIB = app.Create.NewInstanceBinding(category_set)
-                    doc.ParameterBindings.Insert(eD, newIB, group_type)
-                    # print("Added parameter '{}' with GUID {}.".format(param_name, param_guid))
-
+                    if doc.ParameterBindings.Insert(eD, newIB, group_type):
+                        # print("Added parameter '{}' with GUID {}.".format(param_name, param_guid))
+                        pass
+                    else:
+                        # print("Parameter '{}' already exists with matching GUID, skipping.".format(param_name))
+                        pass
+    
     if RevitINT > 2024:
         from Autodesk.Revit.DB import GroupTypeId
         add_parameters('FP Parameters', STRATUScatSet, GroupTypeId.General)
@@ -76,5 +69,5 @@ def Shared_Params():
         add_parameters('FP Parameters', STRATUScatSet, BuiltInParameterGroup.INVALID)
         add_parameters('STRATUS Parameters', STRATUScatSet, BuiltInParameterGroup.INVALID)
         add_parameters('MC_General Data', STRATUScatSet, BuiltInParameterGroup.INVALID)
-
+    
     t.Commit()

@@ -1,5 +1,12 @@
 layout:
+  - Control
+  - UG Point Layout
   - Point Layout
+  - WallPointPipe[title:Wall Layout [Pipe]]
+  - WallPointDuct[title:Wall Layout [Duct]]
+  - Manage
+  - Export
+  - QC
 
 
 highlight: new      # highlight as new

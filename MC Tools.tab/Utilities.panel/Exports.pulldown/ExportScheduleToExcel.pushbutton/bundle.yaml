@@ -12,7 +12,5 @@ tooltip: |-
       2. Select Schedule.
       3. Choose save location.
 
-max_revit_version: 2024
-
 # bundle author
 author: Mitchell Oatman

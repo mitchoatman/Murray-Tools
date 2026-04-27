@@ -3,7 +3,7 @@ import os
 import clr
 import System
 
-from pyrevit import revit, DB
+from pyrevit import revit, DB, forms
 from pyrevit.revit.db import query
 from pyrevit.compat import get_elementid_value_func
 from pyrevit.interop import xl

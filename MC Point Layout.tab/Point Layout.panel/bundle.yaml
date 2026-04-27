@@ -1,13 +1,13 @@
 layout:
-  - APL
+  - APL_Parameter
+  - Tag_SleeveSize
+  - Deck_Sleeve_Schedule
   - FixtureCL
-  - Pipe Wall Sleeve
   - PipeRiser
-  - Duct Wall Sleeve
-  - PointLayoutConfig
-  - ControlPoint
+  - SelectFabFilter
+  - TagPointNumber
   - PipePoint
-  - ExportPoints
+  - PointLayoutConfig
   
 background:
 #  title: 'D5D5CD'

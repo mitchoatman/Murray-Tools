@@ -1,0 +1,13 @@
+#highlight: new
+
+# bundle title
+title:
+  "Create\nSection"
+
+# bundle tooltip
+tooltip: |-
+  Creates a section based on fabrication part selection.
+  
+
+# bundle author
+author: Mitchell Oatman

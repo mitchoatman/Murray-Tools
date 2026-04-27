@@ -1,24 +1,35 @@
 # -*- coding: utf-8 -*-
+import Autodesk
 from pyrevit import revit, DB, forms, script
+from pyrevit.compat import get_elementid_value_func, get_elementid_from_value_func
+from pyrevit.interop import xl
 import clr
+import os
+import System
+from Autodesk.Revit.UI import TaskDialog
 # Add Windows Forms references
 clr.AddReference('System.Windows.Forms')
 clr.AddReference('System.Drawing')
-from System.Windows.Forms import (Form, Label, ListBox, Button, DialogResult, TextBox,
-                                FormBorderStyle, FormStartPosition, SelectionMode, Control, AnchorStyles)
-from System import Array
-from System.Drawing import Point, Size, Color
-import os
-import System.Diagnostics  # For Process.Start to open the file
 
-# Add reference to Excel COM interop
-clr.AddReference("Microsoft.Office.Interop.Excel")
-from Microsoft.Office.Interop.Excel import ApplicationClass
+from System.Windows.Forms import (
+    Form, Label, ListBox, Button, DialogResult, TextBox,
+    FormBorderStyle, FormStartPosition, SelectionMode
+)
+from System import Array
+from System.Drawing import Point, Size
 
 # Global variable to store the last exported directory
-last_export_dir = os.path.expanduser("~") + "\\Desktop"  # Default to Desktop
+last_export_dir = os.path.expanduser("~") + "\\Desktop"
 
-# Simple dialog for opening the exported file
+# Revit compatibility helpers
+get_eid_value = get_elementid_value_func()
+get_elementid_from_value = get_elementid_from_value_func()
+
+
+# -----------------------------------------------------------------------------
+# Simple dialog for opening exported file
+# -----------------------------------------------------------------------------
+
 class OpenFileDialog(Form):
     def __init__(self, filepath):
         self.filepath = filepath
@@ -30,200 +41,331 @@ class OpenFileDialog(Form):
         self.MinimizeBox = False
         self.StartPosition = FormStartPosition.CenterScreen
 
-        # Success message
         self.label = Label()
         self.label.Text = "Schedule exported successfully.\nWould you like to open the file?"
-        self.label.Location = Point(10, 10)
-        self.label.Size = Size(260, 40)
+        self.label.Location = Point(20, 10)
+        self.label.Size = Size(self.ClientSize.Width - 40, 40)
         self.label.TextAlign = System.Drawing.ContentAlignment.MiddleCenter
 
-        # Open File button
         self.open_button = Button()
         self.open_button.Text = "Open File"
-        self.open_button.Location = Point(100, 80)
+        button_width = 100
+        self.open_button.Location = Point((self.ClientSize.Width - button_width) / 2, 80)
         self.open_button.Size = Size(100, 25)
         self.open_button.Click += self.open_file_clicked
 
-        # Add controls to form
         self.Controls.Add(self.label)
         self.Controls.Add(self.open_button)
 
     def open_file_clicked(self, sender, args):
         try:
-            System.Diagnostics.Process.Start(self.filepath)  # Open the file with default application
+            os.startfile(self.filepath)
         except Exception as e:
-            forms.alert("Failed to open file:\n{}".format(str(e)))
+            TaskDialog.Show("Error", "Failed to open file:\n{}".format(str(e)))
         self.Close()
 
-# Function to export schedule to Excel
+
+# -----------------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------------
+
+def parse_element_id(value):
+    if value is None or value == "":
+        return None
+    try:
+        return int(float(value))
+    except Exception:
+        try:
+            return int(str(value).strip())
+        except Exception:
+            return None
+
+
+def row_to_dict(headers, row):
+    data = {}
+    for i, header in enumerate(headers):
+        key = str(header).strip()
+        value = row[i] if i < len(row) else None
+        data[key] = value
+    return data
+
+
+def sanitize_sheet_name(name):
+    invalid = ['\\', '/', ':', '*', '?', '[', ']']
+    safe = name or "Sheet"
+    for ch in invalid:
+        safe = safe.replace(ch, '_')
+    safe = safe.strip()
+    if not safe:
+        safe = "Sheet"
+    return safe[:31]
+
+
+def get_level_map():
+    return dict((lvl.Name, lvl) for lvl in DB.FilteredElementCollector(revit.doc).OfClass(DB.Level))
+
+
+def get_field_parameter(element, field):
+    param = None
+    field_name = field.GetName()
+
+    try:
+        param = element.LookupParameter(field_name)
+    except Exception:
+        param = None
+
+    if not param:
+        try:
+            pid = field.ParameterId
+            if pid and pid != DB.ElementId.InvalidElementId:
+                try:
+                    bip = System.Enum.ToObject(DB.BuiltInParameter, get_eid_value(pid))
+                    param = element.get_Parameter(bip)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    return param
+
+
+def get_parameter_export_value(param):
+    if not param:
+        return ""
+
+    try:
+        pname = ""
+        try:
+            pname = param.Definition.Name.lower()
+        except Exception:
+            pass
+
+        if pname in ["level", "reference level", "schedule level"]:
+            try:
+                level_id = param.AsElementId()
+                if level_id and get_eid_value(level_id) > 0:
+                    level = revit.doc.GetElement(level_id)
+                    return level.Name if level else ""
+            except Exception:
+                pass
+
+        if param.StorageType == DB.StorageType.String:
+            return param.AsString() or ""
+
+        elif param.StorageType == DB.StorageType.Double:
+            try:
+                display = param.AsValueString()
+                if display:
+                    return display
+            except Exception:
+                pass
+            try:
+                return param.AsDouble()
+            except Exception:
+                return ""
+
+        elif param.StorageType == DB.StorageType.Integer:
+            try:
+                return param.AsInteger()
+            except Exception:
+                return ""
+
+        elif param.StorageType == DB.StorageType.ElementId:
+            try:
+                eid = param.AsElementId()
+                if eid and get_eid_value(eid) > 0:
+                    elem = revit.doc.GetElement(eid)
+                    if elem and hasattr(elem, "Name"):
+                        return elem.Name
+                    return get_eid_value(eid)
+            except Exception:
+                return ""
+
+    except Exception:
+        return ""
+
+    return ""
+
+
+def set_parameter_import_value(param, value, level_map):
+    if not param or param.IsReadOnly or value is None or value == "":
+        return False
+
+    try:
+        pname = ""
+        try:
+            pname = param.Definition.Name.lower()
+        except Exception:
+            pass
+
+        if pname in ["level", "reference level", "schedule level"]:
+            level_name = str(value).strip()
+            if level_name in level_map:
+                param.Set(level_map[level_name].Id)
+                return True
+            return False
+
+        if param.StorageType == DB.StorageType.String:
+            param.Set(str(value))
+            return True
+
+        elif param.StorageType == DB.StorageType.Double:
+            try:
+                param.SetValueString(str(value))
+                return True
+            except Exception:
+                pass
+            try:
+                param.Set(float(value))
+                return True
+            except Exception:
+                return False
+
+        elif param.StorageType == DB.StorageType.Integer:
+            try:
+                param.Set(int(float(value)))
+                return True
+            except Exception:
+                return False
+
+        elif param.StorageType == DB.StorageType.ElementId:
+            try:
+                eid_val = int(float(value))
+                param.Set(get_elementid_from_value(eid_val))
+                return True
+            except Exception:
+                return False
+
+    except Exception:
+        return False
+
+    return False
+
+
+# -----------------------------------------------------------------------------
+# Export schedule to Excel
+# -----------------------------------------------------------------------------
+
 def export_schedule_to_excel(schedule, filepath):
     global last_export_dir
-    excel = ApplicationClass()
-    excel.Visible = False
-    wb = None  # Initialize workbook as None
-    
-    try:
-        wb = excel.Workbooks.Add()
-        ws = wb.Worksheets[1]
-        ws.Name = schedule.Name[:31]  # Excel sheet names have a 31-char limit
 
-        # Collect schedule data and element parameters
+    try:
         schedule_view = schedule
-        elements = DB.FilteredElementCollector(revit.doc, schedule_view.Id).ToElements()
+        elements = list(DB.FilteredElementCollector(revit.doc, schedule_view.Id).ToElements())
         schedule_def = schedule_view.Definition
         fields = [schedule_def.GetField(fid) for fid in schedule_def.GetFieldOrder()]
+        export_fields = [field for field in fields if field.ParameterId != DB.ElementId.InvalidElementId]
 
-        # Write headers (ElementId + parameter names)
-        headers = ["ElementId"] + [field.GetName() for field in fields if field.ParameterId != DB.ElementId.InvalidElementId]
-        for col, header in enumerate(headers, 1):
-            ws.Cells[1, col].Value2 = header
+        headers = ["ElementId"] + [field.GetName() for field in export_fields]
+        rows = [headers]
 
-        # Write data (ElementId + parameter values)
-        row = 2
         for element in elements:
-            ws.Cells[row, 1].Value2 = str(element.Id.IntegerValue)
-            col = 2
-            for field in fields:
-                if field.ParameterId != DB.ElementId.InvalidElementId:
-                    param = None
-                    field_name = field.GetName()
-                    param = element.LookupParameter(field_name)
+            row = [get_eid_value(element.Id)]
 
-                    # Try BuiltInParameter if LookupParameter doesn't work
-                    if not param:
-                        try:
-                            bip = DB.BuiltInParameter(field.ParameterId.IntegerValue)
-                            param = element.get_Parameter(bip)
-                        except:
-                            pass
+            for field in export_fields:
+                param = get_field_parameter(element, field)
+                value = get_parameter_export_value(param)
+                row.append(value)
 
-                    # Handle parameter values
-                    if param:
-                        value = None
-                        if param.StorageType == DB.StorageType.String:
-                            value = param.AsString()
-                        elif param.StorageType == DB.StorageType.Double:
-                            value = param.AsDouble()
-                        elif param.StorageType == DB.StorageType.Integer:
-                            value = param.AsInteger()
-                        
-                        # Special handling for Level Parameter (Reference Level)
-                        if param.Definition.Name.lower() in ["level", "reference level", "schedule level"]:
-                            level_id = param.AsElementId()
-                            if level_id and level_id.IntegerValue > 0:
-                                level = revit.doc.GetElement(level_id)
-                                value = level.Name if level else "Unknown Level"
+            rows.append(row)
 
-                        ws.Cells[row, col].Value2 = value if value is not None else ""
-                    col += 1
-            row += 1
+        sheet_name = sanitize_sheet_name(schedule.Name)
+        xl.dump(filepath, {sheet_name: rows})
 
-        # Save and cleanup
-        wb.SaveAs(filepath)
-        wb.Close()
-        last_export_dir = os.path.dirname(filepath)  # Update last export directory
-        
-        # Show dialog to open the file
+        last_export_dir = os.path.dirname(filepath)
+
         open_dialog = OpenFileDialog(filepath)
         open_dialog.ShowDialog()
 
     except Exception as e:
-        # Specifically check for the COMException with HRESULT 0x800A03EC (file access error)
-        if clr.GetClrType(type(e)).Name == "COMException" and "0x800A03EC" in str(e):
-            forms.alert("Cannot save '{}'\nPlease close the file in Excel and try again.".format(os.path.basename(filepath)))
-        else:
-            forms.alert("Export failed:\n{}".format(str(e).split('\n')[0]))  # Show only first line of other errors
-        # Cleanup in case of error
-        if wb is not None:
-            wb.Close(SaveChanges=False)
-            
-    finally:
-        excel.Quit()
+        TaskDialog.Show("Error", "Export failed:\n{}".format(str(e).split('\n')[0]))
 
-# Function to import changes from Excel
+
+
+# -----------------------------------------------------------------------------
+# Import changes from Excel
+# -----------------------------------------------------------------------------
+
 def import_changes_from_excel(filepath):
     if not os.path.exists(filepath):
-        forms.alert("Excel file not found at:\n{}".format(filepath))
+        TaskDialog.Show("Error", "Excel file not found at:\n{}".format(filepath))
         return
-    
-    excel = ApplicationClass()
-    excel.Visible = False
-    wb = excel.Workbooks.Open(filepath)
-    ws = wb.Worksheets[1]
-    
-    # Get headers
-    headers = []
-    col = 1
-    while ws.Cells[1, col].Value2:
-        headers.append(ws.Cells[1, col].Value2)
-        col += 1
-    header_map = {h: i+1 for i, h in enumerate(headers)}  # 1-based indexing for Excel
 
-    # Collect all levels in the project for quick lookup
-    level_map = {lvl.Name: lvl for lvl in DB.FilteredElementCollector(revit.doc).OfClass(DB.Level)}
-
-    # Import data
-    row_count = ws.UsedRange.Rows.Count
-    if row_count <= 1:
-        wb.Close()
-        excel.Quit()
-        forms.alert("No data found in Excel file.")
+    try:
+        workbook_data = xl.load(filepath)
+    except Exception as e:
+        TaskDialog.Show("Error", "Failed to read Excel file:\n{}".format(str(e)))
         return
-    
+
+    if not workbook_data:
+        TaskDialog.Show("Error", "No data found in Excel file.")
+        return
+
+    level_map = get_level_map()
     updated_count = 0
+    rows_found = 0
+
     with revit.Transaction("Update Elements from Excel"):
-        for row in range(2, row_count + 1):
-            elem_id = ws.Cells[row, header_map["ElementId"]].Value2
-            if elem_id:
-                try:
-                    elem_id = int(float(elem_id))  # Excel might return as float
-                    element = revit.doc.GetElement(DB.ElementId(elem_id))
-                    if element:
-                        for header, col_idx in header_map.items():
-                            if header != "ElementId":
-                                param = element.LookupParameter(header)
+        for sheet_name, sheet_data in workbook_data.items():
+            headers = sheet_data.get("headers", [])
+            rows = sheet_data.get("rows", [])
 
-                                # Special handling for Reference Level
-                                if param and param.Definition.Name.lower() in ["level", "reference level", "schedule level"]:
-                                    level_name = ws.Cells[row, col_idx].Value2
-                                    if level_name in level_map:
-                                        level_id = level_map[level_name].Id
-                                        param.Set(level_id)
-                                        updated_count += 1
-                                    else:
-                                        print "Level '{}' not found for Element {}".format(level_name, elem_id)
+            if not headers or not rows:
+                continue
 
-                                # Standard parameter handling
-                                elif param and not param.IsReadOnly:
-                                    value = ws.Cells[row, col_idx].Value2
-                                    if value is not None:
-                                        try:
-                                            if param.StorageType == DB.StorageType.String:
-                                                param.Set(str(value))
-                                            elif param.StorageType == DB.StorageType.Double:
-                                                param.Set(float(value) if isinstance(value, (int, float)) else 0.0)
-                                            elif param.StorageType == DB.StorageType.Integer:
-                                                param.Set(int(float(value)) if isinstance(value, (int, float)) else 0)
-                                            updated_count += 1
-                                        except Exception as e:
-                                            print "Failed to set param {} for ElementId {}: {}".format(header, elem_id, e)
-                except Exception as e:
-                    print "Failed to process ElementId {}: {}".format(elem_id, e)
+            for row in rows:
+                if isinstance(row, dict):
+                    row_data = dict((str(k).strip(), v) for k, v in row.items())
+                elif isinstance(row, list):
+                    row_data = row_to_dict(headers, row)
+                else:
                     continue
-    
-    # Cleanup
-    wb.Close()
-    excel.Quit()
-    # forms.alert("Import complete. Updated {} parameters.".format(updated_count))
+
+                elem_id_raw = row_data.get("ElementId")
+                elem_id_val = parse_element_id(elem_id_raw)
+                if elem_id_val is None:
+                    continue
+
+                element = revit.doc.GetElement(get_elementid_from_value(elem_id_val))
+                if not element:
+                    print "Element not found: {}".format(elem_id_val)
+                    continue
+
+                rows_found += 1
+
+                for header, value in row_data.items():
+                    if header == "ElementId":
+                        continue
+
+                    try:
+                        param = element.LookupParameter(header)
+                    except Exception:
+                        param = None
+
+                    if not param:
+                        continue
+
+                    if set_parameter_import_value(param, value, level_map):
+                        updated_count += 1
+                    else:
+                        print "Skipped param '{}' for ElementId {}".format(header, elem_id_val)
+
+    TaskDialog.Show(
+        "Import Complete",
+        "Rows found: {}\nParameters updated: {}".format(
+            rows_found,
+            updated_count
+        )
+    )
 
 
-
-# Custom WinForms dialog with ListBox and buttons
-from System.Windows.Forms import TextBox
+# -----------------------------------------------------------------------------
+# Schedule picker dialog
+# -----------------------------------------------------------------------------
 
 class ScheduleDialog(Form):
     def __init__(self, schedules):
-        self.schedules = schedules  # Store schedules for filtering
+        self.schedules = schedules
 
         self.Text = "Schedule Import/Export"
         self.Width = 400
@@ -233,29 +375,24 @@ class ScheduleDialog(Form):
         self.MinimizeBox = False
         self.StartPosition = FormStartPosition.CenterScreen
 
-        # Search label
         self.search_label = Label()
         self.search_label.Text = "Search:"
         self.search_label.Location = Point(10, 5)
         self.search_label.Size = Size(50, 20)
 
-        # Search box
         self.search_box = TextBox()
         self.search_box.Location = Point(70, 5)
         self.search_box.Size = Size(300, 20)
         self.search_box.TextChanged += self.search_changed
 
-        # ListBox for schedules
         self.schedule_listbox = ListBox()
         self.schedule_listbox.Location = Point(10, 30)
         self.schedule_listbox.Size = Size(360, 180)
         self.schedule_listbox.SelectionMode = SelectionMode.One
 
-        # Populate list with schedule names
         for schedule in self.schedules:
             self.schedule_listbox.Items.Add(schedule.Name)
 
-        # Buttons
         self.export_button = Button()
         self.export_button.Text = "Export to Excel"
         self.export_button.Size = Size(100, 25)
@@ -268,7 +405,6 @@ class ScheduleDialog(Form):
         self.import_button.Location = Point(self.export_button.Location.X + self.export_button.Width + 15, 230)
         self.import_button.Click += self.import_clicked
 
-        # Add controls to form
         self.Controls.Add(self.search_label)
         self.Controls.Add(self.search_box)
         self.Controls.Add(self.schedule_listbox)
@@ -281,11 +417,8 @@ class ScheduleDialog(Form):
     def search_changed(self, sender, args):
         search_term = self.search_box.Text.lower()
         self.schedule_listbox.Items.Clear()
-        
-        # Filter schedules by search term
+
         filtered_schedules = [s.Name for s in self.schedules if search_term in s.Name.lower()]
-        
-        # Update listbox with filtered results
         self.schedule_listbox.Items.AddRange(Array[object](filtered_schedules))
 
     def export_clicked(self, sender, args):
@@ -294,34 +427,41 @@ class ScheduleDialog(Form):
             self.action = "Export"
             self.Close()
         else:
-            forms.alert("Please select a schedule to export.")
+            TaskDialog.Show("Error", "Please select a schedule to export.")
 
     def import_clicked(self, sender, args):
         self.action = "Import"
         self.Close()
 
 
-# Main execution
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
+
 def main():
     global last_export_dir
-    # Get available schedules
-    schedules = [s for s in DB.FilteredElementCollector(revit.doc).OfClass(DB.ViewSchedule).ToElements() if not s.IsTemplate]
+
+    schedules = [
+        s for s in DB.FilteredElementCollector(revit.doc)
+        .OfClass(DB.ViewSchedule)
+        .ToElements()
+        if not s.IsTemplate
+    ]
+
     if not schedules:
-        forms.alert("No schedules found in the project.")
+        TaskDialog.Show("Error", "No schedules found in the project.")
         return
-    
-    # Show custom dialog with ListBox and buttons
+
     dialog = ScheduleDialog(schedules)
     dialog.ShowDialog()
-    
+
     if not dialog.action:
         return
-    
+
     if dialog.action == "Export":
-        # Get the selected schedule object based on name
         selected_schedule_name = dialog.selected_schedule
         selected_schedule = next(s for s in schedules if s.Name == selected_schedule_name)
-        # Use Save As dialog for export location
+
         default_name = "{}.xlsx".format(selected_schedule.Name)
         filepath = forms.save_file(
             file_ext="xlsx",
@@ -331,9 +471,11 @@ def main():
             unc_paths=False
         )
         if filepath:
+            if not filepath.lower().endswith(".xlsx"):
+                filepath += ".xlsx"
             export_schedule_to_excel(selected_schedule, filepath)
+
     elif dialog.action == "Import":
-        # Use Open dialog with last export dir as default
         filepath = forms.pick_file(
             file_ext="xlsx",
             init_dir=last_export_dir,
@@ -341,6 +483,7 @@ def main():
         )
         if filepath:
             import_changes_from_excel(filepath)
+
 
 if __name__ == "__main__":
     main()

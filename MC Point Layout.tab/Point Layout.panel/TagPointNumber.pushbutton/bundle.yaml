@@ -2,14 +2,16 @@
 
 # bundle title
 title:
-  "Write\nInsert Depth"
+  "Tag\nPoint Number"
 
 # bundle tooltip
 tooltip: |-
-  Writes Fabrication Hanger Rod Insert Depth by user defined insert type and deck thickness.
-    1. Run Command.
-    2. Select Fabrication Hangers (Using Window Selection).
-    3. Choose insert type and define concrete thickness.
+  Adds tags to visible families with TS_Point_Number Parameter.
+  1. Execute command.
+  2. elements will be tagged.
+
+  [Shift]+Click:    
+  Add tags with leaders.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

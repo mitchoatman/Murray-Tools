@@ -23,13 +23,71 @@ class DialogSuppressor(object):
     def handler(self, sender, args):
         dialog_id = args.DialogId
 
-        # Handles "newer version" dialog (prevents freeze)
+        # Handles "newer version" dialog
         if dialog_id == "TaskDialog_Opening_File_From_Later_Version":
             args.OverrideResult(1)
 
 
 dialog_handler = DialogSuppressor()
 uiapp.DialogBoxShowing += dialog_handler.handler
+
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def get_or_create_preview_3d_view(doc):
+    """Return a valid 3D view for preview. Create one if needed."""
+    settings = doc.GetDocumentPreviewSettings()
+
+    # Try existing 3D views first
+    collector = DB.FilteredElementCollector(doc).OfClass(DB.View3D)
+    for v in collector:
+        if v.IsTemplate:
+            continue
+        if settings.IsViewIdValidForPreview(v.Id):
+            return v
+
+    # If none found, create a new isometric 3D view
+    view_type_id = None
+    vft_collector = DB.FilteredElementCollector(doc).OfClass(DB.ViewFamilyType)
+    for vft in vft_collector:
+        if vft.ViewFamily == DB.ViewFamily.ThreeDimensional:
+            view_type_id = vft.Id
+            break
+
+    if view_type_id is None:
+        return None
+
+    t = DB.Transaction(doc, "Create Preview 3D View")
+    t.Start()
+    new_view = DB.View3D.CreateIsometric(doc, view_type_id)
+
+    try:
+        new_view.Name = "{3D}_BatchPreview"
+    except:
+        pass
+
+    t.Commit()
+
+    if settings.IsViewIdValidForPreview(new_view.Id):
+        return new_view
+
+    return None
+
+
+def set_preview_view(doc, view):
+    """Set the document preview to the supplied view."""
+    settings = doc.GetDocumentPreviewSettings()
+
+    t = DB.Transaction(doc, "Set Family Preview View")
+    t.Start()
+
+    fail_options = t.GetFailureHandlingOptions()
+    fail_options.SetFailuresPreprocessor(SilentFailuresPreprocessor())
+    t.SetFailureHandlingOptions(fail_options)
+
+    settings.PreviewViewId = view.Id
+    t.Commit()
 
 
 # -----------------------------
@@ -62,6 +120,7 @@ if not rfa_files:
 processed_count = 0
 failed_files = []
 skipped_files = []
+preview_updated = 0
 
 
 # -----------------------------
@@ -75,35 +134,44 @@ with forms.ProgressBar(title="Upgrading Families", max_value=len(rfa_files), can
         if pb.cancelled:
             break
 
+        doc = None
+
         try:
-            # Convert to ModelPath (required)
             model_path = DB.ModelPathUtils.ConvertUserVisiblePathToModelPath(file_path)
 
-            # Open options
             open_opts = DB.OpenOptions()
             open_opts.Audit = True
 
-            # Open document
             doc = app.OpenDocumentFile(model_path, open_opts)
 
-            # Suppress warnings
-            t = DB.Transaction(doc, "Suppress Warnings")
-            t.Start()
+            preview_view = get_or_create_preview_3d_view(doc)
 
-            fail_options = t.GetFailureHandlingOptions()
-            fail_options.SetFailuresPreprocessor(SilentFailuresPreprocessor())
-            t.SetFailureHandlingOptions(fail_options)
+            save_opts = DB.SaveOptions()
 
-            t.Commit()
+            if preview_view:
+                set_preview_view(doc, preview_view)
+                save_opts.PreviewViewId = preview_view.Id
+                preview_updated += 1
 
-            # Save + Close
-            doc.Save()
+            doc.Save(save_opts)
             doc.Close(False)
 
             processed_count += 1
 
         except Exception as e:
             msg = str(e).lower()
+
+            try:
+                if doc and doc.IsModifiable:
+                    pass
+            except:
+                pass
+
+            try:
+                if doc:
+                    doc.Close(False)
+            except:
+                pass
 
             if "later version" in msg:
                 skipped_files.append(file_path)
@@ -114,7 +182,7 @@ with forms.ProgressBar(title="Upgrading Families", max_value=len(rfa_files), can
 
 
 # -----------------------------
-# CLEANUP (IMPORTANT)
+# CLEANUP
 # -----------------------------
 uiapp.DialogBoxShowing -= dialog_handler.handler
 
@@ -126,6 +194,7 @@ report = []
 report.append("=== BATCH UPGRADE COMPLETE ===\n")
 report.append("Total Files: {}".format(len(rfa_files)))
 report.append("Processed: {}".format(processed_count))
+report.append("Preview Updated: {}".format(preview_updated))
 report.append("Skipped (Newer Version): {}".format(len(skipped_files)))
 report.append("Failed: {}\n".format(len(failed_files)))
 

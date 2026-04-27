@@ -1,0 +1,24 @@
+#highlight: new
+
+# bundle title
+title:
+  "Select\nFilter"
+
+# bundle tooltip
+tooltip: |-
+  Selects all FABRICATION PARTS in ACTIVE VIEW by user specified Fabrication properties.
+  1. Execute command.
+  2. Pick the desired properties to filter by.
+  3. Elements will be selected.
+  4. Do what you will with selected elements...
+
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+help_url: "https://youtu.be/lSqrnCQ3Hng"
+
+# bundle author
+author: Mitchell Oatman
