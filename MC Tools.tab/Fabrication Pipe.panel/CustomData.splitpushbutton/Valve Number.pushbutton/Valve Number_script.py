@@ -1,94 +1,314 @@
+# -*- coding: utf-8 -*-
+import os
+import sys
 import clr
-import os, sys
-import Autodesk
-from Autodesk.Revit.DB import Transaction
-from Autodesk.Revit.UI.Selection import ObjectType
-from Parameters.Add_SharedParameters import Shared_Params
-from Parameters.Get_Set_Params import set_parameter_by_name
-from Autodesk.Revit.UI import TaskDialog
+import System
 
+clr.AddReference('System.Windows.Forms')
+clr.AddReference('System.Drawing')
 clr.AddReference('PresentationFramework')
 clr.AddReference('PresentationCore')
 clr.AddReference('WindowsBase')
-from System.Windows import Application, Window, Thickness, WindowStyle, ResizeMode, WindowStartupLocation, HorizontalAlignment
-from System.Windows.Controls import Label, TextBox, Button, Grid, RowDefinition
+clr.AddReference("System.Core")
+
+from System import Action
+import System.Windows.Threading
+
+from System.Windows import Window, Thickness, HorizontalAlignment, WindowStartupLocation
+from System.Windows.Controls import Grid, RowDefinition, ColumnDefinition, Label, TextBox, Button, ListBox, StackPanel
+from System.Windows.Interop import WindowInteropHelper
+from System.Collections.Generic import List
+
+from Autodesk.Revit.DB import Transaction, FilteredElementCollector, ElementId
+from Autodesk.Revit.UI.Selection import ObjectType
+from Autodesk.Revit.UI import TaskDialog, UIApplication
+
+from Parameters.Add_SharedParameters import Shared_Params
+from Parameters.Get_Set_Params import set_parameter_by_name
+
 
 Shared_Params()
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 
-folder_name = "c:\\Temp"
-filepath = os.path.join(folder_name, 'Ribbon_ValveNumber.txt')
+PARAM_NAME = "FP_Valve Number"
+FOLDER_NAME = r"C:\Temp"
+FILE_PATH = os.path.join(FOLDER_NAME, "Ribbon_ValveNumber.txt")
 
-if not os.path.exists(folder_name):
-    os.makedirs(folder_name)
-if not os.path.exists(filepath):
-    with open(filepath, 'w') as f:
-        f.write('123')
 
-with open(filepath, 'r') as f:
-    PrevInput = f.read()
+def natural_key(s):
+    import re
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'([0-9]+)', s)]
 
-# WPF Form (no XAML)
-class ValveNumberForm(Window):
-    def __init__(self, default_value):
+
+def ensure_input_file():
+    if not os.path.exists(FOLDER_NAME):
+        os.makedirs(FOLDER_NAME)
+
+    if not os.path.exists(FILE_PATH):
+        with open(FILE_PATH, 'w') as f:
+            f.write('123')
+
+
+def read_previous_input():
+    ensure_input_file()
+    with open(FILE_PATH, 'r') as f:
+        return f.read().strip()
+
+
+def write_previous_input(value):
+    ensure_input_file()
+    with open(FILE_PATH, 'w') as f:
+        f.write(value)
+
+
+def get_valve_numbers_in_active_view():
+    values = set()
+    collector = FilteredElementCollector(doc, doc.ActiveView.Id)
+
+    for elem in collector:
+        param = elem.LookupParameter(PARAM_NAME)
+        if param and param.HasValue:
+            val = param.AsString()
+            if val:
+                values.add(val)
+
+    return sorted(values, key=natural_key)
+
+
+def get_elements_by_valve_number(valve_number):
+    matches = []
+    collector = FilteredElementCollector(doc, doc.ActiveView.Id)
+
+    for elem in collector:
+        param = elem.LookupParameter(PARAM_NAME)
+        if param and param.HasValue and param.AsString() == valve_number:
+            matches.append(elem)
+
+    return matches
+
+
+def show_elements(elements):
+    if not elements:
+        return
+
+    element_ids = List[ElementId]()
+    for elem in elements:
+        element_ids.Add(elem.Id)
+
+    uidoc.Selection.SetElementIds(element_ids)
+    uidoc.ShowElements(element_ids)
+
+
+def get_revit_window_handle():
+    try:
+        return uidoc.Application.MainWindowHandle
+    except:
+        try:
+            return UIApplication(doc.Application).MainWindowHandle
+        except:
+            return System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle
+
+
+def set_customdata_by_custid(fabpart, custid, value):
+    fabpart.SetPartCustomDataText(custid, value)
+
+
+class ValveNumberWindow(Window):
+    def __init__(self, default_value, valve_numbers, revit_window_handle):
+        Window.__init__(self)
+
         self.Title = "Valve Number"
         self.Width = 300
-        self.Height = 160
-        self.WindowStyle = WindowStyle.SingleBorderWindow
-        self.ResizeMode = ResizeMode.NoResize
+        self.ResizeMode = System.Windows.ResizeMode.NoResize
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
-        self.result = None
+        self.Topmost = True
 
+        self.accepted = False
+        self.result_value = None
+
+        self.InitializeComponents(default_value, valve_numbers)
+
+        try:
+            WindowInteropHelper(self).Owner = revit_window_handle
+        except:
+            pass
+
+    def InitializeComponents(self, default_value, valve_numbers):
         grid = Grid()
-        grid.Margin = Thickness(10)
-
-        for _ in range(3):
-            grid.RowDefinitions.Add(RowDefinition())
-
         self.Content = grid
 
-        label = Label()
-        label.Content = "Enter Valve Number:"
-        label.Margin = Thickness(0, -5, 0, 10)
-        Grid.SetRow(label, 0)
-        grid.Children.Add(label)
+        row_definitions = [
+            RowDefinition(Height=System.Windows.GridLength.Auto),
+            RowDefinition(Height=System.Windows.GridLength.Auto),
+            RowDefinition(Height=System.Windows.GridLength.Auto),
+            RowDefinition(Height=System.Windows.GridLength(1, System.Windows.GridUnitType.Star)),
+            RowDefinition(Height=System.Windows.GridLength.Auto)
+        ]
+        for row in row_definitions:
+            grid.RowDefinitions.Add(row)
+
+        grid.ColumnDefinitions.Add(
+            ColumnDefinition(Width=System.Windows.GridLength(1, System.Windows.GridUnitType.Star))
+        )
+
+        item_height = 20
+        listbox_height = item_height * min(15, max(7, len(valve_numbers))) + 5
+        self.Height = listbox_height + 185
+
+        row_index = 0
+
+        self.label = Label()
+        self.label.Content = "Enter Valve Number:"
+        self.label.Margin = Thickness(10, 5, 10, 5)
+        Grid.SetRow(self.label, row_index)
+        grid.Children.Add(self.label)
+        row_index += 1
 
         self.textbox = TextBox()
         self.textbox.Text = default_value
-        self.textbox.Margin = Thickness(0, 0, 0, 10)
-        Grid.SetRow(self.textbox, 1)
+        self.textbox.Margin = Thickness(10, 0, 10, 5)
+        Grid.SetRow(self.textbox, row_index)
         grid.Children.Add(self.textbox)
+        row_index += 1
 
-        ok_button = Button()
-        ok_button.Content = "OK"
-        ok_button.Width = 75
-        ok_button.Height = 25
-        ok_button.HorizontalAlignment = HorizontalAlignment.Center
-        ok_button.Click += self.on_ok
-        Grid.SetRow(ok_button, 2)
-        grid.Children.Add(ok_button)
+        self.list_label = Label()
+        self.list_label.Content = "Valve Numbers in View:"
+        self.list_label.Margin = Thickness(10, 0, 10, 5)
+        Grid.SetRow(self.list_label, row_index)
+        grid.Children.Add(self.list_label)
+        row_index += 1
 
+        self.listbox = ListBox()
+        self.listbox.Height = listbox_height
+        self.listbox.Margin = Thickness(10, 0, 10, 0)
+
+        for number in valve_numbers:
+            self.listbox.Items.Add(number)
+
+        self.listbox.SelectionChanged += self.on_listbox_select
+        self.listbox.MouseDoubleClick += self.on_listbox_double_click
+
+        Grid.SetRow(self.listbox, row_index)
+        grid.Children.Add(self.listbox)
+        row_index += 1
+
+        button_panel = StackPanel()
+        button_panel.Orientation = System.Windows.Controls.Orientation.Horizontal
+        button_panel.HorizontalAlignment = HorizontalAlignment.Center
+        button_panel.Margin = Thickness(0, 15, 0, 10)
+        Grid.SetRow(button_panel, row_index)
+        grid.Children.Add(button_panel)
+
+        self.ok_button = Button()
+        self.ok_button.Content = "OK"
+        self.ok_button.Width = 75
+        self.ok_button.Height = 25
+        self.ok_button.Margin = Thickness(5, 0, 5, 0)
+        self.ok_button.Click += self.on_ok_click
+        button_panel.Children.Add(self.ok_button)
+
+        self.show_button = Button()
+        self.show_button.Content = "Show"
+        self.show_button.Width = 75
+        self.show_button.Height = 25
+        self.show_button.Margin = Thickness(5, 0, 5, 0)
+        self.show_button.Click += self.on_show_click
+        button_panel.Children.Add(self.show_button)
+
+        self.cancel_button = Button()
+        self.cancel_button.Content = "Cancel"
+        self.cancel_button.Width = 75
+        self.cancel_button.Height = 25
+        self.cancel_button.Margin = Thickness(5, 0, 5, 0)
+        self.cancel_button.Click += self.on_cancel_click
+        button_panel.Children.Add(self.cancel_button)
+
+        self.KeyDown += self.on_key_down
         self.textbox.Focus()
         self.textbox.SelectAll()
 
-    def on_ok(self, sender, args):
-        self.result = self.textbox.Text
-        self.DialogResult = True
+    def on_listbox_select(self, sender, event):
+        selected = self.listbox.SelectedItem
+        if selected:
+            self.textbox.Text = str(selected)
+
+    def on_listbox_double_click(self, sender, event):
+        selected = self.listbox.SelectedItem
+        if not selected:
+            return
+
+        self.textbox.Text = str(selected)
+        self.show_valve_number(str(selected))
+
+    def on_show_click(self, sender, event):
+        selected = self.listbox.SelectedItem
+        if not selected:
+            TaskDialog.Show("Warning", "Please select a valve number from the list.")
+            return
+
+        self.textbox.Text = str(selected)
+        self.show_valve_number(str(selected))
+
+    def show_valve_number(self, valve_number):
+        matching_elements = get_elements_by_valve_number(valve_number)
+
+        if not matching_elements:
+            TaskDialog.Show(
+                "Warning",
+                "No elements found with valve number '{}' in the active view.".format(valve_number)
+            )
+            return
+
+        show_elements(matching_elements)
+
+    def on_ok_click(self, sender, event):
+        self.accepted = True
+        self.result_value = self.textbox.Text.strip()
         self.Close()
 
-# Show dialog
-form = ValveNumberForm(PrevInput)
-value = None
-if form.ShowDialog() and form.DialogResult:
-    value = form.result
+    def on_cancel_click(self, sender, event):
+        self.accepted = False
+        self.result_value = None
+        self.Close()
+
+    def on_key_down(self, sender, event):
+        if event.Key == System.Windows.Input.Key.Enter:
+            self.accepted = True
+            self.result_value = self.textbox.Text.strip()
+            self.Close()
+        elif event.Key == System.Windows.Input.Key.Escape:
+            self.accepted = False
+            self.result_value = None
+            self.Close()
+
+
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
+previous_input = read_previous_input()
+valve_numbers = get_valve_numbers_in_active_view()
+revit_window_handle = get_revit_window_handle()
+
+form = ValveNumberWindow(previous_input, valve_numbers, revit_window_handle)
+form.Show()
+
+disp = System.Windows.Threading.Dispatcher.CurrentDispatcher
+while form.IsVisible:
+    disp.Invoke(System.Windows.Threading.DispatcherPriority.Background, Action(lambda: None))
+
+value = form.result_value if form.accepted else None
 
 if value:
     selected_ids = uidoc.Selection.GetElementIds()
+
     if not selected_ids:
         try:
-            picked_refs = uidoc.Selection.PickObjects(ObjectType.Element, "Please select elements to set Valve Number.")
+            picked_refs = uidoc.Selection.PickObjects(
+                ObjectType.Element,
+                "Please select elements to set Valve Number."
+            )
             selected_ids = [ref.ElementId for ref in picked_refs]
         except:
             TaskDialog.Show("Error", "Selection cancelled. No elements selected.")
@@ -100,25 +320,28 @@ if value:
 
     selection = [doc.GetElement(eid) for eid in selected_ids]
 
-    with open(filepath, 'w') as f:
-        f.write(value)
+    write_previous_input(value)
 
+    t = None
     try:
-        def set_customdata_by_custid(fabpart, custid, value):
-            fabpart.SetPartCustomDataText(custid, value)
-
         t = Transaction(doc, 'Set Valve Number')
         t.Start()
 
-        for i in selection:
-            param_exist = i.LookupParameter("FP_Valve Number")
-            if param_exist:
-                set_parameter_by_name(i, "FP_Valve Number", value)
-                if i.LookupParameter("Fabrication Service"):
-                    set_customdata_by_custid(i, 2, value)
+        for elem in selection:
+            param_exist = elem.LookupParameter(PARAM_NAME)
+            if param_exist and not param_exist.IsReadOnly:
+                set_parameter_by_name(elem, PARAM_NAME, value)
+
+                if elem.LookupParameter("Fabrication Service"):
+                    try:
+                        set_customdata_by_custid(elem, 2, value)
+                    except:
+                        pass
 
         t.Commit()
+
     except Exception as e:
-        TaskDialog.Show("Error", "Error: {}".format(str(e)))
-        if t and t.HasStarted():
+        if t is not None and t.HasStarted():
             t.RollBack()
+
+        TaskDialog.Show("Error", "Error: {}".format(str(e)))

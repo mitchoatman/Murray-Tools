@@ -237,6 +237,21 @@ for view in selected_views:
     if not scope_box:
         TaskDialog.Show("Error", "Invalid scope box assigned to ceiling plan '{}'. The scope box element could not be retrieved. Please verify the assignment.".format(view.Name))
         sys.exit()
+
+def get_id_value(id_obj):
+    if id_obj is None:
+        return None
+    try:
+        if RevitINT > 2025:
+            return id_obj.Value
+        else:
+            return id_obj.IntegerValue
+    except:
+        try:
+            return id_obj.Value
+        except:
+            return id_obj.IntegerValue
+
 # Define a transaction and describe the transaction
 t = Transaction(doc, 'Add Ceiling Plans to Sheets')
 # Begin new transaction
@@ -260,7 +275,7 @@ for view in selected_views:
             existing_scope_box_id = existing_scope_box_param.AsElementId() if existing_scope_box_param else None
             if existing_scope_box_id and existing_scope_box_id != ElementId.InvalidElementId:
                 existing_scope_box = doc.GetElement(existing_scope_box_id)
-                if existing_scope_box and existing_scope_box.Id.IntegerValue == scope_box_id.IntegerValue:
+                if existing_scope_box and get_id_value(existing_scope_box.Id) == get_id_value(scope_box_id):
                     matching_sheet = sheet
                     break
             # If no scope box on existing view, skip matching this viewport

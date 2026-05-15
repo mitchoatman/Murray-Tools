@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 import Autodesk
 from Autodesk.Revit.DB import Transaction, FabricationConfiguration, FabricationPart, XYZ
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType

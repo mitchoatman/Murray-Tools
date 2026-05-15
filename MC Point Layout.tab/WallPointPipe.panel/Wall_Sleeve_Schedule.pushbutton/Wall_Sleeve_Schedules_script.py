@@ -64,8 +64,8 @@ categoryId = ElementId(BuiltInCategory.OST_PipeAccessory)
 
 # Define schedule names and their respective family filters
 schedules = [
-    {"name": "WALL SLEEVE SCHEDULE", "fields": roundFieldNames, "filter": "WS", "category": categoryId},
-    {"name": "BLOCKOUT WALL SLEEVE SCHEDULE", "fields": blockoutFieldNames, "filter": "BLOCKOUT", "category": categoryId}
+    {"name": "WALL OPENING SCHEDULE", "fields": roundFieldNames, "filter": "WS", "category": categoryId},
+    {"name": "WALL BLOCKOUT SCHEDULE", "fields": blockoutFieldNames, "filter": "BLOCKOUT", "category": categoryId}
 ]
 
 # Function to add field by name
@@ -117,7 +117,7 @@ for schedule_info in schedules:
     # Check if all parameters exist before creating the schedule
     params_exist, missing_param = all_parameters_exist(fieldNames, parameters)
     if not params_exist:
-        TaskDialog.Show("Warning", "Cannot create '{}' because parameter '{}' is not found.".format(schedule_name, missing_param))
+        TaskDialog.Show("Warning", "Cannot create '{}' because no blockouts were found.".format(schedule_name, missing_param))
         continue
 
     # Check if the schedule already exists

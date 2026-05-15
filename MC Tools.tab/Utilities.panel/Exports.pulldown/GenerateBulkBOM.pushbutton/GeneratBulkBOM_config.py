@@ -12,8 +12,11 @@ from Autodesk.Revit.DB import (
 from Parameters.Add_SharedParameters import Shared_Params
 Shared_Params()
 
+doc = __revit__.ActiveUIDocument.Document
+uidoc = __revit__.ActiveUIDocument
+
 from Parameters.FabPart_Params import Sync_FP_Params_Entire_Model
-Sync_FP_Params_Entire_Model()
+Sync_FP_Params_Entire_Model(doc, uidoc)
 
 # Define the active Revit application and document
 doc = __revit__.ActiveUIDocument.Document

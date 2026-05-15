@@ -5,7 +5,6 @@ layout:
   - ExportMAJ
   - ExportNWC
   - ExportScheduleToExcel
-  - ExportTitleBlockParams
   - OpenBOMTemplate
   - OpenCADRequest
   - GenerateBulkBOM

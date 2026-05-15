@@ -1,63 +1,83 @@
-
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family
+from Autodesk.Revit.DB import FilteredElementCollector, Transaction, Family
+from Autodesk.Revit.UI import TaskDialog
 import os
+import sys
 
 path, filename = os.path.split(__file__)
-NewFilename = '\Fabrication Pipe - Elevation Tag.rfa'
+family_path = os.path.join(path, 'Fabrication Pipe - Elevation Tag.rfa')
 
-app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+
+FamilyName = 'Fabrication Pipe - Elevation Tag'
+FamilyType = 'BOP'
+
 
 class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):
         overwriteParameterValues.Value = False
         return True
 
-
     def OnSharedFamilyFound(self, sharedFamily, familyInUse, source, overwriteParameterValues):
         source.Value = DB.FamilySource.Family
         overwriteParameterValues.Value = False
         return True
 
-# Search project for all Families
-families = FilteredElementCollector(doc).OfClass(Family)
-# Set desired family name and type name:
-FamilyName = 'Fabrication Pipe - Elevation Tag'
-FamilyType = 'BOP'
-# Check if the family is in the project
-Fam_is_in_project = any(f.Name == FamilyName for f in families)
-#print("Family '{}' is in project: {}".format(FamilyName, is_in_project))
 
-family_pathCC1 = path + NewFilename
+def get_family_by_name(document, family_name):
+    for fam in FilteredElementCollector(document).OfClass(Family):
+        if fam.Name == family_name:
+            return fam
+    return None
 
 
-t = Transaction(doc, 'Load Pipe Elev Family')
-#Start Transaction
-t.Start()
-if Fam_is_in_project == False:
-    fload_handler = FamilyLoaderOptionsHandler()
-    family = doc.LoadFamily(family_pathCC1, fload_handler)
-t.Commit()
+def get_symbol_by_type_name(document, family, type_name):
+    if not family:
+        return None
 
-#Family symbol name to place.
-symbName = 'Fabrication Pipe - Elevation Tag'
+    for symbol_id in family.GetFamilySymbolIds():
+        symbol = document.GetElement(symbol_id)
+        if symbol:
+            p = symbol.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM)
+            if p and p.AsString() == type_name:
+                return symbol
+    return None
 
-#create a filtered element collector set to Category OST_Mass and Class FamilySymbol
-collector = FilteredElementCollector(doc)
-collector.OfCategory(BuiltInCategory.OST_FabricationPipeworkTags)
-collector.OfClass(FamilySymbol)
 
-famtypeitr = collector.GetElementIdIterator()
-famtypeitr.Reset()
+family = get_family_by_name(doc, FamilyName)
 
-#Search Family Symbols in document.
-for item in famtypeitr:
-    famtypeID = item
-    famsymb = doc.GetElement(famtypeID)
+if not family:
+    if not os.path.exists(family_path):
+        TaskDialog.Show("Error", "Family file not found:\n{}".format(family_path))
+        sys.exit()
 
-    #If the FamilySymbol is the name we are looking for, create a new instance.
-    if famsymb.Family.Name == symbName:
-        uidoc.PostRequestForElementTypePlacement(famsymb)
+    t = Transaction(doc, 'Load Pipe Elev Family')
+    t.Start()
+    try:
+        fload_handler = FamilyLoaderOptionsHandler()
+        result = doc.LoadFamily(family_path, fload_handler)
+        if not result:
+            t.RollBack()
+            TaskDialog.Show("Error", "Failed to load family '{}'.".format(FamilyName))
+            sys.exit()
+        t.Commit()
+    except Exception as e:
+        if t.HasStarted():
+            t.RollBack()
+        TaskDialog.Show("Error", "Error loading family:\n{}".format(str(e)))
+        sys.exit()
 
+    family = get_family_by_name(doc, FamilyName)
+
+if not family:
+    TaskDialog.Show("Error", "Family '{}' not found in project.".format(FamilyName))
+    sys.exit()
+
+target_symbol = get_symbol_by_type_name(doc, family, FamilyType)
+
+if not target_symbol:
+    TaskDialog.Show("Error", "Could not find type '{}' in family '{}'.".format(FamilyType, FamilyName))
+    sys.exit()
+
+uidoc.PostRequestForElementTypePlacement(target_symbol)

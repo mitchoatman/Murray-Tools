@@ -3,12 +3,17 @@ title:
   "Wall\nSleeve"
 
 tooltip: |-
-  Place wall sleeve family on pipe centerline at wall locations.
+  Place wall sleeve family on pipe centerline at user specified location.
   It will also append Fabrication service name and abbreviation to the sleeve.
   
   1.  Pick the pipe to place sleeve on.
   2.  Pick the intersection of the pipe and wall.
   3.  Repeat as necessary, ESC to end the command.
+
+  [Shift]+Click:
+  Place wall sleeve family on pipe centerline at SELECTED
+  LINK WALL LOCATION. It will also append Fabrication service
+  name and abbreviation to the sleeve.
 
 context: active-plan-view 
 

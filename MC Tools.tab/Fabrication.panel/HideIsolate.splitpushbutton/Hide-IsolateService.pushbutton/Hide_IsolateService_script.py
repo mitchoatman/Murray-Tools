@@ -13,7 +13,7 @@ from System.Windows import Application, Window, Thickness, HorizontalAlignment, 
     VerticalAlignment, ResizeMode, WindowStartupLocation, GridLength, GridUnitType
 from System.Windows.Controls import Button, TextBox, CheckBox, Grid, RowDefinition, \
     ColumnDefinition, Label, StackPanel, ScrollViewer, Orientation, ScrollBarVisibility
-from System.Windows.Media import Brushes, FontFamily
+from System.Windows.Media import Brushes, FontFamily, SolidColorBrush, Color
 from System.Windows.Controls.Primitives import UniformGrid
 from System.Windows.Input import Keyboard, ModifierKeys
 
@@ -113,7 +113,8 @@ class ServiceSelectionForm(object):
 
         self.reset_button = Button()
         self.reset_button.Content = "Reset View"
-        self.reset_button.Background = Brushes.Red
+        self.reset_button.Background = SolidColorBrush(Color.FromRgb(160, 82, 82))
+        self.reset_button.Foreground = Brushes.White
         self.reset_button.FontFamily = FontFamily("Arial")
         self.reset_button.FontSize = 12
         self.reset_button.Height = 25

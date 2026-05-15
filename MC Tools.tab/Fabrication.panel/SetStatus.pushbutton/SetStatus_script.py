@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# Imports
 import Autodesk
 from Autodesk.Revit.DB import FabricationConfiguration, ElementId, Transaction
 from Autodesk.Revit.UI import TaskDialog

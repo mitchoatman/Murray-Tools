@@ -1,69 +1,82 @@
-
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family, ViewType
+from Autodesk.Revit.DB import FilteredElementCollector, Transaction, Family, ViewType
 from Autodesk.Revit.UI import TaskDialog
-import os, sys
+import os
+import sys
 
-# Check active view type
-view = __revit__.ActiveUIDocument.ActiveView
+uidoc = __revit__.ActiveUIDocument
+doc = uidoc.Document
+view = uidoc.ActiveView
+
 if view.ViewType == ViewType.ThreeD:
     TaskDialog.Show("Error", "Cannot use in 3D view.")
     sys.exit()
 
 path, filename = os.path.split(__file__)
-NewFilename = '\Flow Arrow.rfa'
+family_path = os.path.join(path, 'Flow Arrow.rfa')
 
-app = __revit__.Application
-doc = __revit__.ActiveUIDocument.Document
-uidoc = __revit__.ActiveUIDocument
+FamilyName = 'Flow Arrow'
+FamilyType = 'Flow Arrow'
+
 
 class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):
         overwriteParameterValues.Value = False
         return True
 
-
     def OnSharedFamilyFound(self, sharedFamily, familyInUse, source, overwriteParameterValues):
         source.Value = DB.FamilySource.Family
         overwriteParameterValues.Value = False
         return True
 
-# Search project for all Families
-families = FilteredElementCollector(doc).OfClass(Family)
-# Set desired family name and type name:
-FamilyName = 'Flow Arrow'
-FamilyType = 'Flow Arrow'
-# Check if the family is in the project
-Fam_is_in_project = any(f.Name == FamilyName for f in families)
-#print("Family '{}' is in project: {}".format(FamilyName, is_in_project))
 
-family_pathCC = path + NewFilename
+def get_family_by_name(document, family_name):
+    for fam in FilteredElementCollector(document).OfClass(Family):
+        if fam.Name == family_name:
+            return fam
+    return None
 
-t = Transaction(doc, 'Load Flow Arrow Family')
-#Start Transaction
-t.Start()
-if Fam_is_in_project == False:
-    fload_handler = FamilyLoaderOptionsHandler()
-    family = doc.LoadFamily(family_pathCC, fload_handler)
-t.Commit()
 
-#Family symbol name to place.
-symbName = 'Flow Arrow'
+family = get_family_by_name(doc, FamilyName)
 
-#create a filtered element collector set to Category OST_Mass and Class FamilySymbol
-collector = FilteredElementCollector(doc)
-collector.OfCategory(BuiltInCategory.OST_GenericAnnotation)
-collector.OfClass(FamilySymbol)
+if not family:
+    if not os.path.exists(family_path):
+        TaskDialog.Show("Error", "Family file not found:\n{}".format(family_path))
+        sys.exit()
 
-famtypeitr = collector.GetElementIdIterator()
-famtypeitr.Reset()
+    t = Transaction(doc, 'Load Flow Arrow Family')
+    t.Start()
+    try:
+        fload_handler = FamilyLoaderOptionsHandler()
+        result = doc.LoadFamily(family_path, fload_handler)
+        if not result:
+            t.RollBack()
+            TaskDialog.Show("Error", "Failed to load family '{}'.".format(FamilyName))
+            sys.exit()
+        t.Commit()
+    except Exception as e:
+        if t.HasStarted():
+            t.RollBack()
+        TaskDialog.Show("Error", "Error loading family:\n{}".format(str(e)))
+        sys.exit()
 
-#Search Family Symbols in document.
-for item in famtypeitr:
-    famtypeID = item
-    famsymb = doc.GetElement(famtypeID)
+    family = get_family_by_name(doc, FamilyName)
 
-    #If the FamilySymbol is the name we are looking for, create a new instance.
-    if famsymb.Family.Name == symbName:
-        uidoc.PostRequestForElementTypePlacement(famsymb)
+if not family:
+    TaskDialog.Show("Error", "Family '{}' not found in project.".format(FamilyName))
+    sys.exit()
 
+target_symbol = None
+for symbol_id in family.GetFamilySymbolIds():
+    symbol = doc.GetElement(symbol_id)
+    if symbol:
+        p = symbol.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM)
+        if p and p.AsString() == FamilyType:
+            target_symbol = symbol
+            break
+
+if not target_symbol:
+    TaskDialog.Show("Error", "Type '{}' not found in family '{}'.".format(FamilyType, FamilyName))
+    sys.exit()
+
+uidoc.PostRequestForElementTypePlacement(target_symbol)

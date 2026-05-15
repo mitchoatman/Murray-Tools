@@ -2,7 +2,6 @@ layout:
   - CustomData
   - Length
   - Selection
-  - RefrigerationData
   - Pipe-Label
   - RenumValves
 

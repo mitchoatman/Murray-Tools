@@ -36,7 +36,7 @@ level = doc.ActiveView.GenLevel
 
 # File handling for saving issue type and description
 folder_name = "c:\\temp"
-filepath = os.path.join(folder_name, 'IssueType.txt')
+filepath = os.path.join(folder_name, 'Ribbon_IssueType.txt')
 
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)

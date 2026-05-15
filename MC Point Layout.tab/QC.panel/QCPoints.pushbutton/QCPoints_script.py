@@ -6,11 +6,11 @@ clr.AddReference('WindowsBase')
 
 from System.Windows import (
     Window, WindowStartupLocation, WindowStyle, GridLength,
-    HorizontalAlignment, VerticalAlignment, Thickness, FontWeights
+    HorizontalAlignment, Thickness, FontWeights
 )
 from System.Windows import GridUnitType
 from System.Windows.Controls import (
-    Grid, RowDefinition, ColumnDefinition, Button, TextBox,
+    Grid, RowDefinition, Button, TextBox,
     ScrollViewer, StackPanel, Orientation, Label
 )
 from System.Windows.Media import FontFamily
@@ -22,6 +22,7 @@ from Autodesk.Revit.DB import (
 from Autodesk.Revit.UI import TaskDialog
 
 import string
+from collections import defaultdict
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -103,20 +104,6 @@ def is_gtp_element(element):
     return False
 
 
-def is_seismic_brace_gtp(element):
-    if not is_gtp_element(element):
-        return False
-    try:
-        if isinstance(element, FamilyInstance) and element.SuperComponent:
-            parent = element.SuperComponent
-            if parent and parent.Category:
-                if get_id_value(parent.Category.Id) == int(BuiltInCategory.OST_StructuralStiffener):
-                    return True
-    except:
-        pass
-    return False
-
-
 def get_suffix(index):
     if index < 26:
         return string.ascii_uppercase[index]
@@ -144,6 +131,30 @@ def get_parameter_value(element, param_name):
                 return val.strip()
     except:
         pass
+
+    try:
+        if hasattr(element, "Symbol") and element.Symbol:
+            p = element.Symbol.LookupParameter(param_name)
+            if p and p.HasValue:
+                val = p.AsString()
+                if val and val.strip():
+                    return val.strip()
+    except:
+        pass
+
+    try:
+        type_id = element.GetTypeId()
+        if type_id != DB.ElementId.InvalidElementId:
+            elem_type = doc.GetElement(type_id)
+            if elem_type:
+                p = elem_type.LookupParameter(param_name)
+                if p and p.HasValue:
+                    val = p.AsString()
+                    if val and val.strip():
+                        return val.strip()
+    except:
+        pass
+
     return None
 
 
@@ -155,7 +166,6 @@ def clean_z(val, tol=1e-9):
 
 
 def get_shared_coords(point):
-    """Convert internal point to shared N, E, Elev."""
     if point is None:
         return None, None, None
     try:
@@ -165,39 +175,91 @@ def get_shared_coords(point):
         elev = clean_z(proj_pos.Elevation)
         return north, east, elev
     except:
-        return point.X, point.Y, clean_z(point.Z)
+        return point.Y, point.X, clean_z(point.Z)
 
 
 def get_ts_point_number(element):
-    """Read TS_Point_Number directly — no renumbering."""
     val = get_parameter_value(element, "TS_Point_Number")
     return val if val else ""
+
+
+def get_point_number_owner(element):
+    try:
+        if is_gtp_element(element) and isinstance(element, FamilyInstance) and element.SuperComponent:
+            return element.SuperComponent
+    except:
+        pass
+    return element
+
+
+def get_all_gtps_from_element(element):
+    gtps = []
+
+    if is_gtp_element(element):
+        gtps.append(element)
+
+    if isinstance(element, FamilyInstance):
+        try:
+            if hasattr(element, "GetSubComponentIds"):
+                for sub_id in element.GetSubComponentIds():
+                    sub_el = doc.GetElement(sub_id)
+                    if sub_el:
+                        gtps.extend(get_all_gtps_from_element(sub_el))
+
+            if hasattr(element, "GetSubelements"):
+                for sub in element.GetSubelements():
+                    sub_el = doc.GetElement(sub.ElementId)
+                    if sub_el:
+                        gtps.extend(get_all_gtps_from_element(sub_el))
+
+            if hasattr(element, "GetDependentElements"):
+                dep_ids = element.GetDependentElements(None)
+                for dep_id in dep_ids:
+                    dep_el = doc.GetElement(dep_id)
+                    if dep_el and is_gtp_element(dep_el) and dep_el not in gtps:
+                        gtps.append(dep_el)
+        except:
+            pass
+
+    return gtps
 
 
 # ── collect elements ──────────────────────────────────────────────────────────
 
 def collect_elements():
-    hangers = list(
+    view_elements = list(
         FilteredElementCollector(doc, curview.Id)
-        .OfCategory(BuiltInCategory.OST_FabricationHangers)
         .WhereElementIsNotElementType()
         .ToElements()
     )
-    generics = list(
-        FilteredElementCollector(doc, curview.Id)
-        .OfCategory(BuiltInCategory.OST_GenericModel)
-        .WhereElementIsNotElementType()
-        .ToElements()
-    )
-    gtps = [el for el in generics if is_gtp_element(el)]
 
-    all_elements = list(hangers) + gtps
+    temp_list = []
 
-    # Apply exclusions
+    for el in view_elements:
+        if not el or not el.Category:
+            continue
+
+        try:
+            cat_id = get_id_value(el.Category.Id)
+            if cat_id == int(BuiltInCategory.OST_FabricationHangers):
+                temp_list.append(el)
+            else:
+                temp_list.extend(get_all_gtps_from_element(el))
+        except:
+            pass
+
+    seen = set()
+    all_elements = []
+    for el in temp_list:
+        el_id = get_element_id_value(el)
+        if el_id in seen:
+            continue
+        seen.add(el_id)
+        all_elements.append(el)
+
     filtered = [
         el for el in all_elements
         if not (is_fab_hanger(el) and is_beam_hanger(el))
-        and not is_seismic_brace_gtp(el)
     ]
 
     return sorted(filtered, key=lambda el: get_element_id_value(el))
@@ -206,18 +268,43 @@ def collect_elements():
 # ── build point lines ─────────────────────────────────────────────────────────
 
 def build_point_lines(elements):
-    lines = []
+    lines = ["SETAPLCOLOR "]
+
+    owner_by_element = {}
+    gtp_groups_by_owner = defaultdict(list)
 
     for element in elements:
-        point_number = get_ts_point_number(element)
-        if not point_number:
-            continue  # skip elements with no point number assigned
+        owner = get_point_number_owner(element)
+        owner_by_element[get_element_id_value(element)] = owner
+
+        if not is_fab_hanger(element):
+            owner_id = get_element_id_value(owner)
+            gtp_groups_by_owner[owner_id].append(element)
+
+    gtp_index_by_element = {}
+    gtp_count_by_owner = {}
+
+    for owner_id, gtp_list in gtp_groups_by_owner.iteritems():
+        sorted_gtps = sorted(gtp_list, key=lambda el: get_element_id_value(el))
+        gtp_count_by_owner[owner_id] = len(sorted_gtps)
+        for idx, gtp_el in enumerate(sorted_gtps):
+            gtp_index_by_element[get_element_id_value(gtp_el)] = idx
+
+    point_count = 0
+
+    for element in elements:
+        owner = owner_by_element[get_element_id_value(element)]
+        owner_number = get_ts_point_number(owner)
+
+        if not owner_number:
+            continue
 
         if is_fab_hanger(element):
             try:
                 rod_info = element.GetRodInfo()
                 if rod_info is None:
                     continue
+
                 rod_count = rod_info.RodCount
 
                 for i in range(rod_count):
@@ -226,11 +313,9 @@ def build_point_lines(elements):
                         continue
 
                     if rod_count == 1:
-                        pid = point_number
-                    elif is_trapeze_hanger(element):
-                        pid = make_rck_child_point_number(point_number, i)
+                        pid = owner_number
                     else:
-                        pid = make_child_point_number(point_number, i)
+                        pid = make_child_point_number(owner_number, i)
 
                     north, east, elev = get_shared_coords(pos)
                     if north is None:
@@ -241,18 +326,11 @@ def build_point_lines(elements):
                         round(north * 12, 8),
                         round(elev * 12, 8)
                     ))
+                    point_count += 1
             except:
                 continue
 
         else:
-            # GTP
-            # Check parent for point number override
-            owner_number = point_number
-            if isinstance(element, FamilyInstance) and element.SuperComponent:
-                parent_num = get_ts_point_number(element.SuperComponent)
-                if parent_num:
-                    owner_number = parent_num
-
             try:
                 loc = element.Location
                 if hasattr(loc, 'Point') and loc.Point is not None:
@@ -264,46 +342,54 @@ def build_point_lines(elements):
                 if north is None:
                     continue
 
+                owner_id = get_element_id_value(owner)
+                gtp_count = gtp_count_by_owner.get(owner_id, 1)
+                gtp_index = gtp_index_by_element.get(get_element_id_value(element), 0)
+
+                if gtp_count == 1:
+                    pid = owner_number
+                else:
+                    pid = make_child_point_number(owner_number, gtp_index)
+
                 lines.append("POINT {},{},{} ".format(
                     round(east * 12, 8),
                     round(north * 12, 8),
                     round(elev * 12, 8)
                 ))
+                point_count += 1
             except:
                 continue
 
-    return ["SETAPLCOLOR "] + lines
+    return lines, point_count
 
 
 # ── display window ────────────────────────────────────────────────────────────
 
 class PointDisplayWindow(Window):
-    def __init__(self, lines):
+    def __init__(self, lines, point_count):
         self.Title = "Point Export — Copy to CAD"
         self.Width = 680
         self.Height = 520
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
         self.WindowStyle = WindowStyle.SingleBorderWindow
-        self.ResizeMode = 0  # CanResizeWithGrip
+        self.ResizeMode = 0
         self.Topmost = True
 
         root = Grid()
         root.Margin = Thickness(10)
         self.Content = root
 
-        root.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))   # header
-        root.RowDefinitions.Add(RowDefinition(Height=GridLength(1, GridUnitType.Star)))  # text
-        root.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))   # buttons
+        root.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
+        root.RowDefinitions.Add(RowDefinition(Height=GridLength(1, GridUnitType.Star)))
+        root.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
 
-        # Header label
         header = Label()
-        header.Content = "{} point(s) — Copy, then paste into CAD command line".format(len(lines))
+        header.Content = "{} point(s) — Copy, then paste into CAD command line".format(point_count)
         header.FontWeight = FontWeights.Bold
         header.Margin = Thickness(0, 0, 0, 6)
         Grid.SetRow(header, 0)
         root.Children.Add(header)
 
-        # Scrollable text box
         scroll = ScrollViewer()
         Grid.SetRow(scroll, 1)
         root.Children.Add(scroll)
@@ -313,12 +399,11 @@ class PointDisplayWindow(Window):
         self.txt.FontSize = 12
         self.txt.IsReadOnly = True
         self.txt.AcceptsReturn = True
-        self.txt.VerticalScrollBarVisibility = 0   # Auto
+        self.txt.VerticalScrollBarVisibility = 0
         self.txt.HorizontalScrollBarVisibility = 0
         self.txt.Text = "\r\n".join(lines)
         scroll.Content = self.txt
 
-        # Buttons
         btn_panel = StackPanel()
         btn_panel.Orientation = Orientation.Horizontal
         btn_panel.HorizontalAlignment = HorizontalAlignment.Right
@@ -330,20 +415,13 @@ class PointDisplayWindow(Window):
         btn_copy.Content = "Copy"
         btn_copy.Width = 90
         btn_copy.Height = 28
-        btn_copy.Margin = Thickness(0, 0, 8, 0)
         btn_copy.Click += self.on_copy
         btn_panel.Children.Add(btn_copy)
-
-        btn_close = Button()
-        btn_close.Content = "Close"
-        btn_close.Width = 90
-        btn_close.Height = 28
-        btn_close.Click += lambda s, e: self.Close()
-        btn_panel.Children.Add(btn_close)
 
     def on_copy(self, sender, args):
         self.txt.SelectAll()
         self.txt.Copy()
+        self.Close()
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
@@ -353,10 +431,10 @@ elements = collect_elements()
 if not elements:
     TaskDialog.Show("No Elements", "No fabrication hangers or GTP points found in the active view.")
 else:
-    lines = build_point_lines(elements)
+    lines, point_count = build_point_lines(elements)
 
-    if not lines:
+    if point_count == 0:
         TaskDialog.Show("No Points", "Elements were found but none had a TS_Point_Number assigned.")
     else:
-        win = PointDisplayWindow(lines)
+        win = PointDisplayWindow(lines, point_count)
         win.ShowDialog()

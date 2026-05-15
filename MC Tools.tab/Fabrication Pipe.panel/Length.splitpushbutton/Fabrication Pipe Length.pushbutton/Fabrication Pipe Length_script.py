@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+import sys
 import clr
 clr.AddReference('System.Windows.Forms')
 import System
@@ -7,7 +9,7 @@ from Autodesk.Revit.DB import (
     FabricationPart
 )
 from Autodesk.Revit.UI.Selection import ObjectType
-import sys
+from Autodesk.Revit.UI import TaskDialog
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -95,6 +97,9 @@ for pipe in Fpipework:
     except Exception as e:
         print "Error processing Element ID {}: {}".format(pipe.Id, str(e))
 
-# Output results
-print "Total straight pipes processed (CID 2041): {}".format(straight_pipes)
-print "Linear feet of selected straight pipe(s): {:.2f}".format(Total_Length)
+message = (
+    "Straight Pipes Included in Total: {}\n"
+    "Total Linear Feet: {:.2f} LF"
+).format(straight_pipes, Total_Length)
+
+TaskDialog.Show("Pipe Length Summary", message)

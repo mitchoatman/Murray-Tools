@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory

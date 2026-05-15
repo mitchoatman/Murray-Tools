@@ -10,8 +10,8 @@ clr.AddReference('System.Drawing')
 from System.Drawing import Point
 
 path, filename = os.path.split(__file__)
-NewFilename = '\Fabrication Pipe - Size Tag.rfa'
-ElevationTagFilename = '\Fabrication Pipe - Elevation Tag.rfa'
+family_pathCC2 = os.path.join(path, 'Fabrication Pipe - Size Tag.rfa')
+family_pathCC1 = os.path.join(path, 'Fabrication Pipe - Elevation Tag.rfa')
 
 app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
@@ -29,11 +29,32 @@ def get_id_value(id_obj):
         except:
             return id_obj.IntegerValue
 
+def get_pipe_sort_point(pipe):
+    try:
+        connectors = pipe.ConnectorManager.Connectors
+        if connectors.Size >= 2:
+            conn_list = list(connectors)
+            return (conn_list[0].Origin + conn_list[1].Origin) / 2.0
+        elif connectors.Size == 1:
+            return list(connectors)[0].Origin
+    except:
+        pass
+
+    try:
+        bbox = pipe.get_BoundingBox(doc.ActiveView)
+        if bbox:
+            return (bbox.Min + bbox.Max) / 2.0
+    except:
+        pass
+
+    return DB.XYZ(0, 0, 0)
+
 class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):
         overwriteParameterValues.Value = False
         return True
-    def OnSharedFamilyFound(self, familyInUse, source, overwriteParameterValues):
+
+    def OnSharedFamilyFound(self, sharedFamily, familyInUse, source, overwriteParameterValues):
         source.Value = DB.FamilySource.Family
         overwriteParameterValues.Value = False
         return True
@@ -43,13 +64,11 @@ SizeFamilyType = 'Size Tag'
 ElevationFamilyName = 'Fabrication Pipe - Elevation Tag'
 ElevationFamilyType = 'BOI'
 
-family_pathCC2 = path + NewFilename
-family_pathCC1 = path + ElevationTagFilename
-
 # Validate file paths
 if not os.path.exists(family_pathCC2):
     TaskDialog.Show("Error", "Size tag family file not found: " + family_pathCC2)
     raise Exception("Size tag family file not found: " + family_pathCC2)
+
 if not os.path.exists(family_pathCC1):
     TaskDialog.Show("Error", "Elevation tag family file not found: " + family_pathCC1)
     raise Exception("Elevation tag family file not found: " + family_pathCC1)
@@ -79,15 +98,19 @@ collector = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Fabrica
 size_symbol = None
 elevation_symbol = None
 for symbol in collector:
-    if symbol.Family.Name == SizeFamilyName and symbol.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString() == SizeFamilyType:
+    type_param = symbol.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM)
+    type_name = type_param.AsString() if type_param else ""
+
+    if symbol.Family.Name == SizeFamilyName and type_name == SizeFamilyType:
         size_symbol = symbol
-    if symbol.Family.Name == ElevationFamilyName and symbol.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString() == ElevationFamilyType:
+    if symbol.Family.Name == ElevationFamilyName and type_name == ElevationFamilyType:
         elevation_symbol = symbol
 
 # Validate symbols
 if not size_symbol or not size_symbol.IsValidObject:
     TaskDialog.Show("Error", "Required size tag family type not found or invalid")
     raise Exception("Required size tag family type not found or invalid")
+
 if not elevation_symbol or not elevation_symbol.IsValidObject:
     TaskDialog.Show("Error", "Required elevation tag family type not found or invalid")
     raise Exception("Required elevation tag family type not found or invalid")
@@ -97,20 +120,27 @@ if not size_symbol.IsActive:
     with Transaction(doc, 'Activate Size Family Symbol') as t:
         t.Start()
         size_symbol.Activate()
+        doc.Regenerate()
         t.Commit()
 
 if not elevation_symbol.IsActive:
     with Transaction(doc, 'Activate Elevation Family Symbol') as t:
         t.Start()
         elevation_symbol.Activate()
+        doc.Regenerate()
         t.Commit()
 
 try:
     class FabricationPipeFilter(ISelectionFilter):
         def AllowElement(self, element):
-            if get_id_value(element.Category.Id) == int(BuiltInCategory.OST_FabricationPipework):
-                param = element.ItemCustomId
-                return param == 2041
+            try:
+                if element.Category and get_id_value(element.Category.Id) == int(BuiltInCategory.OST_FabricationPipework):
+                    return element.ItemCustomId == 2041
+            except:
+                return False
+            return False
+
+        def AllowReference(self, reference, point):
             return False
 
     selected_refs = uidoc.Selection.PickObjects(ObjectType.Element, FabricationPipeFilter(), "Select fabrication pipes CID 2041")
@@ -133,14 +163,22 @@ try:
     spacing = DB.UnitUtils.ConvertToInternalUnits(spacing_inches, DB.UnitTypeId.Inches)
     base_point = uidoc.Selection.PickPoint("Select base point for stacked tags")
     
-    # Sort pipes
+    # Better sorting using pipe midpoint
     if is_x_direction:
-        sorted_pipes = sorted(selected_pipes, key=lambda p: list(p.ConnectorManager.Connectors)[0].Origin.Y if p.ConnectorManager.Connectors.Size > 0 else 0, reverse=True)
+        sorted_pipes = sorted(
+            selected_pipes,
+            key=lambda p: (-get_pipe_sort_point(p).Y, get_pipe_sort_point(p).X)
+        )
     else:
-        sorted_pipes = sorted(selected_pipes, key=lambda p: list(p.ConnectorManager.Connectors)[0].Origin.X if p.ConnectorManager.Connectors.Size > 0 else 0)
+        sorted_pipes = sorted(
+            selected_pipes,
+            key=lambda p: (get_pipe_sort_point(p).X, -get_pipe_sort_point(p).Y)
+        )
     
     x_offset = 0.0
     y_offset = -spacing
+
+    failed_pipes = []
 
     # Batch tag creation
     batch_size = 10
@@ -150,12 +188,12 @@ try:
             for j, pipe in enumerate(sorted_pipes[i:i+batch_size]):
                 try:
                     if pipe.ConnectorManager.Connectors.Size == 0:
-                        TaskDialog.Show("Warning", "Skipping pipe with no connectors: " + str(pipe.Id))
+                        failed_pipes.append(str(pipe.Id))
                         continue
                     tag_position = DB.XYZ(base_point.X + ((i+j) * x_offset), base_point.Y + ((i+j) * y_offset), base_point.Z)
                     DB.IndependentTag.Create(doc, size_symbol.Id, doc.ActiveView.Id, DB.Reference(pipe), False, DB.TagOrientation.Horizontal, tag_position)
                 except Exception, e:
-                    TaskDialog.Show("Error", "Failed to create tag for pipe " + str(pipe.Id) + ": " + str(e))
+                    failed_pipes.append(str(pipe.Id))
                     continue
             t.Commit()
 
@@ -182,6 +220,9 @@ try:
         except Exception, e:
             TaskDialog.Show("Error", "Failed to create elevation tag: " + str(e))
         t.Commit()
+
+    if failed_pipes:
+        TaskDialog.Show("Warning", "Some pipes were skipped: " + ", ".join(failed_pipes))
 
 except Exception, e:
     TaskDialog.Show("Error", "Operation cancelled or failed: " + str(e))

@@ -72,7 +72,8 @@ try:
                                if "Metal Sleeve" in element.Name or 
                                   "Plastic Sleeve" in element.Name or 
                                   "Round Floor Sleeve" in element.Name or 
-                                  "Cast Iron Sleeve" in element.Name]
+                                  "Cast Iron Sleeve" in element.Name or
+                                  "Pipe Riser" in element.Name]
 
             for e in accessory_elements:
                 R = Reference(e)

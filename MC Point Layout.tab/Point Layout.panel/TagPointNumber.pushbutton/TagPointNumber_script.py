@@ -47,14 +47,16 @@ def is_parent_family_instance(element):
 FAMILY_NAME = 'Multi Category Tag -TS_Point_Number'
 FAMILY_TYPE = 'Multi Category Tag -TS_Point_Number'
 
-FAMILY_PATH = r'C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Annotation\Multi Category Tag -TS_Point_Number.rfa'
+SCRIPT_DIR = os.path.dirname(__file__)
+FAMILY_FILE = 'Multi Category Tag -TS_Point_Number.rfa'
+FAMILY_PATH = os.path.join(SCRIPT_DIR, FAMILY_FILE)
 
-# Edit these categories as needed
 TARGET_CATEGORIES = [
     BuiltInCategory.OST_PipeAccessory,
     BuiltInCategory.OST_PlumbingFixtures,
     BuiltInCategory.OST_StructuralStiffener,
     BuiltInCategory.OST_GenericModel,
+    BuiltInCategory.OST_FabricationHangers,
 ]
 
 

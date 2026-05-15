@@ -1,64 +1,92 @@
-# Imports
-from Autodesk.Revit import DB
-from Autodesk.Revit.DB import *
-from rpw.ui.forms import TextInput
-from Autodesk.Revit.UI.Selection import *
+# -*- coding: utf-8 -*-
 import math
+
+from Autodesk.Revit import DB
+from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 
-def set_parameter_by_name(element, parameterName, value):
-    element.LookupParameter(parameterName).Set(value)
 
-class CustomISelectionFilter(ISelectionFilter):
-    def __init__(self, nom_categorie):
-        self.nom_categorie = nom_categorie
-    def AllowElement(self, e):
-        if e.Category.Name == self.nom_categorie:
-            return True
-        else:
-            return False
-    def AllowReference(self, ref, point):
+# -----------------------------
+# Selection Filter
+# -----------------------------
+class HangerSelectionFilter(ISelectionFilter):
+    def AllowElement(self, element):
+        cat = element.Category
+        return cat and cat.Name == "MEP Fabrication Hangers"
+
+    def AllowReference(self, reference, point):
         return True
 
-Hanger = []
-Dimensions = []
 
-def myround(x, multiple):
-    return multiple * math.ceil(x / multiple)
+# -----------------------------
+# Helpers
+# -----------------------------
+def round_up(value, multiple):
+    return multiple * math.ceil(value / float(multiple))
 
-bvalue_abvstd = 0.0
 
+# -----------------------------
+# Select Hangers
+# -----------------------------
 try:
-    pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
-                                          CustomISelectionFilter("MEP Fabrication Hangers"),
-                                          "Select Fabrication Hangers")
-    Hanger = [doc.GetElement(elId) for elId in pipesel]
-except:
-    # Exit quietly on selection cancellation
-    pass
+    refs = uidoc.Selection.PickObjects(
+        ObjectType.Element,
+        HangerSelectionFilter(),
+        "Select Fabrication Hangers"
+    )
 
-t = Transaction(doc, "Round Trapeze Width")
-t.Start()
+except Exception:
+    refs = []
 
-if Hanger:
-    for e in Hanger:
-        e.GetHostedInfo().DisconnectFromHost()
-        for dim in e.GetDimensions():
-            Dimensions.append(dim.Name)
+
+if refs:
+
+    hangers = [doc.GetElement(r) for r in refs]
+
+    t = DB.Transaction(doc, "Round Trapeze Width")
+    t.Start()
+
+    for hanger in hangers:
+
+        hosted_info = hanger.GetHostedInfo()
+        if hosted_info:
+            hosted_info.DisconnectFromHost()
+
+        width_value = None
+        bearer_value = None
+
+        # Collect required dimensions
+        for dim in hanger.GetDimensions():
+
             if dim.Name == "Width":
-                width_value = e.GetDimensionValue(dim)
-                # e.SetDimensionValue(dim, width_value)
-            if dim.Name == "Bearer Extn":
-                bearer_value = e.GetDimensionValue(dim)
-                in_bvalue = (bearer_value * 12)
-                if in_bvalue > 4.0:
-                    bvalue_abvstd = in_bvalue - 4.0
-                in_wvalue = (width_value * 12)
-                rnd_value = myround((in_bvalue + in_wvalue + bvalue_abvstd), 2)
-                abv_value = rnd_value - in_wvalue
-                hlf_diff = (abv_value - 4.0) / 2
-                new_value = (abv_value - hlf_diff) / 12
-                e.SetDimensionValue(dim, new_value)
-t.Commit()
+                width_value = hanger.GetDimensionValue(dim)
+
+            elif dim.Name == "Bearer Extn":
+                bearer_value = hanger.GetDimensionValue(dim)
+                bearer_dim = dim
+
+        # Skip invalid hangers
+        if width_value is None or bearer_value is None:
+            continue
+
+        # Convert to inches
+        width_inches = width_value * 12.0
+        bearer_inches = bearer_value * 12.0
+
+        extra_bearer = max(bearer_inches - 4.0, 0.0)
+
+        rounded = round_up(
+            width_inches + bearer_inches + extra_bearer,
+            2.0
+        )
+
+        adjusted = rounded - width_inches
+        half_diff = (adjusted - 4.0) / 2.0
+
+        new_bearer = (adjusted - half_diff) / 12.0
+
+        hanger.SetDimensionValue(bearer_dim, new_bearer)
+
+    t.Commit()

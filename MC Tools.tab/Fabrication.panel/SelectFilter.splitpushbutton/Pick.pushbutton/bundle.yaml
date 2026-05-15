@@ -13,9 +13,12 @@ tooltip: |-
   4. Do what you will with selected elements...
 
 
-# context directives are listed under `context` key, the order does not matter
-#context:
-#  - Selection
+  [Shift]+Click:    
+  Pre-Filter selection by workset.
+  1. Execute command.
+  2. Select category filter.
+  3. Pick elements with rectangle (filtered).
+  4. Do what you will with selected elements...
 
 # bundle help url
 help_url: "https://youtu.be/lSqrnCQ3Hng"

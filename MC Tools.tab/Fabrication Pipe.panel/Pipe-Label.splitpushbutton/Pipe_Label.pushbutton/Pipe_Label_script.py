@@ -1,85 +1,266 @@
+# -*- coding: utf-8 -*-
+import clr
+clr.AddReference('System')
+import System
 
 import Autodesk
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FilteredElementCollector, Family, BuiltInCategory, FamilySymbol, LocationCurve,ElementCategoryFilter, BuiltInCategory, ElementClassFilter, BuiltInParameter, \
-                                ElementId, ElementParameterFilter, ParameterValueProvider, FilterStringRule, FilterStringEquals, LogicalAndFilter, Transaction, FamilyInstance
-from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString, \
-                                        get_parameter_value_by_name_AsInteger, get_parameter_value_by_name_AsValueString, get_parameter_value_by_name_AsDouble
+from Autodesk.Revit.DB import (
+    FilteredElementCollector,
+    Family,
+    BuiltInCategory,
+    FamilySymbol,
+    LocationCurve,
+    ElementCategoryFilter,
+    ElementClassFilter,
+    BuiltInParameter,
+    ElementId,
+    ElementParameterFilter,
+    ParameterValueProvider,
+    FilterStringRule,
+    FilterStringEquals,
+    LogicalAndFilter,
+    Transaction,
+    FamilyInstance
+)
+from Autodesk.Revit.UI import TaskDialog
+from Autodesk.Revit.UI.Events import TaskDialogShowingEventArgs
 from Autodesk.Revit.UI.Selection import ObjectType
-import re
-from math import atan2, degrees
-from fractions import Fraction
+from Autodesk.Revit.Exceptions import OperationCanceledException
+
+from Parameters.Get_Set_Params import (
+    set_parameter_by_name,
+    get_parameter_value_by_name_AsString,
+    get_parameter_value_by_name_AsInteger,
+    get_parameter_value_by_name_AsValueString,
+    get_parameter_value_by_name_AsDouble
+)
 from Parameters.Add_SharedParameters import Shared_Params
+
+import re
 import os
+from math import atan2
+from fractions import Fraction
 
 Shared_Params()
 
 path, filename = os.path.split(__file__)
-NewFilename = '\Pipe Label.rfa'
+family_pathCC = os.path.join(path, 'Pipe Label.rfa')
 
-DB = Autodesk.Revit.DB
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+uiapp = __revit__
 curview = doc.ActiveView
-fec = FilteredElementCollector
 app = doc.Application
 RevitVersion = app.VersionNumber
-RevitINT = float (RevitVersion)
+RevitINT = float(RevitVersion)
 
-# Get the associated level of the active view
-level = curview.GenLevel
+FamilyName = 'Pipe Label'
+FamilyType = 'Pipe Label'
 
+try:
+    level = curview.GenLevel
+except:
+    level = None
+
+
+def show_message(title, message):
+    try:
+        TaskDialog.Show(title, message)
+    except:
+        pass
+
+
+# --------------------------------------------------
+# Robust family loading
+# --------------------------------------------------
 class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):
         overwriteParameterValues.Value = False
         return True
 
     def OnSharedFamilyFound(self, sharedFamily, familyInUse, source, overwriteParameterValues):
-        source.Value = DB.FamilySource.Family
+        source.Value = DB.FamilySource.Project
         overwriteParameterValues.Value = False
         return True
 
-# Search project for all Families
-families = FilteredElementCollector(doc).OfClass(Family)
-# Set desired family name and type name:
-FamilyName = 'Pipe Label'
-FamilyType = 'Pipe Label'
-# Check if the family is in the project
-Fam_is_in_project = any(f.Name == FamilyName for f in families)
 
-family_pathCC = path + NewFilename
+def shared_family_dialog_fallback(sender, args):
+    try:
+        if isinstance(args, TaskDialogShowingEventArgs):
+            msg = (args.Message or "").lower()
+            dialog_id = (args.DialogId or "").lower()
 
-t = Transaction(doc, 'Load Pipe Label Family')
-t.Start()
-if not Fam_is_in_project:
-    fload_handler = FamilyLoaderOptionsHandler()
-    family = doc.LoadFamily(family_pathCC, fload_handler)
+            if ("shared" in msg and "already exists" in msg and "project" in msg) \
+               or ("shared" in dialog_id and "family" in dialog_id):
+                args.OverrideResult(1003)
+    except:
+        pass
 
-collector = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeAccessory).OfClass(FamilySymbol)
 
-# Filter family symbols by family name and type name
-famsymb = None
-for fs in collector:
-    if fs.Family.Name == FamilyName and fs.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString() == FamilyType:
-        famsymb = fs
-        break
+class PipeLabelFamilyManager(object):
+    def __init__(self, document, family_name, family_path):
+        self.doc = document
+        self.family_name = family_name
+        self.family_path = family_path
+        self.family = None
+        self.symbol_cache = {}
 
-if famsymb:
-    famsymb.Activate()
-    doc.Regenerate()
+    def get_family_by_name(self):
+        if self.family and self.family.IsValidObject:
+            return self.family
 
-t.Commit()
+        for fam in FilteredElementCollector(self.doc).OfClass(Family):
+            if fam.Name == self.family_name:
+                self.family = fam
+                return fam
 
-symbName = 'Pipe Label'
+        self.family = None
+        return None
 
-def set_parameter_by_name(element, parameterName, value):
+    def get_symbol_name(self, symbol):
+        try:
+            if symbol.Name:
+                return symbol.Name
+        except:
+            pass
+
+        try:
+            p = symbol.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM)
+            if p:
+                return p.AsString()
+        except:
+            pass
+
+        return None
+
+    def load_family_if_missing(self):
+        fam = self.get_family_by_name()
+        if fam:
+            return fam
+
+        if not os.path.exists(self.family_path):
+            show_message("Error", "Family file not found:\n{}".format(self.family_path))
+            return None
+
+        t = None
+        uiapp.DialogBoxShowing += shared_family_dialog_fallback
+        try:
+            t = Transaction(self.doc, "Load {} Family".format(self.family_name))
+            t.Start()
+
+            loaded_family_ref = clr.Reference[Family]()
+            result = self.doc.LoadFamily(
+                self.family_path,
+                FamilyLoaderOptionsHandler(),
+                loaded_family_ref
+            )
+
+            t.Commit()
+
+            if result and loaded_family_ref.Value:
+                self.family = loaded_family_ref.Value
+                return self.family
+
+            return self.get_family_by_name()
+
+        except Exception as e:
+            if t and t.HasStarted() and not t.HasEnded():
+                t.RollBack()
+            show_message("Error", "Family load error:\n{}".format(str(e)))
+            return None
+
+        finally:
+            uiapp.DialogBoxShowing -= shared_family_dialog_fallback
+            if t:
+                t.Dispose()
+
+    def build_symbol_cache(self):
+        self.symbol_cache = {}
+
+        fam = self.get_family_by_name()
+        if not fam:
+            return
+
+        for symbol_id in fam.GetFamilySymbolIds():
+            sym = self.doc.GetElement(symbol_id)
+            if sym:
+                type_name = self.get_symbol_name(sym)
+                if type_name:
+                    self.symbol_cache[type_name.strip().upper()] = sym
+
+    def get_symbol_by_type_name(self, type_name):
+        if not type_name:
+            return None
+
+        if not self.symbol_cache:
+            self.build_symbol_cache()
+
+        return self.symbol_cache.get(type_name.strip().upper())
+
+    def activate_symbol_if_needed(self, symbol):
+        if not symbol:
+            return False
+
+        if symbol.IsActive:
+            return True
+
+        t = None
+        try:
+            t = Transaction(self.doc, "Activate {} Symbol".format(self.family_name))
+            t.Start()
+            symbol.Activate()
+            self.doc.Regenerate()
+            t.Commit()
+            return True
+        except Exception as e:
+            if t and t.HasStarted() and not t.HasEnded():
+                t.RollBack()
+            show_message("Error", "Family symbol activation error:\n{}".format(str(e)))
+            return False
+        finally:
+            if t:
+                t.Dispose()
+
+    def get_ready_symbol(self, type_name):
+        fam = self.load_family_if_missing()
+        if not fam:
+            return None
+
+        self.build_symbol_cache()
+
+        sym = self.get_symbol_by_type_name(type_name)
+        if not sym:
+            show_message(
+                "Error",
+                "Type '{}' not found in family '{}'.".format(type_name, self.family_name)
+            )
+            return None
+
+        if not self.activate_symbol_if_needed(sym):
+            return None
+
+        return sym
+
+
+family_manager = PipeLabelFamilyManager(doc, FamilyName, family_pathCC)
+famsymb = family_manager.get_ready_symbol(FamilyType)
+
+if not famsymb:
+    raise Exception("Family symbol '{}' was not found or could not be activated.".format(FamilyType))
+
+
+def set_parameter_by_name_local(element, parameterName, value):
     element.LookupParameter(parameterName).Set(value)
+
 
 def get_parameter_value_by_name(element, parameterName):
     return element.LookupParameter(parameterName).AsDouble()
 
-def get_parameter_value_by_name_AsDouble(element, parameterName):
+
+def get_parameter_value_by_name_AsDouble_local(element, parameterName):
     return element.LookupParameter(parameterName).AsDouble()
+
 
 def select_fabrication_pipe():
     selection = uidoc.Selection
@@ -87,9 +268,11 @@ def select_fabrication_pipe():
     pipe = doc.GetElement(pipe_ref.ElementId)
     return pipe
 
+
 def pick_point():
     picked_point = uidoc.Selection.PickPoint("Pick a point along the centerline of the pipe")
     return picked_point
+
 
 def get_pipe_centerline(pipe):
     pipe_location = pipe.Location
@@ -98,97 +281,128 @@ def get_pipe_centerline(pipe):
     else:
         raise Exception("The selected element does not have a valid centerline.")
 
+
 def project_point_on_curve(point, curve):
     result = curve.Project(point)
+    if not result:
+        raise Exception("Could not project point onto pipe centerline.")
     return result.XYZPoint
+
+
+def create_family_instance(insertion_point, symbol):
+    try:
+        if level:
+            return doc.Create.NewFamilyInstance(
+                insertion_point,
+                symbol,
+                level,
+                DB.Structure.StructuralType.NonStructural
+            )
+    except:
+        pass
+
+    return doc.Create.NewFamilyInstance(
+        insertion_point,
+        symbol,
+        DB.Structure.StructuralType.NonStructural
+    )
+
 
 def place_and_modify_family(pipe, famsymb):
     centerline_curve = get_pipe_centerline(pipe)
     picked_point = pick_point()
-    
-    # Project the picked point onto the pipe centerline to get the Z coordinate
+
     projected_point = project_point_on_curve(picked_point, centerline_curve)
-    
-    # Create the insertion point using the X and Y from the picked point and Z from the projected point
     insertion_point = DB.XYZ(picked_point.X, picked_point.Y, projected_point.Z)
-    
-    new_family_instance = doc.Create.NewFamilyInstance(insertion_point, famsymb, DB.Structure.StructuralType.NonStructural)
+
+    new_family_instance = create_family_instance(insertion_point, famsymb)
+    if not new_family_instance:
+        raise Exception("Failed to create family instance.")
 
     def frac2string(s):
         i, f = s.groups(0)
         f = Fraction(f)
         return str(int(i) + float(f))
 
-    if '/' in get_parameter_value_by_name_AsString(pipe, 'Overall Size'):
-        diameter = float(re.sub(r'(?:(\d+)[-\s])?(\d+/\d+)[^\d.]', frac2string, get_parameter_value_by_name_AsString(pipe, 'Overall Size'))) / 12
+    overall_size = get_parameter_value_by_name_AsString(pipe, 'Overall Size')
+    if not overall_size:
+        raise Exception("Pipe does not have a valid Overall Size.")
+
+    if '/' in overall_size:
+        diameter = float(
+            re.sub(r'(?:(\d+)[-\s])?(\d+/\d+)[^\d.]', frac2string, overall_size)
+        ) / 12.0
     else:
-        diameter = float(re.sub(r'[^\d.]', '', get_parameter_value_by_name_AsString(pipe, 'Overall Size'))) / 12
-    set_parameter_by_name(new_family_instance, "Diameter", diameter)
-    
-    # Get connector locations
+        diameter = float(re.sub(r'[^\d.]', '', overall_size)) / 12.0
+
+    set_parameter_by_name_local(new_family_instance, "Diameter", diameter)
+
     pipe_connectors = list(pipe.ConnectorManager.Connectors)
+    if len(pipe_connectors) < 2:
+        raise Exception("Selected pipe does not have enough connectors.")
+
     connector1, connector2 = pipe_connectors[0], pipe_connectors[1]
 
-    # Calculate distances to the picked_point
     distance1 = picked_point.DistanceTo(connector1.Origin)
     distance2 = picked_point.DistanceTo(connector2.Origin)
 
-    # Determine the nearest connector
     if distance1 < distance2:
         connector1, connector2 = connector1, connector2
     else:
         connector1, connector2 = connector2, connector1
 
-    # Calculate vector components and angle
     vec_x = connector2.Origin.X - connector1.Origin.X
     vec_y = connector2.Origin.Y - connector1.Origin.Y
     angle = atan2(vec_y, vec_x)
-    axis = DB.Line.CreateBound(insertion_point, DB.XYZ(insertion_point.X, insertion_point.Y, insertion_point.Z + 1))
-    
-    # Set rotation on new family placed in model
+    axis = DB.Line.CreateBound(
+        insertion_point,
+        DB.XYZ(insertion_point.X, insertion_point.Y, insertion_point.Z + 1.0)
+    )
+
     DB.ElementTransformUtils.RotateElement(doc, new_family_instance.Id, axis, angle)
-    
-    # Set FP parameters on new family placed in model
-    set_parameter_by_name(new_family_instance, 'FP_Service Name', get_parameter_value_by_name_AsString(pipe, 'Fabrication Service Name'))
-    set_parameter_by_name(new_family_instance, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(pipe, 'Fabrication Service Abbreviation'))
+
+    set_parameter_by_name_local(
+        new_family_instance,
+        'FP_Service Name',
+        get_parameter_value_by_name_AsString(pipe, 'Fabrication Service Name')
+    )
+    set_parameter_by_name_local(
+        new_family_instance,
+        'FP_Service Abbreviation',
+        get_parameter_value_by_name_AsString(pipe, 'Fabrication Service Abbreviation')
+    )
+
     schedule_level_param = new_family_instance.LookupParameter("Schedule Level")
-    schedule_level_param.Set(level.Id)
+    if schedule_level_param and not schedule_level_param.IsReadOnly and level:
+        schedule_level_param.Set(level.Id)
+
 
 def set_pipe_label_size():
-
-    # Create a filter for pipe accessories
     pipe_accessory_filter = ElementCategoryFilter(BuiltInCategory.OST_PipeAccessory)
-
-    # Create a filter for family instances (optional, as pipe accessories are already family instances)
     family_instance_filter = ElementClassFilter(FamilyInstance)
 
-    # Create a parameter value provider for the family name
     provider = ParameterValueProvider(ElementId(BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM))
 
-    # Define the rule to filter by the family name "Pipe Label"
-    # Remove False for new Revit versions
     if RevitINT > 2022:
         rule = FilterStringRule(provider, FilterStringEquals(), "Pipe Label")
     else:
         rule = FilterStringRule(provider, FilterStringEquals(), "Pipe Label", False)
 
-    # Create a parameter filter using the rule
     family_name_filter = ElementParameterFilter(rule)
 
-    # Combine the filters
     filter = LogicalAndFilter(pipe_accessory_filter, family_name_filter)
 
-    # Collect all elements that match the filter
-    pipe_labels = FilteredElementCollector(doc, curview.Id).WherePasses(filter).WhereElementIsNotElementType().ToElements()
-
+    pipe_labels = FilteredElementCollector(doc, curview.Id) \
+        .WherePasses(filter) \
+        .WhereElementIsNotElementType() \
+        .ToElements()
 
     t = Transaction(doc, "Set Pipe Label type")
     t.Start()
 
-    # Iterate over elements and fetch parameter values
     for pipe_label in pipe_labels:
         try:
-            diameter = get_parameter_value_by_name_AsDouble(pipe_label, 'Diameter') * 12
+            diameter = get_parameter_value_by_name_AsDouble_local(pipe_label, 'Diameter') * 12
             product_entry = ""
 
             if diameter <= 0.50:
@@ -210,9 +424,8 @@ def set_pipe_label_size():
             else:
                 product_entry = "H"
 
-            # Format the final string as "diameter - Letter"
             product_entry_str = "{:.3f} - {}".format(diameter, product_entry)
-            set_parameter_by_name(pipe_label, 'FP_Product Entry', product_entry_str)
+            set_parameter_by_name_local(pipe_label, 'FP_Product Entry', product_entry_str)
 
         except:
             pass
@@ -220,20 +433,31 @@ def set_pipe_label_size():
     t.Commit()
 
 
-
 while True:
+    t = None
     try:
+        pipe = select_fabrication_pipe()
+
         t = Transaction(doc, 'Place Pipe Label Family')
         t.Start()
-        
-        pipe = select_fabrication_pipe()
+
         place_and_modify_family(pipe, famsymb)
-        
+
         t.Commit()
 
-    except Exception as e:
-        if t.HasStarted() and not t.HasEnded():
+    except OperationCanceledException:
+        if t and t.HasStarted() and not t.HasEnded():
             t.RollBack()
         break
+
+    except Exception as e:
+        if t and t.HasStarted() and not t.HasEnded():
+            t.RollBack()
+        show_message("Error", str(e))
+        break
+
+    finally:
+        if t:
+            t.Dispose()
 
 set_pipe_label_size()

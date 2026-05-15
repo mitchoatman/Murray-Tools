@@ -2,6 +2,7 @@ layout:
   - ValveRenumber
   - ReNumber
   - TagValves
+  - ValveLocation
   - SelectValves
   - ValveSchedule
   - LastValveNumber

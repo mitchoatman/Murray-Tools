@@ -111,5 +111,5 @@ if len(Braces) > 0:
     # End transaction
     t.Commit()
 else:
-    from pyrevit import forms
-    forms.alert('At least one element must be selected.')
+    from Autodesk.Revit.UI import TaskDialog
+    TaskDialog.Show('Error', 'At least one element must be selected.')

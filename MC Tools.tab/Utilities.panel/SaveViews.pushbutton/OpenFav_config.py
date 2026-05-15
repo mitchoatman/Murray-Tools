@@ -1,44 +1,48 @@
-from Autodesk.Revit.DB import FilteredElementCollector, View
+from Autodesk.Revit.DB import View
 from Autodesk.Revit.UI import TaskDialog
 import System
 import os
-import re
+import sys
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+
+folder_name = r"c:\Temp"
+
+def get_id_value(eid):
+    try:
+        return eid.Value        # Revit 2024+
+    except:
+        return eid.IntegerValue # older versions
+
+# Use the same project identifier logic as restore
 file_path = doc.PathName
 file_name = System.IO.Path.GetFileNameWithoutExtension(file_path)
 
-folder_name = "c:\\Temp"
+# If unsaved model, fall back to title
+if not file_name:
+    file_name = doc.Title
 
-file_name = doc.Title
-
-open_views = [doc.GetElement(view.ViewId) for view in uidoc.GetOpenUIViews() if not doc.GetElement(view.ViewId).IsTemplate]
+open_views = []
+for uiview in uidoc.GetOpenUIViews():
+    view = doc.GetElement(uiview.ViewId)
+    if view and not view.IsTemplate:
+        open_views.append(view)
 
 if not open_views:
-    TaskDialog.Show("Warning", 'There are no open views.')
+    TaskDialog.Show("Warning", "There are no open views.")
     sys.exit()
 
 if len(open_views) > 10:
-    TaskDialog.Show("Warning", "You have more than ten open views, Opening this many open views at once may take some time.")
+    TaskDialog.Show("Warning", "You have more than ten open views. Opening this many views at once may take some time.")
 
+view_list = [get_id_value(view.Id) for view in open_views]
 
-view_list = [view.Id for view in open_views]
-
-folder_name = "c:\\Temp"
-
-# Replace spaces in the project name with underscores
 project_name = file_name.replace(" ", "_")
+filepath = os.path.join(folder_name, "Ribbon_OpenViews_{}.txt".format(project_name))
 
-# Append the project name to the file path using format method
-filepath = os.path.join(folder_name, 'Ribbon_OpenViews_{}.txt'.format(project_name))
-
-# Write values to a text file for future retrieval
 with open(filepath, 'w') as the_file:
-    line1 = str(file_name) + '\n'
-    line2 = str(view_list) + '\n'
-    the_file.writelines([line1, line2])
+    the_file.write(str(file_name) + '\n')
+    the_file.write(str(view_list) + '\n')
 
 TaskDialog.Show("Status", "[{}] views have been saved.".format(len(view_list)))
-
-

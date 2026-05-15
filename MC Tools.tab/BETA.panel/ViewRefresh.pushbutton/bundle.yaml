@@ -1,0 +1,13 @@
+#highlight: new
+
+# bundle title
+title:
+  "View\nRefresh"
+
+# bundle tooltip
+tooltip: |-
+  Refresh active view.
+  
+
+# bundle author
+author: Mitchell Oatman

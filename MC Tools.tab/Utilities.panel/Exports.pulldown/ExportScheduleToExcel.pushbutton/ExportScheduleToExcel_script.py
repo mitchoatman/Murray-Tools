@@ -6,7 +6,9 @@ from pyrevit.interop import xl
 import clr
 import os
 import System
+import xlsxwriter
 from Autodesk.Revit.UI import TaskDialog
+
 # Add Windows Forms references
 clr.AddReference('System.Windows.Forms')
 clr.AddReference('System.Drawing')
@@ -68,6 +70,78 @@ class OpenFileDialog(Form):
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
+
+LEVEL_PARAM_NAMES = [
+    "level",
+    "reference level",
+    "schedule level",
+    "base level",
+    "top level",
+    "associated level"
+]
+
+
+def is_level_like_param(param):
+    if not param:
+        return False
+    try:
+        pname = param.Definition.Name.lower()
+        return pname in LEVEL_PARAM_NAMES
+    except Exception:
+        return False
+
+
+def is_yesno_param(param):
+    if not param:
+        return False
+    try:
+        # crude but effective fallback for many Revit yes/no params
+        return param.StorageType == DB.StorageType.Integer and param.AsValueString() in ["Yes", "No"]
+    except Exception:
+        return False
+
+
+def get_all_level_names():
+    levels = list(DB.FilteredElementCollector(revit.doc).OfClass(DB.Level).ToElements())
+    names = sorted(list(set([lvl.Name for lvl in levels if lvl and lvl.Name])))
+    return names
+
+
+def ensure_hidden_list_sheet(workbook, hidden_sheets, sheet_name, values):
+    if sheet_name in hidden_sheets:
+        return hidden_sheets[sheet_name]
+
+    ws = workbook.add_worksheet(sheet_name)
+    ws.hide()
+
+    for i, val in enumerate(values):
+        ws.write(i, 0, val)
+
+    hidden_sheets[sheet_name] = ws
+    return ws
+
+
+def add_dropdown_validation_for_column(worksheet, workbook, hidden_sheets, col_idx, row_count, list_name, values):
+    if not values:
+        return
+
+    safe_sheet_name = sanitize_sheet_name("_" + list_name)
+    ensure_hidden_list_sheet(workbook, hidden_sheets, safe_sheet_name, values)
+
+    formula = "={}!$A$1:$A${}".format(safe_sheet_name, len(values))
+
+    worksheet.data_validation(
+        1,                # first data row
+        col_idx,
+        row_count,        # last data row
+        col_idx,
+        {
+            "validate": "list",
+            "source": formula,
+            "error_type": "stop",
+            "error_message": "Please select a value from the list."
+        }
+    )
 
 def parse_element_id(value):
     if value is None or value == "":
@@ -242,6 +316,30 @@ def set_parameter_import_value(param, value, level_map):
     return False
 
 
+def is_field_editable(elements, field):
+    found_any = False
+    for element in elements:
+        param = get_field_parameter(element, field)
+        if param:
+            found_any = True
+            try:
+                if not param.IsReadOnly:
+                    return True
+            except Exception:
+                pass
+    return False if found_any else False
+
+
+def get_text_length(value):
+    try:
+        return len(unicode(value))
+    except Exception:
+        try:
+            return len(str(value))
+        except Exception:
+            return 0
+
+
 # -----------------------------------------------------------------------------
 # Export schedule to Excel
 # -----------------------------------------------------------------------------
@@ -254,23 +352,180 @@ def export_schedule_to_excel(schedule, filepath):
         elements = list(DB.FilteredElementCollector(revit.doc, schedule_view.Id).ToElements())
         schedule_def = schedule_view.Definition
         fields = [schedule_def.GetField(fid) for fid in schedule_def.GetFieldOrder()]
-        export_fields = [field for field in fields if field.ParameterId != DB.ElementId.InvalidElementId]
 
-        headers = ["ElementId"] + [field.GetName() for field in export_fields]
-        rows = [headers]
+        export_fields = []
+        for field in fields:
+            try:
+                if field.IsHidden:
+                    continue
+            except Exception:
+                pass
 
-        for element in elements:
-            row = [get_eid_value(element.Id)]
+            try:
+                if field.IsCalculatedField:
+                    continue
+            except Exception:
+                pass
 
-            for field in export_fields:
+            try:
+                if field.ParameterId == DB.ElementId.InvalidElementId:
+                    continue
+            except Exception:
+                continue
+
+            export_fields.append(field)
+
+            sheet_name = sanitize_sheet_name(schedule.Name)
+            workbook = xlsxwriter.Workbook(filepath)
+            worksheet = workbook.add_worksheet(sheet_name)
+
+            hidden_sheets = {}
+            level_names = get_all_level_names()
+            yesno_values = ["Yes", "No"]
+
+        # Add dropdown validations
+        for col_idx, field in enumerate(export_fields, start=1):
+            sample_param = None
+
+            for element in elements:
+                sample_param = get_field_parameter(element, field)
+                if sample_param:
+                    break
+
+            if not sample_param:
+                continue
+
+            if is_level_like_param(sample_param):
+                add_dropdown_validation_for_column(
+                    worksheet,
+                    workbook,
+                    hidden_sheets,
+                    col_idx,
+                    len(elements),
+                    "levels",
+                    level_names
+                )
+
+            elif is_yesno_param(sample_param):
+                add_dropdown_validation_for_column(
+                    worksheet,
+                    workbook,
+                    hidden_sheets,
+                    col_idx,
+                    len(elements),
+                    "yesno",
+                    yesno_values
+                )
+
+        # Formats
+        header_editable_fmt = workbook.add_format({
+            "bold": True,
+            "bg_color": "#C6E0B4",
+            "border": 1,
+            "locked": True
+        })
+
+        header_readonly_fmt = workbook.add_format({
+            "bold": True,
+            "bg_color": "#FF3131",
+            "font_color": "#FFFFFF",
+            "border": 1,
+            "locked": True
+        })
+
+        elementid_header_fmt = workbook.add_format({
+            "bold": True,
+            "bg_color": "#FFBD80",
+            "border": 1,
+            "locked": True
+        })
+
+        locked_fmt = workbook.add_format({
+            "locked": True,
+            "bg_color": "#F2F2F2",
+            "border": 1
+        })
+
+        unlocked_fmt = workbook.add_format({
+            "locked": False,
+            "bg_color": "#FFF2CC",
+            "border": 1
+        })
+
+        missing_fmt = workbook.add_format({
+            "locked": True,
+            "bg_color": "#E7E6E6",
+            "font_color": "#7F7F7F",
+            "border": 1
+        })
+
+        # Freeze and header
+        worksheet.freeze_panes(1, 0)
+        worksheet.write(0, 0, "ElementId", elementid_header_fmt)
+
+        max_widths = [len("ElementId")]
+
+        for col_idx, field in enumerate(export_fields, start=1):
+            field_name = field.GetName()
+            editable = is_field_editable(elements, field)
+            header_fmt = header_editable_fmt if editable else header_readonly_fmt
+            worksheet.write(0, col_idx, field_name, header_fmt)
+            max_widths.append(len(field_name))
+
+        # Data rows
+        for row_idx, element in enumerate(elements, start=1):
+            eid_text = str(get_eid_value(element.Id))
+            worksheet.write(row_idx, 0, eid_text, locked_fmt)
+            if get_text_length(eid_text) > max_widths[0]:
+                max_widths[0] = min(get_text_length(eid_text), 50)
+
+            for col_idx, field in enumerate(export_fields, start=1):
                 param = get_field_parameter(element, field)
-                value = get_parameter_export_value(param)
-                row.append(value)
 
-            rows.append(row)
+                if not param:
+                    value = ""
+                    cell_fmt = missing_fmt
+                else:
+                    value = get_parameter_export_value(param)
+                    try:
+                        if param.IsReadOnly:
+                            cell_fmt = locked_fmt
+                        else:
+                            cell_fmt = unlocked_fmt
+                    except Exception:
+                        cell_fmt = locked_fmt
 
-        sheet_name = sanitize_sheet_name(schedule.Name)
-        xl.dump(filepath, {sheet_name: rows})
+                if value is None:
+                    value = ""
+
+                worksheet.write(row_idx, col_idx, value, cell_fmt)
+
+                value_len = get_text_length(value)
+                if value_len > max_widths[col_idx]:
+                    max_widths[col_idx] = min(value_len, 50)
+
+        # Widths
+        for col_idx, width in enumerate(max_widths):
+            worksheet.set_column(col_idx, col_idx, width + 3)
+
+        # Filter
+        worksheet.autofilter(0, 0, len(elements), len(export_fields))
+
+        # Protect worksheet but allow sorting/filtering/selecting
+        worksheet.protect(
+            "",
+            {
+                "autofilter": True,
+                "sort": True,
+                "format_cells": True,
+                "format_columns": True,
+                "format_rows": True,
+                "select_locked_cells": True,
+                "select_unlocked_cells": True,
+            },
+        )
+
+        workbook.close()
 
         last_export_dir = os.path.dirname(filepath)
 
@@ -279,7 +534,6 @@ def export_schedule_to_excel(schedule, filepath):
 
     except Exception as e:
         TaskDialog.Show("Error", "Export failed:\n{}".format(str(e).split('\n')[0]))
-
 
 
 # -----------------------------------------------------------------------------
@@ -348,15 +602,16 @@ def import_changes_from_excel(filepath):
                     if set_parameter_import_value(param, value, level_map):
                         updated_count += 1
                     else:
-                        print "Skipped param '{}' for ElementId {}".format(header, elem_id_val)
+                        pass
+                        # print "Skipped param '{}' for ElementId {}".format(header, elem_id_val)
 
     TaskDialog.Show(
-        "Import Complete",
-        "Rows found: {}\nParameters updated: {}".format(
-            rows_found,
-            updated_count
-        )
-    )
+        "Success","Import Complete")
+        # "Rows found: {}\nParameters updated: {}".format(
+            # rows_found,
+            # updated_count
+        # )
+    # )
 
 
 # -----------------------------------------------------------------------------

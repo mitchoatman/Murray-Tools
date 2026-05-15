@@ -8,6 +8,7 @@ layout:
   - Rename_Sheets_Views
   - Set Revision On Sheets
   - SetCropRegion
+  - ExportTitleBlockParams
   - ResetViewRange
 
 

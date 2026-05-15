@@ -47,22 +47,35 @@ class LevelSelectionWindow(Window):
     def __init__(self, levels, default_top, default_bottom):
         self.Title = "Select Levels"
         self.Width = 400
-        self.Height = 270
+        self.Height = 240
         self.ResizeMode = System.Windows.ResizeMode.NoResize
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
 
         grid = Grid()
         grid.Margin = Thickness(15)
 
-        # Define rows
-        for i in range(8):
-            grid.RowDefinitions.Add(System.Windows.Controls.RowDefinition())
+        # Define rows - use Auto to avoid large empty gaps
+        for i in range(7):
+            row = System.Windows.Controls.RowDefinition()
+            row.Height = System.Windows.GridLength.Auto
+            grid.RowDefinitions.Add(row)
+
         grid.ColumnDefinitions.Add(System.Windows.Controls.ColumnDefinition())
         grid.ColumnDefinitions.Add(System.Windows.Controls.ColumnDefinition())
 
+        # Header / zone message
+        zone_msg = TextBlock(
+            Text="Set zone of elements to set level on:",
+            Margin=Thickness(0, 0, 0, 8)
+        )
+        Grid.SetRow(zone_msg, 0)
+        Grid.SetColumnSpan(zone_msg, 2)
+        grid.Children.Add(zone_msg)
+
         # Top Level
         lbl_top = Label(Content="Choose Top Level:")
-        Grid.SetRow(lbl_top, 0); Grid.SetColumn(lbl_top, 0)
+        Grid.SetRow(lbl_top, 1)
+        Grid.SetColumn(lbl_top, 0)
         grid.Children.Add(lbl_top)
 
         self.top_combo = ComboBox()
@@ -70,12 +83,14 @@ class LevelSelectionWindow(Window):
             self.top_combo.Items.Add(l)
         self.top_combo.SelectedItem = default_top
         self.top_combo.ToolTip = "Set this to (None) for Roof level"
-        Grid.SetRow(self.top_combo, 0); Grid.SetColumn(self.top_combo, 1)
+        Grid.SetRow(self.top_combo, 1)
+        Grid.SetColumn(self.top_combo, 1)
         grid.Children.Add(self.top_combo)
 
         # Bottom Level
         lbl_bot = Label(Content="Choose Bottom Level:")
-        Grid.SetRow(lbl_bot, 1); Grid.SetColumn(lbl_bot, 0)
+        Grid.SetRow(lbl_bot, 2)
+        Grid.SetColumn(lbl_bot, 0)
         grid.Children.Add(lbl_bot)
 
         self.bottom_combo = ComboBox()
@@ -83,23 +98,41 @@ class LevelSelectionWindow(Window):
             self.bottom_combo.Items.Add(l)
         self.bottom_combo.SelectedItem = default_bottom
         self.bottom_combo.ToolTip = "Set this to (None) for Underground level"
-        Grid.SetRow(self.bottom_combo, 1); Grid.SetColumn(self.bottom_combo, 1)
+        Grid.SetRow(self.bottom_combo, 2)
+        Grid.SetColumn(self.bottom_combo, 1)
         grid.Children.Add(self.bottom_combo)
 
         # Instructions
-        inst1 = TextBlock(Text="Parts are assigned to Bottom when both levels are set.")
-        inst2 = TextBlock(Text="Parts are assigned to Bottom if Top is (None) ROOF.")
-        inst3 = TextBlock(Text="Parts are assigned to Top if Bottom is (None) UG.")
+        inst1 = TextBlock(
+            Text="Parts are assigned to Bottom when both levels are set.",
+            Margin=Thickness(0, 6, 0, 2)
+        )
+        Grid.SetRow(inst1, 3)
+        Grid.SetColumnSpan(inst1, 2)
+        grid.Children.Add(inst1)
 
-        Grid.SetRow(inst1, 2); Grid.SetColumnSpan(inst1, 2)
-        # Grid.SetRow(inst2, 3); Grid.SetColumnSpan(inst2, 2)
-        # Grid.SetRow(inst3, 4); Grid.SetColumnSpan(inst3, 2)
-        grid.Children.Add(inst1) #; grid.Children.Add(inst2); grid.Children.Add(inst3)
+        inst2 = TextBlock(
+            Text="* If setting roof, set Bottom with Top set to (None).",
+            Margin=Thickness(0, 0, 0, 2)
+        )
+        Grid.SetRow(inst2, 4)
+        Grid.SetColumnSpan(inst2, 2)
+        grid.Children.Add(inst2)
+
+        inst3 = TextBlock(
+            Text="* If setting underground, set Top with Bottom set to (None).",
+            Margin=Thickness(0, 0, 0, 6)
+        )
+        Grid.SetRow(inst3, 5)
+        Grid.SetColumnSpan(inst3, 2)
+        grid.Children.Add(inst3)
 
         # Buttons Panel
-        btn_panel = StackPanel(Orientation=System.Windows.Controls.Orientation.Horizontal,
-                               HorizontalAlignment=HorizontalAlignment.Center,
-                               Margin=Thickness(0, 0, 0, 0))
+        btn_panel = StackPanel(
+            Orientation=System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment=HorizontalAlignment.Center,
+            Margin=Thickness(0, 4, 0, 0)
+        )
 
         self.ok_button = Button(Content="Ok", Width=80, Height=25, Margin=Thickness(5,0,5,0))
         self.ok_button.Click += self.on_ok
@@ -109,7 +142,8 @@ class LevelSelectionWindow(Window):
         self.cancel_button.Click += self.on_cancel
         btn_panel.Children.Add(self.cancel_button)
 
-        Grid.SetRow(btn_panel, 6); Grid.SetColumnSpan(btn_panel, 2)
+        Grid.SetRow(btn_panel, 6)
+        Grid.SetColumnSpan(btn_panel, 2)
         grid.Children.Add(btn_panel)
 
         self.Content = grid

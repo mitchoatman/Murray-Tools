@@ -1,13 +1,18 @@
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family
+from Autodesk.Revit.DB import FilteredElementCollector, Transaction, Family, FamilySymbol
+from Autodesk.Revit.UI import TaskDialog
 import os
+import sys
 
 path, filename = os.path.split(__file__)
-NewFilename = '\Fabrication Pipe - Size Tag - Aligned.rfa'
+family_path = os.path.join(path, 'Fabrication Pipe - Size Tag - Aligned.rfa')
 
-app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+
+FamilyName = 'Fabrication Pipe - Size Tag - Aligned'
+FamilyType = 'Size Tag'
+
 
 class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):
@@ -19,51 +24,73 @@ class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
         overwriteParameterValues.Value = False
         return True
 
-# Set desired family name and type name
-FamilyName = 'Fabrication Pipe - Size Tag - Aligned'
-FamilyType = 'Size Tag'
 
-family_pathCC = path + NewFilename
+def get_family_by_name(document, family_name):
+    for fam in FilteredElementCollector(document).OfClass(Family):
+        if fam.Name == family_name:
+            return fam
+    return None
 
-# Check if we need to load the family first
-families = FilteredElementCollector(doc).OfClass(Family)
-needs_loading = not any(f.Name == FamilyName for f in families)
 
-if needs_loading:
+def get_symbol_by_type_name(document, family, type_name):
+    if not family:
+        return None
+
+    for symbol_id in family.GetFamilySymbolIds():
+        symbol = document.GetElement(symbol_id)
+        if symbol:
+            p = symbol.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM)
+            if p and p.AsString() == type_name:
+                return symbol
+    return None
+
+
+family = get_family_by_name(doc, FamilyName)
+
+if not family:
+    if not os.path.exists(family_path):
+        TaskDialog.Show("Error", "Family file not found:\n{}".format(family_path))
+        sys.exit()
+
     t = Transaction(doc, 'Load Pipe Size Family')
     t.Start()
     try:
         fload_handler = FamilyLoaderOptionsHandler()
-        doc.LoadFamily(family_pathCC, fload_handler)
-        t.Commit()
-    except Exception, e:
-        print "Error loading families: %s" % str(e)
-        t.RollBack()
-        raise
-
-# Now handle the symbol placement - no transaction needed for PostRequest
-collector = FilteredElementCollector(doc)
-collector.OfCategory(BuiltInCategory.OST_FabricationPipeworkTags)
-collector.OfClass(FamilySymbol)
-
-target_symbol = None
-for symbol in collector:
-    if symbol.Family.Name == FamilyName and symbol.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString() == FamilyType:
-        target_symbol = symbol
-        break
-
-if target_symbol:
-    if not target_symbol.IsActive:
-        t = Transaction(doc, 'Activate Family Symbol')
-        t.Start()
-        try:
-            target_symbol.Activate()
-            t.Commit()
-        except Exception, e:
-            print "Error activating symbol: %s" % str(e)
+        result = doc.LoadFamily(family_path, fload_handler)
+        if not result:
             t.RollBack()
-            raise
-    
-    uidoc.PostRequestForElementTypePlacement(target_symbol)
-else:
-    print "Could not find family type 'Size Tag' in family 'Fabrication Pipe - Size Tag'"
+            TaskDialog.Show("Error", "Failed to load family '{}'.".format(FamilyName))
+            sys.exit()
+        t.Commit()
+    except Exception as e:
+        if t.HasStarted():
+            t.RollBack()
+        TaskDialog.Show("Error", "Error loading family:\n{}".format(str(e)))
+        sys.exit()
+
+    family = get_family_by_name(doc, FamilyName)
+
+if not family:
+    TaskDialog.Show("Error", "Family '{}' not found in project.".format(FamilyName))
+    sys.exit()
+
+target_symbol = get_symbol_by_type_name(doc, family, FamilyType)
+
+if not target_symbol:
+    TaskDialog.Show("Error", "Could not find type '{}' in family '{}'.".format(FamilyType, FamilyName))
+    sys.exit()
+
+if not target_symbol.IsActive:
+    t = Transaction(doc, 'Activate Family Symbol')
+    t.Start()
+    try:
+        target_symbol.Activate()
+        doc.Regenerate()
+        t.Commit()
+    except Exception as e:
+        if t.HasStarted():
+            t.RollBack()
+        TaskDialog.Show("Error", "Error activating symbol:\n{}".format(str(e)))
+        sys.exit()
+
+uidoc.PostRequestForElementTypePlacement(target_symbol)

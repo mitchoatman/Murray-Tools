@@ -1,13 +1,12 @@
 layout:
   - APL_Parameter
   - Tag_SleeveSize
-  - Deck_Sleeve_Schedule
   - FixtureCL
   - PipeRiser
   - SelectFabFilter
   - TagPointNumber
   - PipePoint
-  - PointLayoutConfig
+  - Deck_Sleeve_Schedule
   
 background:
 #  title: 'D5D5CD'

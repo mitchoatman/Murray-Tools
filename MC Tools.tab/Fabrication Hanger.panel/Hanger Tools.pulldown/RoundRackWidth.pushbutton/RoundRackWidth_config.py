@@ -1,64 +1,244 @@
+# -*- coding: utf-8 -*-
 
-#Imports
-from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol
-from rpw.ui.forms import TextInput
-from Autodesk.Revit.UI.Selection import *
 import os
+import sys
+import clr
+
+clr.AddReference('PresentationFramework')
+clr.AddReference('PresentationCore')
+clr.AddReference('WindowsBase')
+
+from Autodesk.Revit import DB
+from Autodesk.Revit.UI import TaskDialog
+from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+
+from System.Windows import (
+    Window,
+    Thickness,
+    WindowStyle,
+    ResizeMode,
+    WindowStartupLocation,
+    HorizontalAlignment
+)
+
+from System.Windows.Controls import (
+    Label,
+    TextBox,
+    Button,
+    Grid,
+    RowDefinition
+)
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 
-folder_name = "c:\\Temp"
-filepath = os.path.join(folder_name, 'Ribbon_SetBearerExtn.txt')
+
+# -----------------------------
+# Config File
+# -----------------------------
+folder_name = r"C:\Temp"
+filepath = os.path.join(folder_name, "Ribbon_SetBearerExtn.txt")
 
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
+
+# Default = 2 inches
 if not os.path.exists(filepath):
-    f = open((filepath), 'w')
-    f.write('1')
-    f.close()
+    with open(filepath, "w") as f:
+        f.write("2")
 
-class MySelectionFilter(ISelectionFilter):
-    def __init__(self):
-        pass
+
+# -----------------------------
+# Selection Filter
+# -----------------------------
+class FabricationHangerSelectionFilter(ISelectionFilter):
+
     def AllowElement(self, element):
-        if element.Category.Name == 'MEP Fabrication Hangers':
-            return True
-        else:
-            return False
-    def AllowReference(self, element):
+
+        cat = element.Category
+
+        return (
+            cat
+            and cat.Name == "MEP Fabrication Hangers"
+        )
+
+    def AllowReference(self, reference, point):
         return False
-selection_filter = MySelectionFilter()
-Hanger = uidoc.Selection.PickElementsByRectangle(selection_filter)
 
-if len(Hanger) > 0:
 
-    f = open((filepath), 'r')
-    PrevInput = f.read()
-    f.close()
+# -----------------------------
+# WPF Dialog
+# -----------------------------
+class BearerExtensionForm(Window):
 
-    #This displays dialog
-    value = TextInput('New Bearer Extension (In Inches)', default = PrevInput)
-    valuenum = (float(value) / 12)
+    def __init__(self, initial_value):
 
-    f = open((filepath), 'w')
-    f.write(value)
-    f.close()
+        self.Title = "Modify Bearer Extension"
+        self.Width = 320
+        self.Height = 165
+        self.WindowStyle = WindowStyle.SingleBorderWindow
+        self.ResizeMode = ResizeMode.NoResize
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
 
-    for x in range(2):
-        t = Transaction(doc, 'Modify Bearer Extension')
-        t.Start()
+        self.result_value = None
+
+        grid = Grid()
+        grid.Margin = Thickness(10)
+
+        for _ in range(3):
+            grid.RowDefinitions.Add(RowDefinition())
+
+        self.Content = grid
+
+        # Label
+        label = Label()
+        label.Content = "New Bearer Extension (Inches):"
+        label.Margin = Thickness(0, 0, 0, 5)
+
+        Grid.SetRow(label, 0)
+        grid.Children.Add(label)
+
+        # Textbox
+        self.textbox = TextBox()
+        self.textbox.Text = str(round(initial_value, 3))
+        self.textbox.Margin = Thickness(0, 0, 0, 10)
+
+        Grid.SetRow(self.textbox, 1)
+        grid.Children.Add(self.textbox)
+
+        # OK Button
+        ok_button = Button()
+        ok_button.Content = "OK"
+        ok_button.Width = 75
+        ok_button.Height = 25
+        ok_button.HorizontalAlignment = HorizontalAlignment.Center
+        ok_button.Click += self.ok_clicked
+
+        Grid.SetRow(ok_button, 2)
+        grid.Children.Add(ok_button)
+
+        self.textbox.Focus()
+        self.textbox.SelectAll()
+
+    def ok_clicked(self, sender, args):
+
         try:
-            for e in Hanger:
-                STName = e.GetRodInfo().RodCount
-                STName1 = e.GetRodInfo()
-                for n in range(STName):
-                    STName1.SetBearerExtension(n, valuenum)
+
+            self.result_value = float(self.textbox.Text)
+
+            self.DialogResult = True
+            self.Close()
 
         except:
-            pass
-        t.Commit()
-else:
-    forms.alert('At least one fabrication hanger must be selected.')
 
+            TaskDialog.Show(
+                "Invalid Input",
+                "Please enter a valid numeric value."
+            )
+
+
+# -----------------------------
+# Select Hangers
+# -----------------------------
+try:
+
+    selected_refs = uidoc.Selection.PickObjects(
+        ObjectType.Element,
+        FabricationHangerSelectionFilter(),
+        "Select Fabrication Hangers"
+    )
+
+except:
+    sys.exit()
+
+hangers = [
+    doc.GetElement(ref.ElementId)
+    for ref in selected_refs
+]
+
+if not hangers:
+
+    TaskDialog.Show(
+        "Modify Bearer Extension",
+        "No fabrication hangers were selected."
+    )
+
+    sys.exit()
+
+
+# -----------------------------
+# Read Previous Value
+# -----------------------------
+with open(filepath, "r") as f:
+
+    previous_value = float(f.read().strip())
+
+
+# -----------------------------
+# Show Dialog
+# -----------------------------
+form = BearerExtensionForm(previous_value)
+
+if not form.ShowDialog():
+    sys.exit()
+
+
+# -----------------------------
+# Get New Value
+# -----------------------------
+new_extension_inches = form.result_value
+new_extension_feet = new_extension_inches / 12.0
+
+
+# -----------------------------
+# Save Value
+# -----------------------------
+with open(filepath, "w") as f:
+
+    f.write(str(new_extension_inches))
+
+
+# -----------------------------
+# Apply Changes
+# -----------------------------
+t = DB.Transaction(
+    doc,
+    "Modify Bearer Extension"
+)
+
+t.Start()
+
+failed = []
+
+for hanger in hangers:
+
+    try:
+
+        rod_info = hanger.GetRodInfo()
+        rod_count = rod_info.RodCount
+
+        for rod_index in range(rod_count):
+
+            rod_info.SetBearerExtension(
+                rod_index,
+                new_extension_feet
+            )
+
+    except:
+
+        failed.append(str(hanger.Id))
+
+t.Commit()
+
+
+# -----------------------------
+# Report Failures
+# -----------------------------
+if failed:
+
+    TaskDialog.Show(
+        "Modify Bearer Extension",
+        "Failed to update {} hanger(s).".format(
+            len(failed)
+        )
+    )

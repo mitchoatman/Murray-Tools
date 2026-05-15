@@ -1,5 +1,6 @@
 layout:
-  - Wall_Sleeve
+  - Wall_Opening
   - Blockout
-  - Bulk_Wall_Sleeve
+  - Bulk_Wall_Opening
   - Wall_Sleeve_Schedule
+  - PointLayoutConfig

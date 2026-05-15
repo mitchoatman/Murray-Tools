@@ -1,18 +1,21 @@
+# -*- coding: UTF-8 -*-
 import clr
 clr.AddReference('System')
 import System
 import System.Diagnostics
-clr.AddReference('System.Windows.Forms')
-clr.AddReference('System.Drawing')
 clr.AddReference('PresentationFramework')
 clr.AddReference('PresentationCore')
 clr.AddReference('WindowsBase')
+
 from System.Windows import Window, Thickness, HorizontalAlignment, WindowStartupLocation, ResizeMode
 from System.Windows.Controls import Grid, RowDefinition, Label, TextBox, Button, StackPanel, Orientation
 from System.Windows.Interop import WindowInteropHelper
+
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family, ViewType
-from Autodesk.Revit.UI import TaskDialog, UIApplication
+from Autodesk.Revit.DB import FilteredElementCollector, Transaction, Family, FamilyInstance, ViewType
+from Autodesk.Revit.UI import TaskDialog
+from Autodesk.Revit.UI.Events import TaskDialogShowingEventArgs
+
 import os
 import sys
 
@@ -23,26 +26,36 @@ if view.ViewType == ViewType.ThreeD:
     sys.exit()
 
 path, filename = os.path.split(__file__)
-NewFilename = '\\Control Point.rfa'
+family_file = '\\Control Point.rfa'
 
-app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
-ui_app = __revit__  # UIApplication for MainWindowHandle access
+uiapp = __revit__
 
-# File handling for saving fixture type
+FamilyName = 'Control Point'
+TypeName = 'CP'
+
+# Save file
 folder_name = "c:\\temp"
-filepath = os.path.join(folder_name, 'Control Point.txt')
+filepath = os.path.join(folder_name, 'Ribbon_Control Point.txt')
 
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
 
-if not os.path.exists(filepath):
-    with open(filepath, 'w') as f:
-        f.write('WC-1')
+default_point_number = ""
+default_point_name = ""
 
-with open(filepath, 'r') as f:
-    prev_input = f.read().strip()
+if os.path.exists(filepath):
+    try:
+        with open(filepath, 'r') as f:
+            lines = f.read().splitlines()
+            if len(lines) > 0:
+                default_point_number = lines[0].strip()
+            if len(lines) > 1:
+                default_point_name = lines[1].strip()
+    except:
+        pass
+
 
 class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):
@@ -50,62 +63,155 @@ class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
         return True
 
     def OnSharedFamilyFound(self, sharedFamily, familyInUse, source, overwriteParameterValues):
-        source.Value = DB.FamilySource.Family
+        # Always use the shared family that already exists in the project
+        source.Value = DB.FamilySource.Project
         overwriteParameterValues.Value = False
         return True
 
-# WPF modal dialog
-class FixtureTypeWindow(Window):
-    def __init__(self, revit_window_handle, family_name, document, ui_document, default_input):
-        self.Title = "Set Control Point Type"
-        self.Width = 300
-        self.Height = 150
+
+def get_family(document, family_name):
+    families = FilteredElementCollector(document).OfClass(Family)
+    for fam in families:
+        if fam.Name == family_name:
+            return fam
+    return None
+
+
+def get_symbol_name(symbol):
+    try:
+        return symbol.Name
+    except:
+        pass
+
+    try:
+        param = symbol.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM)
+        if param:
+            return param.AsString()
+    except:
+        pass
+
+    return None
+
+
+def get_family_symbol_by_name(document, family_name, type_name):
+    family = get_family(document, family_name)
+    if not family:
+        return None
+
+    for symbol_id in family.GetFamilySymbolIds():
+        symbol = document.GetElement(symbol_id)
+        if symbol:
+            symbol_name = get_symbol_name(symbol)
+            if symbol_name and symbol_name.upper() == type_name.upper():
+                return symbol
+
+    return None
+
+
+def get_instance_ids_for_symbol(document, symbol_id):
+    ids = set()
+    collector = FilteredElementCollector(document).OfClass(FamilyInstance)
+    for inst in collector:
+        try:
+            if inst.Symbol and inst.Symbol.Id == symbol_id:
+                ids.add(inst.Id.IntegerValue)
+        except:
+            pass
+    return ids
+
+
+def set_text_parameter(element, param_name, value):
+    param = element.LookupParameter(param_name)
+    if not param:
+        return "Parameter '{}' not found.".format(param_name)
+    if param.IsReadOnly:
+        return "Parameter '{}' is read-only.".format(param_name)
+    if param.StorageType != DB.StorageType.String:
+        return "Parameter '{}' is not a text parameter.".format(param_name)
+
+    param.Set(value)
+    return None
+
+
+def shared_family_dialog_fallback(sender, args):
+    """
+    Fallback only: if Revit still shows the shared-family conflict dialog,
+    automatically choose:
+      'Use the existing sub-component family that is in the project'
+    which is the 3rd button -> result code 1003.
+    """
+    try:
+        if isinstance(args, TaskDialogShowingEventArgs):
+            msg = (args.Message or "").lower()
+            dialog_id = (args.DialogId or "").lower()
+
+            # Match the shared family conflict dialog conservatively
+            if ("shared" in msg and "already exists" in msg and "project" in msg) \
+               or ("shared" in dialog_id and "family" in dialog_id):
+                args.OverrideResult(1003)
+    except:
+        pass
+
+
+class ControlPointWindow(Window):
+    def __init__(self, revit_window_handle, default_number, default_name):
+        self.Title = "Set Control Point Data"
+        self.Width = 320
+        self.Height = 200
         self.ResizeMode = ResizeMode.NoResize
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
-        self.doc = document
-        self.uidoc = ui_document
-        self.family_name = family_name
-        self.default_input = default_input
-        self.selected_type = None  # Store selected type for saving
-        self.placement_triggered = False  # Track if placement was initiated
+
+        self.point_number = default_number
+        self.point_name = default_name
+        self.confirmed = False
+
         self.InitializeComponents()
         WindowInteropHelper(self).Owner = revit_window_handle
 
     def InitializeComponents(self):
-        # Create Grid layout
         grid = Grid()
         self.Content = grid
 
-        # Define rows
         row_definitions = [
-            RowDefinition(Height=System.Windows.GridLength.Auto),  # Label
-            RowDefinition(Height=System.Windows.GridLength.Auto),  # TextBox
-            RowDefinition(Height=System.Windows.GridLength.Auto)   # Buttons
+            RowDefinition(Height=System.Windows.GridLength.Auto),
+            RowDefinition(Height=System.Windows.GridLength.Auto),
+            RowDefinition(Height=System.Windows.GridLength.Auto),
+            RowDefinition(Height=System.Windows.GridLength.Auto),
+            RowDefinition(Height=System.Windows.GridLength.Auto)
         ]
         for row in row_definitions:
             grid.RowDefinitions.Add(row)
 
-        # Add controls
         row_index = 0
 
-        # Label for TextBox
-        self.label = Label()
-        self.label.Content = "Enter Control Type (e.g., CP):"
-        self.label.Margin = Thickness(10, 5, 10, 5)
-        Grid.SetRow(self.label, row_index)
-        grid.Children.Add(self.label)
+        self.label_number = Label()
+        self.label_number.Content = "Point Number:"
+        self.label_number.Margin = Thickness(10, 5, 10, 5)
+        Grid.SetRow(self.label_number, row_index)
+        grid.Children.Add(self.label_number)
         row_index += 1
 
-        # TextBox with uppercase conversion
-        self.textbox = TextBox()
-        self.textbox.Text = self.default_input
-        self.textbox.Margin = Thickness(10, 0, 10, 5)
-        self.textbox.TextChanged += self.on_text_changed
-        Grid.SetRow(self.textbox, row_index)
-        grid.Children.Add(self.textbox)
+        self.textbox_number = TextBox()
+        self.textbox_number.Text = self.point_number
+        self.textbox_number.Margin = Thickness(10, 0, 10, 5)
+        Grid.SetRow(self.textbox_number, row_index)
+        grid.Children.Add(self.textbox_number)
         row_index += 1
 
-        # Buttons
+        self.label_name = Label()
+        self.label_name.Content = "Point Description:"
+        self.label_name.Margin = Thickness(10, 5, 10, 5)
+        Grid.SetRow(self.label_name, row_index)
+        grid.Children.Add(self.label_name)
+        row_index += 1
+
+        self.textbox_name = TextBox()
+        self.textbox_name.Text = self.point_name
+        self.textbox_name.Margin = Thickness(10, 0, 10, 5)
+        Grid.SetRow(self.textbox_name, row_index)
+        grid.Children.Add(self.textbox_name)
+        row_index += 1
+
         button_panel = StackPanel()
         button_panel.Orientation = Orientation.Horizontal
         button_panel.HorizontalAlignment = HorizontalAlignment.Center
@@ -129,121 +235,130 @@ class FixtureTypeWindow(Window):
         self.close_button.Click += self.on_close_click
         button_panel.Children.Add(self.close_button)
 
-    def on_text_changed(self, sender, event):
-        # Convert TextBox input to uppercase
-        current_text = self.textbox.Text
-        uppercase_text = current_text.upper()
-        if current_text != uppercase_text:
-            caret_position = self.textbox.CaretIndex
-            self.textbox.Text = uppercase_text
-            self.textbox.CaretIndex = caret_position
-
     def on_place_click(self, sender, event):
-        fixture_type = self.textbox.Text.strip()
-        if not fixture_type:
-            TaskDialog.Show("Error", "Please enter a control point type.")
+        self.point_number = self.textbox_number.Text.strip()
+        self.point_name = self.textbox_name.Text.strip()
+
+        if not self.point_number:
+            TaskDialog.Show("Error", "Please enter a Point Number.")
             return
 
-        self.selected_type = fixture_type  # Save for writing to file
-        self.placement_triggered = True  # Indicate placement is active
-        # Search for the family and type
-        collector = FilteredElementCollector(self.doc).OfCategory(BuiltInCategory.OST_PipeAccessory).OfClass(FamilySymbol)
-        target_symbol = None
-        for symbol in collector:
-            if symbol.Family.Name == self.family_name and symbol.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM).AsString() == fixture_type:
-                target_symbol = symbol
-                break
+        if not self.point_name:
+            TaskDialog.Show("Error", "Please enter a Point Name.")
+            return
 
-        # If type not found, create it
-        if not target_symbol:
-            t = Transaction(self.doc, 'Create New Family Type')
-            t.Start()
-            try:
-                family = None
-                families = FilteredElementCollector(self.doc).OfClass(Family)
-                for f in families:
-                    if f.Name == self.family_name:
-                        family = f
-                        break
-                
-                if family:
-                    # Get the first symbol to duplicate
-                    symbol_ids = family.GetFamilySymbolIds()
-                    if symbol_ids.Count > 0:  # Check if HashSet is not empty
-                        base_symbol_id = next(iter(symbol_ids))  # Get first ElementId
-                        base_symbol = self.doc.GetElement(base_symbol_id)
-                        new_symbol = base_symbol.Duplicate(fixture_type)
-                        target_symbol = new_symbol
-                    else:
-                        TaskDialog.Show("Error", "No symbols found in family '{}'.".format(self.family_name))
-                        t.RollBack()
-                        self.placement_triggered = False
-                        return
-                else:
-                    TaskDialog.Show("Error", "Family '{}' not found.".format(self.family_name))
-                    t.RollBack()
-                    self.placement_triggered = False
-                    return
-                t.Commit()
-            except Exception as e:
-                TaskDialog.Show("Error", "Error creating new type '{}': {}".format(fixture_type, str(e)))
-                if t.HasStarted():
-                    t.RollBack()
-                self.placement_triggered = False
-                return
-
-        # Activate and place the symbol
-        if target_symbol:
-            if not target_symbol.IsActive:
-                t = Transaction(self.doc, 'Activate Family Symbol')
-                t.Start()
-                try:
-                    target_symbol.Activate()
-                    t.Commit()
-                except Exception as e:
-                    TaskDialog.Show("Error", "Error activating symbol: {}".format(str(e)))
-                    if t.HasStarted():
-                        t.RollBack()
-                    self.placement_triggered = False
-                    return
-            
-            try:
-                self.Close()  # Close dialog to enter placement mode
-                self.uidoc.PromptForFamilyInstancePlacement(target_symbol)
-            except Exception as e:
-                pass  # Ignore cancellation exceptions
-
-    def on_close_click(self, sender, event):
-        self.placement_triggered = False  # No placement if closing
+        self.confirmed = True
         self.Close()
 
-# Search project for all Families
-families = FilteredElementCollector(doc).OfClass(Family)
-FamilyName = 'Control Point'
-Fam_is_in_project = any(f.Name == FamilyName for f in families)
+    def on_close_click(self, sender, event):
+        self.confirmed = False
+        self.Close()
 
-family_pathCC = path + NewFilename
+
+family_path = path + family_file
 
 # Load family if not present
-t = Transaction(doc, 'Load Control Point Family')
-t.Start()
-if not Fam_is_in_project:
+family = get_family(doc, FamilyName)
+
+if not family:
     fload_handler = FamilyLoaderOptionsHandler()
+    loaded_family_ref = clr.Reference[DB.Family]()
+
+    uiapp.DialogBoxShowing += shared_family_dialog_fallback
     try:
-        doc.LoadFamily(family_pathCC, fload_handler)
-    except Exception as e:
-        TaskDialog.Show("Error", "Error loading family: {}".format(str(e)))
-        t.RollBack()
-        sys.exit()
-t.Commit()
+        t = Transaction(doc, 'Load Control Point Family')
+        t.Start()
+        try:
+            loaded_ok = doc.LoadFamily(family_path, fload_handler, loaded_family_ref)
+            t.Commit()
+        except Exception as e:
+            if t.HasStarted():
+                t.RollBack()
+            TaskDialog.Show("Error", "Error loading family: {}".format(str(e)))
+            sys.exit()
+    finally:
+        uiapp.DialogBoxShowing -= shared_family_dialog_fallback
 
-# Get Revit's main window handle
+family = get_family(doc, FamilyName)
+if not family:
+    TaskDialog.Show("Error", "Family '{}' was not found in the project.".format(FamilyName))
+    sys.exit()
+
+target_symbol = get_family_symbol_by_name(doc, FamilyName, TypeName)
+if not target_symbol:
+    TaskDialog.Show("Error", "Type '{}' was not found in family '{}'.".format(TypeName, FamilyName))
+    sys.exit()
+
+# Show dialog
 revit_window_handle = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle
-
-# Show modal dialog once
-form = FixtureTypeWindow(revit_window_handle, FamilyName, doc, uidoc, prev_input)
+form = ControlPointWindow(revit_window_handle, default_point_number, default_point_name)
 form.ShowDialog()
-# Save the selected fixture type if placement was attempted
-if form.selected_type:
+
+if not form.confirmed:
+    sys.exit()
+
+# Save entered values
+try:
     with open(filepath, 'w') as f:
-        f.write(form.selected_type)
+        f.write(form.point_number + '\n')
+        f.write(form.point_name)
+except:
+    pass
+
+# Activate symbol if needed
+if not target_symbol.IsActive:
+    t = Transaction(doc, 'Activate Control Point Type')
+    t.Start()
+    try:
+        target_symbol.Activate()
+        doc.Regenerate()
+        t.Commit()
+    except Exception as e:
+        TaskDialog.Show("Error", "Error activating type '{}': {}".format(TypeName, str(e)))
+        if t.HasStarted():
+            t.RollBack()
+        sys.exit()
+
+# Track placed instances
+before_ids = get_instance_ids_for_symbol(doc, target_symbol.Id)
+
+try:
+    uidoc.PromptForFamilyInstancePlacement(target_symbol)
+except Exception:
+    pass
+
+after_ids = get_instance_ids_for_symbol(doc, target_symbol.Id)
+new_ids = after_ids - before_ids
+
+if not new_ids:
+    sys.exit()
+
+# Write values to newly placed instances
+t = Transaction(doc, 'Set Control Point Parameters')
+t.Start()
+try:
+    errors = []
+
+    for int_id in new_ids:
+        elem = doc.GetElement(DB.ElementId(int_id))
+        if not elem:
+            continue
+
+        err1 = set_text_parameter(elem, "TS_Point_Number", form.point_number)
+        err2 = set_text_parameter(elem, "TS_Point_Description", form.point_name)
+
+        if err1:
+            errors.append(err1)
+        if err2:
+            errors.append(err2)
+
+    t.Commit()
+
+    if errors:
+        unique_errors = sorted(set(errors))
+        TaskDialog.Show("Warning", "\n".join(unique_errors))
+
+except Exception as e:
+    if t.HasStarted():
+        t.RollBack()
+    TaskDialog.Show("Error", "Error setting control point parameters: {}".format(str(e)))

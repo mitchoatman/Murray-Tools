@@ -142,20 +142,6 @@ def is_beam_hanger(element):
         pass
     return False
 
-def is_seismic_brace_gtp(element):
-    """Returns True if element is a GTP whose parent is a structural stiffener (seismic brace)."""
-    if not is_gtp_element(element):
-        return False
-    try:
-        if isinstance(element, FamilyInstance) and element.SuperComponent:
-            parent = element.SuperComponent
-            if parent and parent.Category:
-                if get_id_value(parent.Category.Id) == int(BuiltInCategory.OST_StructuralStiffener):
-                    return True
-    except:
-        pass
-    return False
-
 def get_element_id_value(element):
     if not element:
         return None
@@ -273,12 +259,24 @@ def get_hanger_item_number(element):
 
 
 def get_point_number_owner(element):
-    try:
-        if is_gtp_element(element) and isinstance(element, FamilyInstance) and element.SuperComponent:
-            return element.SuperComponent
-    except:
-        pass
-    return element
+    current = element
+    visited = set()
+
+    while current:
+        current_id = get_element_id_value(current)
+        if current_id in visited:
+            break
+        visited.add(current_id)
+
+        try:
+            if isinstance(current, FamilyInstance) and current.SuperComponent:
+                current = current.SuperComponent
+                continue
+        except:
+            pass
+        break
+
+    return current
 
 
 def get_parent_family_instance(element):
@@ -1164,7 +1162,6 @@ def perform_export():
         selected_elements = [
             el for el in selected_elements
             if not (is_fab_hanger(el) and is_beam_hanger(el))
-            and not is_seismic_brace_gtp(el)
         ]
 
     if dlg.rb_yxz.IsChecked:
@@ -1212,17 +1209,9 @@ def perform_export():
             elif dlg.use_service_prefix:
                 current_val = ""
             else:
-                ts_param = owner.LookupParameter("TS_Point_Number")
-                if ts_param and ts_param.HasValue:
-                    raw_val = ts_param.AsString()
-                    if raw_val:
-                        current_val = raw_val.strip()
+                current_val = get_parameter_value_from_parent_first(owner, "TS_Point_Number") or ""
         else:
-            ts_param = owner.LookupParameter("TS_Point_Number")
-            if ts_param and ts_param.HasValue:
-                raw_val = ts_param.AsString()
-                if raw_val:
-                    current_val = raw_val.strip()
+            current_val = get_parameter_value_from_parent_first(owner, "TS_Point_Number") or ""
 
         owner_current_values[owner_id] = current_val
         value_count[current_val] += 1
@@ -1476,8 +1465,22 @@ def perform_export():
                 row_str = {k: str(v) for k, v in row.iteritems()}
                 writer.writerow(row_str)
 
+        check_dupes = defaultdict(list)
+        for elem_id_int, point_number in assigned_numbers.iteritems():
+            if point_number:
+                check_dupes[point_number].append(elem_id_int)
+
+        dupes = [num for num, ids in check_dupes.iteritems() if len(ids) > 1]
+        if dupes:
+            TaskDialog.Show(
+                "Export Failed",
+                "Duplicate TS_Point_Number values were generated:\n{}".format(", ".join(sorted(dupes)))
+            )
+            return
+
         t = Transaction(doc, "Write TS_Point_Number and TS_Point_Description after export")
         t.Start()
+        doc.Regenerate()
 
         if dlg.use_service_prefix or dlg.use_item_number or dlg.use_rck_prefix:
             for owner in owner_sequence:
@@ -1490,7 +1493,7 @@ def perform_export():
                 except:
                     pass
 
-        for elem_id_int, point_number in assigned_numbers.items():
+        for elem_id_int, point_number in assigned_numbers.iteritems():
             target = doc.GetElement(make_element_id(elem_id_int))
             if not target:
                 continue
@@ -1500,6 +1503,8 @@ def perform_export():
                     ts_param.Set(point_number)
             except:
                 pass
+
+        doc.Regenerate()
 
         for element in element_list:
             try:

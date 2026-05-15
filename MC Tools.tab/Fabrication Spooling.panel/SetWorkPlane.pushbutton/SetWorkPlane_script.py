@@ -2,13 +2,63 @@ import clr
 from Autodesk.Revit.DB import (
     Transaction, FabricationPart, ConnectorType, XYZ, Plane, SketchPlane,
     ViewType, FilteredElementCollector, ReferencePlane,
-    TransactionGroup, LocationPoint, FamilyInstance
+    TransactionGroup, LocationPoint, FamilyInstance, AssemblyInstance
 )
-from Autodesk.Revit.UI.Selection import ObjectType
+from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
 from Autodesk.Revit.UI import TaskDialog, TaskDialogCommandLinkId, TaskDialogCommonButtons, TaskDialogResult
+
 clr.AddReference("RevitServices")
 from RevitServices.Persistence import DocumentManager
 from RevitServices.Transactions import TransactionManager
+
+
+class AssemblyMemberSelectionFilter(ISelectionFilter):
+    def __init__(self, allowed_ids):
+        self.allowed_ids = set([eid.IntegerValue for eid in allowed_ids])
+
+    def AllowElement(self, elem):
+        if elem.Id.IntegerValue not in self.allowed_ids:
+            return False
+        return isinstance(elem, FabricationPart) or isinstance(elem, FamilyInstance)
+
+    def AllowReference(self, reference, position):
+        return True
+
+
+def get_target_element(doc, uidoc):
+    ref = uidoc.Selection.PickObject(
+        ObjectType.Element,
+        "Select a fabrication part or family instance"
+    )
+    elem = doc.GetElement(ref.ElementId)
+
+    # ADDED: If user selects an assembly, drill into it and pick a supported member
+    if isinstance(elem, AssemblyInstance):
+        member_ids = list(elem.GetMemberIds())
+        valid_member_ids = []
+
+        for mid in member_ids:
+            member = doc.GetElement(mid)
+            if isinstance(member, FabricationPart) or isinstance(member, FamilyInstance):
+                valid_member_ids.append(mid)
+
+        if not valid_member_ids:
+            print("Error: Selected assembly contains no FabricationPart or FamilyInstance members.")
+            return None
+
+        if len(valid_member_ids) == 1:
+            return doc.GetElement(valid_member_ids[0])
+
+        member_filter = AssemblyMemberSelectionFilter(valid_member_ids)
+        member_ref = uidoc.Selection.PickObject(
+            ObjectType.Element,
+            member_filter,
+            "Assembly selected. Now pick the specific fabrication part or family instance inside the assembly"
+        )
+        elem = doc.GetElement(member_ref.ElementId)
+
+    return elem
+
 
 def select_fabrication_pipe_and_create_plane():
     doc = __revit__.ActiveUIDocument.Document
@@ -21,8 +71,9 @@ def select_fabrication_pipe_and_create_plane():
             return
 
         # Unified selection prompt
-        ref = uidoc.Selection.PickObject(ObjectType.Element, "Select a fabrication part or family instance")
-        elem = doc.GetElement(ref.ElementId)
+        elem = get_target_element(doc, uidoc)
+        if elem is None:
+            return
 
         x_vector = None
         y_vector = None
@@ -32,7 +83,6 @@ def select_fabrication_pipe_and_create_plane():
         # CASE 1: FabricationPart - your original working logic (unchanged)
         # =================================================================
         if isinstance(elem, FabricationPart):
-            # Get connectors directly from FabricationPart
             connectors = list(elem.ConnectorManager.Connectors)
             if len(connectors) < 2:
                 print("Error: Selected fabrication part does not have enough connectors.")
@@ -48,7 +98,6 @@ def select_fabrication_pipe_and_create_plane():
             line_vector = (connector_2 - connector_1).Normalize()
 
             if abs(line_vector.Z) > max(abs(line_vector.X), abs(line_vector.Y)):
-                # Vertical - identical to your original
                 task_dialog = TaskDialog("Select Axis")
                 task_dialog.MainInstruction = "Choose which axis you want the plane aligned to:"
                 task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Align with X-axis")
@@ -68,7 +117,6 @@ def select_fabrication_pipe_and_create_plane():
                     print("Operation cancelled by the user.")
                     return
             else:
-                # Horizontal - identical to your original (fixed minor bugs present in original)
                 task_dialog = TaskDialog("Proceed with Horizontal Pipe")
                 task_dialog.MainInstruction = "The pipe is horizontal. Do you want to create a work plane?"
                 task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Vertical")
@@ -76,10 +124,10 @@ def select_fabrication_pipe_and_create_plane():
                 task_dialog.CommonButtons = TaskDialogCommonButtons.Cancel
                 result = task_dialog.Show()
 
-                if result == TaskDialogResult.CommandLink1:  # Vertical plane
+                if result == TaskDialogResult.CommandLink1:
                     x_vector = XYZ.BasisX if abs(line_vector.X) > abs(line_vector.Y) else XYZ.BasisY
                     y_vector = XYZ.BasisZ
-                elif result == TaskDialogResult.CommandLink2:  # Horizontal plane
+                elif result == TaskDialogResult.CommandLink2:
                     x_vector = XYZ.BasisX if abs(line_vector.X) > abs(line_vector.Y) else XYZ.BasisY
                     y_vector = XYZ.BasisY if abs(line_vector.X) > abs(line_vector.Y) else XYZ.BasisX
                 else:
@@ -172,13 +220,13 @@ def select_fabrication_pipe_and_create_plane():
             t.Commit()
 
             tg.Assimilate()
-            # print("Success: Work plane created and set.")
         except Exception as ex:
             tg.RollBack()
             print("Error during transaction:", str(ex))
 
     except Exception as e:
         print("Error:", str(e))
+
 
 # Run the function
 select_fabrication_pipe_and_create_plane()

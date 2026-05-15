@@ -6,11 +6,20 @@ title:
 
 # bundle tooltip
 tooltip: |-
-  Populates Trapeze hangers on selected pipe(s.
+  Populates Trapeze hangers on selected pipe(s).
     1. Select each pipe on the outside of the rack.
     2. Select the service to assign trapeze hangers to.
     3. Set trapeze type and spacing rules.
     4. Click ok and trapeze hangers will be placed.
+
+  [Shift]+Click:    
+  Populates Trapeze hangers on selected pipe(s) width set
+  at user specified points rather than sized to pipe.
+    1. Select a pipe on the rack.
+    2. Select the rest of the pipes on rack.
+    3. Select the service to assign trapeze hangers to.
+    4. Set trapeze type and spacing rules.
+    5. Click ok and trapeze hangers will be placed.
 
 
 # context directives are listed under `context` key, the order does not matter

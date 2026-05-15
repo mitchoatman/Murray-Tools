@@ -19,6 +19,129 @@ from System.Windows.Input import Keyboard
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 
+def get_fab_palette_count(fab_service):
+    try:
+        return fab_service.PaletteCount
+    except:
+        return fab_service.GroupCount
+
+def get_fab_palette_name(fab_service, index):
+    try:
+        return fab_service.GetPaletteName(index)
+    except:
+        return fab_service.GetGroupName(index)
+
+def get_param_text(elem, bip):
+    try:
+        p = elem.get_Parameter(bip)
+        if p:
+            s = p.AsString()
+            if s:
+                return s.strip()
+            s = p.AsValueString()
+            if s:
+                return s.strip()
+    except:
+        pass
+    return None
+
+
+def normalize_size_text(s):
+    if not s:
+        return ""
+    s = s.lower().strip()
+    for ch in [" ", "-", "_", '"']:
+        s = s.replace(ch, "")
+    return s
+
+
+def get_host_size_candidates(host_part):
+    vals = []
+
+    # strongest match: host's actual current product entry name
+    try:
+        if host_part.ProductListEntry >= 0:
+            vals.append(host_part.GetProductListEntryName(host_part.ProductListEntry))
+    except:
+        pass
+
+    # useful fabrication parameters
+    for bip in [
+        BuiltInParameter.FABRICATION_PART_DIAMETER_IN_OPTION,
+        BuiltInParameter.FABRICATION_PART_DIAMETER_OUT_OPTION,
+        BuiltInParameter.FABRICATION_PRODUCT_ENTRY,
+    ]:
+        v = get_param_text(host_part, bip)
+        if v:
+            vals.append(v)
+
+    # optional
+    try:
+        if host_part.Size:
+            vals.append(host_part.Size)
+    except:
+        pass
+
+    # de-dupe while preserving order
+    cleaned = []
+    seen = set()
+    for v in vals:
+        key = normalize_size_text(v)
+        if key and key not in seen:
+            seen.add(key)
+            cleaned.append(v)
+    return cleaned
+
+
+def try_match_product_entry_by_size(new_part, host_part):
+    try:
+        if not new_part.IsProductList():
+            return False, "new part is not a product list"
+    except:
+        return False, "could not evaluate product list"
+
+    desired_values = get_host_size_candidates(host_part)
+    if not desired_values:
+        return False, "no host size/product-entry text found"
+
+    entry_count = new_part.GetProductListEntryCount()
+    if entry_count < 1:
+        return False, "no product entries on new part"
+
+    # pass 1: exact normalized match
+    for desired in desired_values:
+        desired_norm = normalize_size_text(desired)
+
+        for i in range(entry_count):
+            try:
+                entry_name = new_part.GetProductListEntryName(i)
+                if normalize_size_text(entry_name) != desired_norm:
+                    continue
+
+                if new_part.IsProductListEntryCompatibleSize(i):
+                    new_part.ProductListEntry = i
+                    return True, entry_name
+            except:
+                pass
+
+    # pass 2: contains match
+    for desired in desired_values:
+        desired_norm = normalize_size_text(desired)
+
+        for i in range(entry_count):
+            try:
+                entry_name = new_part.GetProductListEntryName(i)
+                entry_norm = normalize_size_text(entry_name)
+
+                if desired_norm in entry_norm or entry_norm in desired_norm:
+                    if new_part.IsProductListEntryCompatibleSize(i):
+                        new_part.ProductListEntry = i
+                        return True, entry_name
+            except:
+                pass
+
+    return False, "no compatible matching product entry found"
+
 # -----------------------------
 # SELECTION FILTER
 # -----------------------------
@@ -137,24 +260,31 @@ config = FabricationConfiguration.GetFabricationConfiguration(doc)
 services = config.GetAllLoadedServices()
 target_service = None
 host_service_id = host_part.ServiceId
+
 for s in services:
     if s.ServiceId == host_service_id:
         target_service = s
         break
+
 if not target_service:
     TaskDialog.Show("Error", "Could not find loaded fabrication service for selected host part.")
     sys.exit()
 
 palette_names = []
 button_records = []
-for p in range(target_service.PaletteCount):
-    palette_name = target_service.GetPaletteName(p)
+
+grp_count = get_fab_palette_count(target_service)
+
+for p in range(grp_count):
+    palette_name = get_fab_palette_name(target_service, p)
     palette_names.append(palette_name)
+
     for i in range(target_service.GetButtonCount(p)):
         btn = target_service.GetButton(p, i)
+
         if btn.ConditionCount > 1:
             for c in range(btn.ConditionCount):
-                display = u"{1}".format(btn.Name, btn.GetConditionName(c))
+                display = u"{0} - {1}".format(btn.Name, btn.GetConditionName(c))
                 button_records.append({
                     "palette_index": p,
                     "palette_name": palette_name,
@@ -171,6 +301,7 @@ for p in range(target_service.PaletteCount):
                 "button": btn,
                 "condition_index": 0
             })
+
 if not button_records:
     TaskDialog.Show("Error", "No fabrication buttons found for the selected service.")
     sys.exit()
@@ -244,19 +375,20 @@ t = None
 try:
     t = Transaction(doc, "Place Fabrication Part on Pipe Centerline")
     t.Start()
+
     new_part = FabricationPart.Create(doc, fab_btn, condition_index, host_part.LevelId)
     doc.Regenerate()
 
-    # Move to insert point
+    matched, match_info = try_match_product_entry_by_size(new_part, host_part)
+    doc.Regenerate()
+
     translation = insert_point - new_part.Origin
     ElementTransformUtils.MoveElement(doc, new_part.Id, translation)
     doc.Regenerate()
 
-    # Align along pipe in 3D
     pipe_dir = get_pipe_direction(host_part)
     rotate_to_vector(doc, new_part, insert_point, XYZ.BasisX, pipe_dir)
 
-    # Ensure part faces user in section/plan
     if not is_3d_view(doc.ActiveView):
         ensure_facing_user(doc, new_part, insert_point)
 

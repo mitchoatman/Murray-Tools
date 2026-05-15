@@ -27,13 +27,14 @@ from Autodesk.Revit.DB import (
     Structure
 )
 from Autodesk.Revit.UI import TaskDialog
-
+from System import Environment
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 
 FAMILY_NAME = "Control Point"
 DEFAULT_TYPE_NAME = "CP"
+DEFAULT_IMPORT_ORDER = "AUTO"
 
 SETTINGS_FOLDER = r"C:\Temp"
 SETTINGS_FILE = os.path.join(SETTINGS_FOLDER, "ImportControlPoints.txt")
@@ -45,11 +46,16 @@ CONTROL_POINT_FAMILY_PATH = os.path.join(SCRIPT_DIR, "Control Point.rfa")
 # ------------------------------------------------------------
 # SETTINGS
 # ------------------------------------------------------------
+
+TEMPLATE_FILE_NAME = "CONTROL_POINT_TEMPLATE.csv"
+DESKTOP_PATH = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)
+
 def load_settings():
     settings = {
         "csv_path": "",
         "type_name": DEFAULT_TYPE_NAME,
-        "coordinate_system": "SHARED"
+        "coordinate_system": "SHARED",
+        "import_order": DEFAULT_IMPORT_ORDER
     }
 
     try:
@@ -69,6 +75,8 @@ def load_settings():
                         settings["type_name"] = value
                     elif key == "coordinate_system":
                         settings["coordinate_system"] = value
+                    elif key == "import_order":
+                        settings["import_order"] = value
     except:
         pass
 
@@ -84,7 +92,8 @@ def save_settings(settings):
             f.writelines([
                 "csv_path={}\n".format(settings.get("csv_path", "")),
                 "type_name={}\n".format(settings.get("type_name", DEFAULT_TYPE_NAME)),
-                "coordinate_system={}\n".format(settings.get("coordinate_system", "SHARED"))
+                "coordinate_system={}\n".format(settings.get("coordinate_system", "SHARED")),
+                "import_order={}\n".format(settings.get("import_order", DEFAULT_IMPORT_ORDER))
             ])
     except:
         pass
@@ -320,6 +329,47 @@ def detect_columns(header_row):
     return result
 
 
+def detect_columns_by_order(header_row, import_order):
+    result = {
+        "x": None,
+        "y": None,
+        "z": None,
+        "number": None,
+        "description": None
+    }
+
+    col_count = len(header_row)
+
+    if col_count < 3:
+        raise Exception("CSV must contain at least 3 columns for hard-set import order.")
+
+    if col_count >= 4:
+        result["number"] = 0
+
+        if import_order == "YXZ":
+            result["y"] = 1
+            result["x"] = 2
+            result["z"] = 3
+        elif import_order == "XYZ":
+            result["x"] = 1
+            result["y"] = 2
+            result["z"] = 3
+
+        if col_count >= 5:
+            result["description"] = 4
+    else:
+        if import_order == "YXZ":
+            result["y"] = 0
+            result["x"] = 1
+            result["z"] = 2
+        elif import_order == "XYZ":
+            result["x"] = 0
+            result["y"] = 1
+            result["z"] = 2
+
+    return result
+
+
 def get_row_value(row, idx):
     if idx is None:
         return ""
@@ -328,7 +378,7 @@ def get_row_value(row, idx):
     return row[idx]
 
 
-def read_csv_rows(file_path):
+def read_csv_rows(file_path, import_order="AUTO"):
     rows = []
     skipped = []
 
@@ -351,7 +401,10 @@ def read_csv_rows(file_path):
         if not header_row:
             raise Exception("CSV header row is empty.")
 
-        cols = detect_columns(header_row)
+        if import_order == "AUTO":
+            cols = detect_columns(header_row)
+        else:
+            cols = detect_columns_by_order(header_row, import_order)
 
         if cols["x"] is None or cols["y"] is None or cols["z"] is None:
             raise Exception(
@@ -479,7 +532,7 @@ class ImportControlPointsForm(Form):
         Form.__init__(self)
 
         self.Text = "Import Control Points from CSV"
-        self.ClientSize = Size(480, 230)
+        self.ClientSize = Size(480, 305)
         self.StartPosition = FormStartPosition.CenterScreen
         self.FormBorderStyle = FormBorderStyle.FixedDialog
         self.MaximizeBox = False
@@ -489,6 +542,7 @@ class ImportControlPointsForm(Form):
         self.csv_path = settings.get("csv_path", "")
         self.type_name = settings.get("type_name", DEFAULT_TYPE_NAME)
         self.coordinate_system = settings.get("coordinate_system", "SHARED")
+        self.import_order = settings.get("import_order", DEFAULT_IMPORT_ORDER)
         self.result_ok = False
 
         self.init_ui()
@@ -527,6 +581,33 @@ class ImportControlPointsForm(Form):
         self.rb_shared.Checked = (self.coordinate_system == "SHARED")
         grp_coord.Controls.Add(self.rb_shared)
 
+        grp_order = GroupBox()
+        grp_order.Text = "Import Order"
+        grp_order.Location = Point(15, 140)
+        grp_order.Size = Size(430, 70)
+        self.Controls.Add(grp_order)
+
+        self.rb_order_auto = RadioButton()
+        self.rb_order_auto.Text = "Auto"
+        self.rb_order_auto.Location = Point(15, 30)
+        self.rb_order_auto.Size = Size(80, 20)
+        self.rb_order_auto.Checked = (self.import_order == "AUTO")
+        grp_order.Controls.Add(self.rb_order_auto)
+
+        self.rb_order_yxz = RadioButton()
+        self.rb_order_yxz.Text = "(Y,X,Z : N,E,H)"
+        self.rb_order_yxz.Location = Point(145, 30)
+        self.rb_order_yxz.Size = Size(120, 20)
+        self.rb_order_yxz.Checked = (self.import_order == "YXZ")
+        grp_order.Controls.Add(self.rb_order_yxz)
+
+        self.rb_order_xyz = RadioButton()
+        self.rb_order_xyz.Text = "(X,Y,Z : E,N,H)"
+        self.rb_order_xyz.Location = Point(275, 30)
+        self.rb_order_xyz.Size = Size(130, 20)
+        self.rb_order_xyz.Checked = (self.import_order == "XYZ")
+        grp_order.Controls.Add(self.rb_order_xyz)
+
         left_margin = 20
         right_margin = 20
         label_w = 70
@@ -535,7 +616,7 @@ class ImportControlPointsForm(Form):
 
         lbl_file = Label()
         lbl_file.Text = "CSV File:"
-        lbl_file.Location = Point(left_margin, 145)
+        lbl_file.Location = Point(left_margin, 225)
         lbl_file.Size = Size(label_w, 20)
         self.Controls.Add(lbl_file)
 
@@ -544,19 +625,19 @@ class ImportControlPointsForm(Form):
         txt_w = browse_x - gap - file_x
 
         self.txt_file = TextBox()
-        self.txt_file.Location = Point(file_x, 142)
+        self.txt_file.Location = Point(file_x, 222)
         self.txt_file.Size = Size(txt_w, 22)
         self.txt_file.Text = self.csv_path
         self.Controls.Add(self.txt_file)
 
         btn_browse = Button()
         btn_browse.Text = "Browse..."
-        btn_browse.Location = Point(browse_x, 140)
+        btn_browse.Location = Point(browse_x, 220)
         btn_browse.Size = Size(browse_w, 26)
         btn_browse.Click += self.on_browse
         self.Controls.Add(btn_browse)
 
-        button_y = 180
+        button_y = 255
         gap = 10
 
         import_w = 90
@@ -634,22 +715,16 @@ class ImportControlPointsForm(Form):
         self.csv_path = csv_path
         self.type_name = type_name
         self.coordinate_system = "INTERNAL" if self.rb_internal.Checked else "SHARED"
+
+        if self.rb_order_yxz.Checked:
+            self.import_order = "YXZ"
+        elif self.rb_order_xyz.Checked:
+            self.import_order = "XYZ"
+        else:
+            self.import_order = "AUTO"
+
         self.result_ok = True
         self.DialogResult = DialogResult.OK
-        self.Close()
-
-        if not os.path.exists(csv_path):
-            TaskDialog.Show("File Not Found", csv_path)
-            return
-
-        if not type_name:
-            TaskDialog.Show("Missing Type", "Please enter a control point type.")
-            return
-
-        self.csv_path = csv_path
-        self.type_name = type_name
-        self.coordinate_system = "INTERNAL" if self.rb_internal.Checked else "SHARED"
-        self.result_ok = True
         self.Close()
 
     def on_cancel(self, sender, args):
@@ -659,33 +734,31 @@ class ImportControlPointsForm(Form):
 
     def on_make_template(self, sender, args):
         try:
-            template_path = self.txt_file.Text.strip()
-
-            if not template_path:
-                MessageBox.Show(
-                    self,
-                    "Enter or browse to a CSV path first.",
-                    "Missing File",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
-                )
-                return
-
-            folder = os.path.dirname(template_path)
-            if folder and not os.path.exists(folder):
-                os.makedirs(folder)
+            template_path = os.path.join(DESKTOP_PATH, TEMPLATE_FILE_NAME)
 
             with open(template_path, "wb") as f:
                 writer = csv.writer(f)
                 writer.writerow(["POINT NUMBER", "Y", "X", "Z", "DESCRIPTION"])
 
-            MessageBox.Show(
+            result = MessageBox.Show(
                 self,
-                "Template created at:\n{}".format(template_path),
+                "Template created at:\n{}\n\nOpen file now?".format(template_path),
                 "Template Created",
-                MessageBoxButtons.OK,
+                MessageBoxButtons.OKCancel,
                 MessageBoxIcon.Information
             )
+
+            if result == DialogResult.OK:
+                try:
+                    os.startfile(template_path)
+                except Exception as ex:
+                    MessageBox.Show(
+                        self,
+                        "Could not open file:\n{}".format(str(ex)),
+                        "Open Failed",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    )
 
         except Exception as ex:
             MessageBox.Show(
@@ -695,6 +768,7 @@ class ImportControlPointsForm(Form):
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error
             )
+
 
 # ------------------------------------------------------------
 # MAIN
@@ -711,15 +785,17 @@ def main():
     csv_path = form.csv_path
     type_name = form.type_name
     coordinate_system = form.coordinate_system
+    import_order = form.import_order
 
     save_settings({
         "csv_path": csv_path,
         "type_name": type_name,
-        "coordinate_system": coordinate_system
+        "coordinate_system": coordinate_system,
+        "import_order": import_order
     })
 
     try:
-        csv_rows, skipped_rows = read_csv_rows(csv_path)
+        csv_rows, skipped_rows = read_csv_rows(csv_path, import_order)
     except Exception as ex:
         TaskDialog.Show("CSV Read Failed", str(ex))
         return
@@ -800,6 +876,7 @@ def main():
     msg.append("CSV rows skipped before placement: {}".format(len(skipped_rows)))
     msg.append("")
     msg.append("Coordinate system used: {}".format(coordinate_system))
+    msg.append("Import order used: {}".format(import_order))
     msg.append("Family: {}".format(FAMILY_NAME))
     msg.append("Type: {}".format(type_name))
     msg.append("File: {}".format(csv_path))

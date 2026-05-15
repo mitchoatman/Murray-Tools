@@ -1,69 +1,110 @@
-
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family, ViewType
+from Autodesk.Revit.DB import FilteredElementCollector, Transaction, Family, ViewType
 from Autodesk.Revit.UI import TaskDialog
-import os, sys
+import os
+import sys
 
-# Check active view type
-view = __revit__.ActiveUIDocument.ActiveView
+# --------------------------------------------------
+# Basic environment
+# --------------------------------------------------
+uidoc = __revit__.ActiveUIDocument
+doc = uidoc.Document
+view = uidoc.ActiveView
+
 if view.ViewType == ViewType.ThreeD:
     TaskDialog.Show("Error", "Cannot use in 3D view.")
     sys.exit()
 
 path, filename = os.path.split(__file__)
-NewFilename = '\POC Symbol.rfa'
+family_filename = 'POC Symbol.rfa'
+family_path = os.path.join(path, family_filename)
 
-app = __revit__.Application
-doc = __revit__.ActiveUIDocument.Document
-uidoc = __revit__.ActiveUIDocument
+FamilyName = 'POC Symbol'
+FamilyType = 'POC Symbol'
 
+
+# --------------------------------------------------
+# Family load options
+# --------------------------------------------------
 class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):
         overwriteParameterValues.Value = False
         return True
-
 
     def OnSharedFamilyFound(self, sharedFamily, familyInUse, source, overwriteParameterValues):
         source.Value = DB.FamilySource.Family
         overwriteParameterValues.Value = False
         return True
 
-# Search project for all Families
-families = FilteredElementCollector(doc).OfClass(Family)
-# Set desired family name and type name:
-FamilyName = 'POC Symbol'
-FamilyType = 'POC Symbol'
-# Check if the family is in the project
-Fam_is_in_project = any(f.Name == FamilyName for f in families)
-#print("Family '{}' is in project: {}".format(FamilyName, is_in_project))
 
-family_pathCC = path + NewFilename
+# --------------------------------------------------
+# Helpers
+# --------------------------------------------------
+def get_family_by_name(document, family_name):
+    collector = FilteredElementCollector(document).OfClass(Family)
+    for fam in collector:
+        if fam.Name == family_name:
+            return fam
+    return None
 
-t = Transaction(doc, 'Load POC Symbol Family')
-#Start Transaction
-t.Start()
-if Fam_is_in_project == False:
-    fload_handler = FamilyLoaderOptionsHandler()
-    family = doc.LoadFamily(family_pathCC, fload_handler)
-t.Commit()
 
-#Family symbol name to place.
-symbName = 'POC Symbol'
+def load_family_if_missing(document, family_name, family_path):
+    fam = get_family_by_name(document, family_name)
+    if fam:
+        return fam
 
-#create a filtered element collector set to Category OST_Mass and Class FamilySymbol
-collector = FilteredElementCollector(doc)
-collector.OfCategory(BuiltInCategory.OST_GenericAnnotation)
-collector.OfClass(FamilySymbol)
+    if not os.path.exists(family_path):
+        TaskDialog.Show("Error", "Family file not found:\n{}".format(family_path))
+        return None
 
-famtypeitr = collector.GetElementIdIterator()
-famtypeitr.Reset()
+    t = Transaction(document, 'Load POC Symbol Family')
+    t.Start()
+    try:
+        fload_handler = FamilyLoaderOptionsHandler()
+        result = document.LoadFamily(family_path, fload_handler)
 
-#Search Family Symbols in document.
-for item in famtypeitr:
-    famtypeID = item
-    famsymb = doc.GetElement(famtypeID)
+        if not result:
+            t.RollBack()
+            TaskDialog.Show("Error", "Failed to load family '{}'.".format(family_name))
+            return None
 
-    #If the FamilySymbol is the name we are looking for, create a new instance.
-    if famsymb.Family.Name == symbName:
-        uidoc.PostRequestForElementTypePlacement(famsymb)
+        t.Commit()
+    except Exception as e:
+        if t.HasStarted():
+            t.RollBack()
+        TaskDialog.Show("Error", "Error loading family:\n{}".format(str(e)))
+        return None
 
+    return get_family_by_name(document, family_name)
+
+
+def get_family_symbol_by_type_name(document, family, type_name):
+    if not family:
+        return None
+
+    for symbol_id in family.GetFamilySymbolIds():
+        symbol = document.GetElement(symbol_id)
+        if symbol:
+            p = symbol.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM)
+            if p and p.AsString() == type_name:
+                return symbol
+
+    return None
+
+
+# --------------------------------------------------
+# Main
+# --------------------------------------------------
+family = load_family_if_missing(doc, FamilyName, family_path)
+if not family:
+    sys.exit()
+
+symbol = get_family_symbol_by_type_name(doc, family, FamilyType)
+if not symbol:
+    TaskDialog.Show(
+        "Error",
+        "Type '{}' not found in family '{}'.".format(FamilyType, FamilyName)
+    )
+    sys.exit()
+
+uidoc.PostRequestForElementTypePlacement(symbol)

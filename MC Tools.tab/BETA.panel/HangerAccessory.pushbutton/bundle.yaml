@@ -1,0 +1,25 @@
+
+#highlight: new
+
+# bundle title
+title:
+  "Hanger\nAccessory"
+
+# bundle tooltip
+tooltip: |-
+  This will Insert user specified fabrication part on top of fabrication hanger rod.
+  
+  1. Run Script
+  2. Pick a fabrication part to set service
+  3. Select fabrication hangers to add parts on
+  4. Pick the part you want to add from dialog
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

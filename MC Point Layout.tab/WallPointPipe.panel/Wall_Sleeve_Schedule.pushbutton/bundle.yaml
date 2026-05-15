@@ -2,11 +2,11 @@
 
 # bundle title
 title:
-  "Wall Sleeve\nSchedule"
+  "Wall Opening\nSchedule"
 
 # bundle tooltip
 tooltip: |-
-  Creates a Pipe Wall Sleeve schedule to use as a template.
+  Creates a Pipe Wall Opening schedule to use as a template.
   
     - Still requires filters, sorting, and grouping by user.
 

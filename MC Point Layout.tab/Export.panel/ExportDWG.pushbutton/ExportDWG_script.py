@@ -11,6 +11,7 @@ clr.AddReference('RevitAPIUI')
 # Import .NET SaveFileDialog and System for generic collections
 from System.Windows.Forms import SaveFileDialog, DialogResult
 import System
+from Autodesk.Revit.UI import TaskDialog
 
 # Get the current Revit document
 doc = __revit__.ActiveUIDocument.Document
@@ -48,10 +49,11 @@ def export_to_dwg(view, output_path):
 
         # Perform the export
         doc.Export(output_folder, file_name, view_set, dwg_options)
-        # print("DWG exported successfully to: {}".format(output_path))
+
     
     except Exception as ex:
-        print("Error during DWG export: {}".format(str(ex)))
+        TaskDialog.Show("Error", "Error during DWG export: {}".format(str(ex)))
+
 
 def main():
     """
@@ -60,12 +62,12 @@ def main():
     # Get the active view
     active_view = doc.ActiveView
     if not active_view:
-        print("No active view found")
+        TaskDialog.Show("Error", "No active view found")
         return
 
     # Check if the active view is a floor plan
     if active_view.ViewType not in [Autodesk.Revit.DB.ViewType.FloorPlan, Autodesk.Revit.DB.ViewType.CeilingPlan]:
-        print("The active view is not a floor plan")
+        TaskDialog.Show("Error", "The active view is not a floor plan")
         return
 
     # Sanitize the view name for the default file name
@@ -82,7 +84,7 @@ def main():
 
     # Show the save dialog and check if the user clicked OK
     if save_dialog.ShowDialog() != DialogResult.OK:
-        print("No save location selected")
+        TaskDialog.Show("Error", "No save location selected")
         return
 
     # Get the selected file path

@@ -1,4 +1,4 @@
-# coding: utf8
+# -*- coding: UTF-8 -*-
 import Autodesk
 import clr
 clr.AddReference('PresentationFramework')
@@ -25,6 +25,19 @@ app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float(RevitVersion)
 
+def get_id_value(id_obj):
+    if id_obj is None:
+        return None
+    try:
+        if RevitINT > 2025:
+            return id_obj.Value
+        else:
+            return id_obj.IntegerValue
+    except:
+        try:
+            return id_obj.Value
+        except:
+            return id_obj.IntegerValue
 
 class ViewSelectionFilter(Window):
     def __init__(self, views):
@@ -468,11 +481,11 @@ def build_sheet_targets(selected_views):
         if view.ViewType in [DB.ViewType.FloorPlan, DB.ViewType.CeilingPlan]:
             level_param = view.get_Parameter(BuiltInParameter.PLAN_VIEW_LEVEL)
             if level_param:
-                level_id = level_param.AsElementId().IntegerValue
+                level_id = get_id_value(level_param.AsElementId())
 
         scope_param = view.get_Parameter(BuiltInParameter.VIEWER_VOLUME_OF_INTEREST_CROP)
         if scope_param:
-            scope_id = scope_param.AsElementId().IntegerValue
+            scope_id = level_id = get_id_value(level_param.AsElementId())
 
         key = (level_id, scope_id)
         if key not in grouped:

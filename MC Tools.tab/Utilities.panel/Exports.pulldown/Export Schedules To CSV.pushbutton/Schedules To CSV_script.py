@@ -11,13 +11,12 @@ clr.AddReference('PresentationFramework')
 clr.AddReference('PresentationCore')
 
 import System
-from System import IO
 from System.Windows import Window, Thickness
 from System.Windows.Controls import Label, TextBox, Button, ScrollViewer, StackPanel, Grid, Orientation, CheckBox
 from System.Windows.Media import FontFamily
 from System.Windows import HorizontalAlignment, GridLength, GridUnitType, ResizeMode
 from System.Windows.Controls import ScrollBarVisibility
-from System.Windows.Forms import SaveFileDialog, DialogResult
+from System.Windows.Forms import SaveFileDialog, FolderBrowserDialog, DialogResult
 
 # ------------------------------
 # Helpers
@@ -28,10 +27,15 @@ def cleanup_filename(name):
 
 
 def get_schedules(doc):
-    """Return all schedules in the doc."""
+    """Return only legitimate user-facing schedules, excluding templates and titleblock revision schedules."""
     collector = FilteredElementCollector(doc).OfClass(DB.ViewSchedule).WhereElementIsNotElementType()
     return sorted(
-        [v for v in collector if v.ViewType == ViewType.Schedule and not v.IsTemplate],
+        [
+            v for v in collector
+            if v.ViewType == ViewType.Schedule
+            and not v.IsTemplate
+            and not v.IsTitleblockRevisionSchedule
+        ],
         key=lambda x: x.Name
     )
 
@@ -56,24 +60,34 @@ class OpenExcelDialog(Window):
         grid.RowDefinitions.Add(System.Windows.Controls.RowDefinition(Height=GridLength.Auto))
         grid.RowDefinitions.Add(System.Windows.Controls.RowDefinition(Height=GridLength.Auto))
 
-        # Success message
         label = Label(Content="Schedule exported successfully.\nWould you like to open the Conversion-Template.xltx?")
         label.FontFamily = FontFamily("Arial")
         label.FontSize = 12
         Grid.SetRow(label, 0)
         grid.Children.Add(label)
 
-        # Buttons
-        button_panel = StackPanel(Orientation=Orientation.Horizontal,
-                                  HorizontalAlignment=HorizontalAlignment.Center,
-                                  Margin=Thickness(0, 10, 0, 0))
+        button_panel = StackPanel(
+            Orientation=Orientation.Horizontal,
+            HorizontalAlignment=HorizontalAlignment.Center,
+            Margin=Thickness(0, 10, 0, 0)
+        )
 
-        open_btn = Button(Content="Open", FontFamily=FontFamily("Arial"), FontSize=12,
-                          Margin=Thickness(0, 0, 20, 0), Height=25)
+        open_btn = Button(
+            Content="Open",
+            FontFamily=FontFamily("Arial"),
+            FontSize=12,
+            Margin=Thickness(0, 0, 20, 0),
+            Height=25
+        )
         open_btn.Click += self.open_clicked
         button_panel.Children.Add(open_btn)
 
-        continue_btn = Button(Content="Continue", FontFamily=FontFamily("Arial"), FontSize=12, Height=25)
+        continue_btn = Button(
+            Content="Continue",
+            FontFamily=FontFamily("Arial"),
+            FontSize=12,
+            Height=25
+        )
         continue_btn.Click += self.continue_clicked
         button_panel.Children.Add(continue_btn)
 
@@ -85,7 +99,6 @@ class OpenExcelDialog(Window):
     def open_clicked(self, sender, args):
         try:
             os.startfile(self.filepath)
-            # System.Diagnostics.Process.Start(self.filepath)
         except Exception as e:
             TaskDialog.Show("Error", "Failed to open file:\n{}".format(str(e)))
         self.Close()
@@ -114,25 +127,22 @@ class SelectSchedulesWindow(Window):
 
         grid = Grid()
         grid.Margin = Thickness(5)
-        for i in range(4):  # rows
+        for i in range(4):
             row = GridLength(1, GridUnitType.Star) if i == 2 else GridLength.Auto
             grid.RowDefinitions.Add(System.Windows.Controls.RowDefinition(Height=row))
         grid.ColumnDefinitions.Add(System.Windows.Controls.ColumnDefinition())
 
-        # Label
         label = Label(Content="Search and select schedules:")
         label.FontFamily = FontFamily("Arial")
         label.FontSize = 16
         Grid.SetRow(label, 0)
         grid.Children.Add(label)
 
-        # Search Box
         self.search_box = TextBox(Height=22, FontFamily=FontFamily("Arial"), FontSize=12)
         self.search_box.TextChanged += self.search_changed
         Grid.SetRow(self.search_box, 1)
         grid.Children.Add(self.search_box)
 
-        # Scrollable Checkbox Panel
         self.checkbox_panel = StackPanel(Orientation=Orientation.Vertical)
         scroll_viewer = ScrollViewer(Content=self.checkbox_panel)
         scroll_viewer.VerticalScrollBarVisibility = ScrollBarVisibility.Auto
@@ -141,17 +151,28 @@ class SelectSchedulesWindow(Window):
 
         self.update_checkboxes(self.schedule_list)
 
-        # Buttons
-        button_panel = StackPanel(Orientation=Orientation.Horizontal,
-                                  HorizontalAlignment=HorizontalAlignment.Center,
-                                  Margin=Thickness(0, 10, 0, 10))
+        button_panel = StackPanel(
+            Orientation=Orientation.Horizontal,
+            HorizontalAlignment=HorizontalAlignment.Center,
+            Margin=Thickness(0, 10, 0, 10)
+        )
 
-        select_btn = Button(Content="Select", FontFamily=FontFamily("Arial"), FontSize=12, Height=25,
-                            Margin=Thickness(0, 0, 20, 0))
+        select_btn = Button(
+            Content="Select",
+            FontFamily=FontFamily("Arial"),
+            FontSize=12,
+            Height=25,
+            Margin=Thickness(0, 0, 20, 0)
+        )
         select_btn.Click += self.select_clicked
         button_panel.Children.Add(select_btn)
 
-        checkall_btn = Button(Content="Check All", FontFamily=FontFamily("Arial"), FontSize=12, Height=25)
+        checkall_btn = Button(
+            Content="Check All",
+            FontFamily=FontFamily("Arial"),
+            FontSize=12,
+            Height=25
+        )
         checkall_btn.Click += self.check_all_clicked
         button_panel.Children.Add(checkall_btn)
 
@@ -213,7 +234,27 @@ if schedules:
         script_dir = os.path.dirname(__file__)
         excel_template_path = os.path.join(script_dir, "Conversion-Template.xltx")
 
-        for sched in form.selected_schedules:
+        selected = form.selected_schedules
+
+        # Multiple schedules: prompt once for a folder
+        if len(selected) > 1:
+            folder_dialog = FolderBrowserDialog()
+            folder_dialog.Description = "Select folder to save exported CSV files"
+            folder_dialog.SelectedPath = os.path.expandvars("%USERPROFILE%\\Desktop")
+
+            if folder_dialog.ShowDialog() == DialogResult.OK:
+                export_folder = folder_dialog.SelectedPath
+
+                for sched in selected:
+                    schedule_name = cleanup_filename(sched.Name) + ".csv"
+                    sched.Export(export_folder, schedule_name, vseop)
+
+                open_dialog = OpenExcelDialog(excel_template_path)
+                open_dialog.ShowDialog()
+
+        # Single schedule: prompt for file name/location
+        else:
+            sched = selected[0]
             schedule_name = cleanup_filename(sched.Name)
 
             save_dialog = SaveFileDialog()
@@ -228,7 +269,7 @@ if schedules:
                 fname = os.path.basename(save_dialog.FileName)
 
                 sched.Export(folder, fname, vseop)
-                
+
                 open_dialog = OpenExcelDialog(excel_template_path)
                 open_dialog.ShowDialog()
 else:
