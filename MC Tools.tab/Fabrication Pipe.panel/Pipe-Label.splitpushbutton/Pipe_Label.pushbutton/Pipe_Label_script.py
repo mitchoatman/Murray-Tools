@@ -307,6 +307,21 @@ def create_family_instance(insertion_point, symbol):
         DB.Structure.StructuralType.NonStructural
     )
 
+def get_pipe_outside_diameter_with_insulation(pipe):
+    od_param = pipe.LookupParameter('Outside Diameter')
+    if od_param is None:
+        raise Exception("Pipe does not have a valid Outside Diameter parameter.")
+
+    outside_dia = od_param.AsDouble()
+
+    ins_thick = 0.0
+    ins_spec_param = pipe.LookupParameter('Insulation Specification')
+    if ins_spec_param and ins_spec_param.AsInteger() != 0:
+        ins_thick_param = pipe.LookupParameter('Insulation Thickness')
+        if ins_thick_param:
+            ins_thick = ins_thick_param.AsDouble()
+
+    return outside_dia + (2 * ins_thick)
 
 def place_and_modify_family(pipe, famsymb):
     centerline_curve = get_pipe_centerline(pipe)
@@ -319,23 +334,15 @@ def place_and_modify_family(pipe, famsymb):
     if not new_family_instance:
         raise Exception("Failed to create family instance.")
 
-    def frac2string(s):
-        i, f = s.groups(0)
-        f = Fraction(f)
-        return str(int(i) + float(f))
-
-    overall_size = get_parameter_value_by_name_AsString(pipe, 'Overall Size')
-    if not overall_size:
-        raise Exception("Pipe does not have a valid Overall Size.")
-
-    if '/' in overall_size:
-        diameter = float(
-            re.sub(r'(?:(\d+)[-\s])?(\d+/\d+)[^\d.]', frac2string, overall_size)
-        ) / 12.0
-    else:
-        diameter = float(re.sub(r'[^\d.]', '', overall_size)) / 12.0
-
+    diameter = get_pipe_outside_diameter_with_insulation(pipe)
     set_parameter_by_name_local(new_family_instance, "Diameter", diameter)
+
+    overall_dia_inches = diameter * 12.0
+    set_parameter_by_name_local(
+        new_family_instance,
+        'FP_Product Entry',
+        "{:.3f}".format(overall_dia_inches)
+    )
 
     pipe_connectors = list(pipe.ConnectorManager.Connectors)
     if len(pipe_connectors) < 2:
@@ -402,7 +409,17 @@ def set_pipe_label_size():
 
     for pipe_label in pipe_labels:
         try:
-            diameter = get_parameter_value_by_name_AsDouble_local(pipe_label, 'Diameter') * 12
+            fp_product_entry = get_parameter_value_by_name_AsString(pipe_label, 'FP_Product Entry')
+            diameter = None
+
+            if fp_product_entry:
+                match = re.search(r'[-+]?\d*\.?\d+', fp_product_entry)
+                if match:
+                    diameter = float(match.group())
+
+            if diameter is None:
+                diameter = get_parameter_value_by_name_AsDouble_local(pipe_label, 'Diameter') * 12
+
             product_entry = ""
 
             if diameter <= 0.50:
