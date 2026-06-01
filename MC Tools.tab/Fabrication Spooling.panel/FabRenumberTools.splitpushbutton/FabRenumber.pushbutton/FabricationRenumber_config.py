@@ -1,14 +1,18 @@
 from itertools import compress
 from System.Collections.Generic import List
-from Autodesk.Revit.DB import Transaction
+from Autodesk.Revit.DB import Transaction, ElementId, OverrideGraphicSettings
 from Autodesk.Revit.DB.Fabrication import FabricationPartCompareType
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+from Autodesk.Revit.Exceptions import OperationCanceledException
 import os, sys, ast
 import clr
+
 clr.AddReference('System.Windows.Forms')
 clr.AddReference('System.Drawing')
+
 from System.Windows.Forms import Form, Label, TextBox, Button, CheckBox, DialogResult, FormStartPosition, FormBorderStyle
 from System.Drawing import Point, Size, Font, FontStyle, Color
+
 from Parameters.Get_Set_Params import set_parameter_by_name
 from Parameters.Add_SharedParameters import Shared_Params
 
@@ -17,19 +21,49 @@ Shared_Params()
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 
+
+def show_selected_elements(elements):
+    ids = List[ElementId]()
+    for e in elements:
+        if e:
+            ids.Add(e.Id)
+    uidoc.Selection.SetElementIds(ids)
+
+def mark_element_as_picked(view, element):
+    ogs = OverrideGraphicSettings()
+    ogs.SetHalftone(True)
+    try:
+        ogs.SetSurfaceTransparency(70)
+    except:
+        pass
+    view.SetElementOverrides(element.Id, ogs)
+
+def reset_element_graphics(view, element_ids, original_overrides):
+    for elid in element_ids:
+        if elid in original_overrides:
+            view.SetElementOverrides(elid, original_overrides[elid])
+        else:
+            view.SetElementOverrides(elid, OverrideGraphicSettings())
+
+
 class CustomISelectionFilter(ISelectionFilter):
     def __init__(self, categories):
         self.categories = categories
 
     def AllowElement(self, e):
-        return e.Category.Name in self.categories
+        return e.Category and e.Category.Name in self.categories
 
     def AllowReference(self, ref, point):
         return True
 
-fabrication_categories = ["MEP Fabrication Hangers", "MEP Fabrication Pipework", "MEP Fabrication Ductwork"]
 
-IgnBool = [False]*28
+fabrication_categories = [
+    "MEP Fabrication Hangers",
+    "MEP Fabrication Pipework",
+    "MEP Fabrication Ductwork"
+]
+
+IgnBool = [False] * 28
 
 ignoreFields = List[FabricationPartCompareType]()
 ignoreFields.Add(FabricationPartCompareType.CutType)
@@ -79,7 +113,7 @@ if os.path.exists(ignore_filepath):
             ignorebools = ast.literal_eval(f.read())
             if not isinstance(ignorebools, list):
                 ignorebools = []
-        except ValueError:
+        except:
             ignorebools = []
 else:
     ignorebools = []
@@ -87,10 +121,13 @@ else:
 indices = [Bool_List.index(item) for item in ignorebools if item in Bool_List]
 for index in indices:
     IgnBool[index] = True
+
 IgnFld = list(compress(ignoreFields, IgnBool))
+
 
 def show_ignore_fields_dialog():
     from pyrevit import forms
+
     folder_name = "c:\\Temp"
     filepath = os.path.join(folder_name, 'Ribbon_FabRenumberOPS.txt')
 
@@ -103,14 +140,20 @@ def show_ignore_fields_dialog():
                 ignorebools = ast.literal_eval(f.read())
                 if not isinstance(ignorebools, list):
                     ignorebools = []
-            except ValueError:
+            except:
                 ignorebools = []
     else:
         ignorebools = []
 
     ops = [forms.TemplateListItem(item, checked=(item in ignorebools)) for item in Bool_List]
 
-    ignorebools = forms.SelectFromList.show(ops, title='IgnoreField Options', multiselect=True, button_name='Select IgnoreField(s)')
+    ignorebools = forms.SelectFromList.show(
+        ops,
+        title='IgnoreField Options',
+        multiselect=True,
+        button_name='Select IgnoreField(s)'
+    )
+
     if ignorebools is None:
         ignorebools = []
 
@@ -118,6 +161,7 @@ def show_ignore_fields_dialog():
         f.write(str(ignorebools))
 
     return ignorebools
+
 
 class RenumberForm(Form):
     def __init__(self, prefix, start_num, checkboxdef):
@@ -207,6 +251,7 @@ class RenumberForm(Form):
         self.DialogResult = DialogResult.OK
         self.Close()
 
+
 folder_name = "c:\\Temp"
 filepath = os.path.join(folder_name, 'Ribbon_FabRenumber.txt')
 if not os.path.exists(folder_name):
@@ -220,8 +265,7 @@ if not os.path.exists(filepath):
         the_file.writelines([line1, line2, line3])
 
 with open(filepath, 'r') as file:
-    lines = file.readlines()
-    lines = [line.rstrip() for line in lines]
+    lines = [line.rstrip() for line in file.readlines()]
 
 if len(lines) < 3:
     with open(filepath, 'w') as the_file:
@@ -231,14 +275,12 @@ if len(lines) < 3:
         the_file.writelines([line1, line2, line3])
 
 with open(filepath, 'r') as file:
-    lines = file.readlines()
-    lines = [line.rstrip() for line in lines]
+    lines = [line.rstrip() for line in file.readlines()]
 
 checkboxdef = lines[2] == 'True'
 
 form = RenumberForm(lines[0], lines[1], checkboxdef)
 if form.ShowDialog() != DialogResult.OK:
-    import sys
     sys.exit()
 
 valuepre = form.values.get('prefix', lines[0])
@@ -251,16 +293,30 @@ Fill_length = len(value)
 Fhangers1 = []
 Fhangers2 = []
 unique_elements = {}
-
-t = Transaction(doc, 'Re-Number Fabrication Parts')
-t.Start()
+active_view = doc.ActiveView
+original_overrides = {}
+picked_ids = []
 
 while True:
+    t = None
     try:
-        el = uidoc.Selection.PickObject(ObjectType.Element, CustomISelectionFilter(fabrication_categories), "Select a Fabrication Part (Press ESC to finish)")
-        element = doc.GetElement(el.ElementId)
+        picked_ref = uidoc.Selection.PickObject(
+            ObjectType.Element,
+            CustomISelectionFilter(fabrication_categories),
+            "Select a Fabrication Part (Press ESC to finish)"
+        )
+
+        element = doc.GetElement(picked_ref.ElementId)
         Fhangers1.append(element)
         Fhangers2.append(element)
+
+        t = Transaction(doc, 'Re-Number Fabrication Parts')
+        t.Start()
+
+        # save original graphics once
+        if element.Id not in original_overrides:
+            original_overrides[element.Id] = active_view.GetElementOverrides(element.Id)
+            picked_ids.append(element.Id)
 
         if not snfip:
             num_to_assign = valuepre + str(start_number).zfill(Fill_length)
@@ -268,31 +324,48 @@ while True:
             set_parameter_by_name(element, 'STRATUS Item Number', str(num_to_assign))
             start_number += 1
         else:
-            # Find identical elements
             identical_elements = [n for n in Fhangers2 if element.IsSameAs(n, IgnFld)]
-            # Check if any identical element has a number in unique_elements
-            for existing_elem in identical_elements[:-1]:  # Exclude the current element
-                existing_key = tuple([existing_elem.Id.IntegerValue])
+
+            num_to_assign = None
+            for existing_elem in identical_elements[:-1]:
+                existing_key = existing_elem.Id.IntegerValue
                 if existing_key in unique_elements:
                     num_to_assign = unique_elements[existing_key]
                     break
-            else:
-                # No existing number found, assign a new one
+
+            if num_to_assign is None:
                 num_to_assign = valuepre + str(start_number).zfill(Fill_length)
                 start_number += 1
-            # Store the number for this element's key
-            element_key = tuple([element.Id.IntegerValue])
-            unique_elements[element_key] = num_to_assign
-            # Assign number to the current element only
+
+            unique_elements[element.Id.IntegerValue] = num_to_assign
+
             set_parameter_by_name(element, 'Item Number', str(num_to_assign))
             set_parameter_by_name(element, 'STRATUS Item Number', str(num_to_assign))
 
-        t.Commit()
-        t.Start()
+        # visually mark picked element
+        mark_element_as_picked(active_view, element)
 
-    except:
+        t.Commit()
+
+        # keep picked elements selected too
+        show_selected_elements(Fhangers1)
+
+    except OperationCanceledException:
         break
 
+    except Exception as ex:
+        if t:
+            try:
+                t.RollBack()
+            except:
+                pass
+        print("Error: {}".format(ex))
+        break
+
+# optional: remove halftone after user is done
+t = Transaction(doc, 'Clear Picked Part Graphics')
+t.Start()
+reset_element_graphics(active_view, picked_ids, original_overrides)
 t.Commit()
 
 with open(filepath, 'w') as the_file:

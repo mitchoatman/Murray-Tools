@@ -1,6 +1,7 @@
 layout:
   - Export Schedules To CSV
   - OpenMRBOM
+  - ExportDWG
   - ExportPCF
   - ExportMAJ
   - ExportNWC

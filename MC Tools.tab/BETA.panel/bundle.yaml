@@ -6,7 +6,6 @@ layout:
   - RemoveParameters
   - ExtendStiffyRod
   - UpgradeFamilies
-  - CreateSection
   - ViewRefresh
 
 collapsed: true

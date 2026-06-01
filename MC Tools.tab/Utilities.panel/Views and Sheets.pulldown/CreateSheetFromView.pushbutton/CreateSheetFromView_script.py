@@ -383,7 +383,7 @@ class MultiSheetInputForm(Window):
                 Padding=Thickness(2, 0, 2, 0),
                 Margin=Thickness(0, 0, 12, 0),
                 FontFamily=FontFamily("Arial"),
-                FontSize=11
+                FontSize=12
             )
 
             name_box = TextBox(

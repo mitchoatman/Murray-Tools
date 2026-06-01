@@ -1,6 +1,6 @@
 import Autodesk
 from Autodesk.Revit.UI import TaskDialog
-from Autodesk.Revit.DB import Transaction, FabricationConfiguration, BuiltInParameter, FabricationPart, FabricationServiceButton, \
+from Autodesk.Revit.DB import Transaction, FabricationConfiguration, BuiltInParameter, BuiltInCategory, FabricationPart, FabricationServiceButton, \
                                 FabricationService, XYZ, ElementTransformUtils, BoundingBoxXYZ, Transform, Line
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 import math
@@ -21,8 +21,22 @@ app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float(RevitVersion)
 #------------------------------------------------------------------------------------SELECTING ELEMENTS
+
+class FabPipeDuctSelectionFilter(ISelectionFilter):
+    def AllowElement(self, elem):
+        if elem.Category is None:
+            return False
+        cat_id = elem.Category.Id.IntegerValue
+        return cat_id in [
+            int(BuiltInCategory.OST_FabricationPipework),
+            int(BuiltInCategory.OST_FabricationDuctwork)
+        ]
+
+    def AllowReference(self, reference, point):
+        return True
+
 try:
-    selected_element = uidoc.Selection.PickObject(ObjectType.Element, 'Select OUTSIDE Pipe')
+    selected_element = uidoc.Selection.PickObject(ObjectType.Element, FabPipeDuctSelectionFilter(), 'Select OUTSIDE Pipe')
     element = doc.GetElement(selected_element.ElementId)
     pick_point = selected_element.GlobalPoint  # Capture cursor location for nearest end determination
  
@@ -209,7 +223,7 @@ try:
             self.DialogResult = True
             self.Close()
     if element.ItemCustomId != 916:
-        selected_element1 = uidoc.Selection.PickObject(ObjectType.Element, 'Select OPPOSITE OUTSIDE Pipe')
+        selected_element1 = uidoc.Selection.PickObject(ObjectType.Element, FabPipeDuctSelectionFilter(), 'Select OPPOSITE OUTSIDE Pipe')
         element1 = doc.GetElement(selected_element1.ElementId)
         selected_elements = [element, element1]
         level_id = element.LevelId

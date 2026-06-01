@@ -18,6 +18,7 @@ from System.Windows.Input import Keyboard
 # Revit
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+curview = doc.ActiveView
 
 def get_fab_palette_count(fab_service):
     try:
@@ -180,6 +181,21 @@ def get_pipe_direction(host_part):
 def is_3d_view(view):
     return view.ViewType == ViewType.ThreeD
 
+def is_section_view(view):
+    return view.ViewType == ViewType.Section
+
+def set_section_workplane(view, origin):
+    x_vec = view.RightDirection.Normalize()
+    y_vec = view.UpDirection.Normalize()
+    plane = Plane.CreateByOriginAndBasis(origin, x_vec, y_vec)
+
+    t = Transaction(doc, "Set Section Work Plane")
+    t.Start()
+    sketch_plane = SketchPlane.Create(doc, plane)
+    view.SketchPlane = sketch_plane
+    doc.Regenerate()
+    t.Commit()
+
 # -----------------------------
 # ROTATION UTILITIES
 # -----------------------------
@@ -246,7 +262,13 @@ try:
     if is_3d_view(doc.ActiveView):
         insert_point = get_pipe_midpoint(host_part)
     else:
+        # Section view needs a work plane BEFORE PickPoint
+        if is_section_view(doc.ActiveView):
+            midpoint = get_pipe_midpoint(host_part)
+            set_section_workplane(doc.ActiveView, midpoint)
+
         insert_point = get_projected_insert_point(host_part)
+
 except OperationCanceledException:
     sys.exit()
 except Exception as ex:

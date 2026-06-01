@@ -7,14 +7,19 @@ from Autodesk.Revit.UI import TaskDialog
 doc = __revit__.ActiveUIDocument.Document
 
 TARGET_LEVELS_WS = 'MURRAY Levels and Grids'
-OTHER_DEFAULT_NAMES = [
+TARGET_DEFAULT_WS = 'Plumbing'
+
+OTHER_DEFAULT_LEVEL_NAMES = [
     'Shared Views, Levels, Grids',
     'Shared Levels and Grids'
 ]
 
 WORKSETS_TO_ADD = [
     'LINKS',
-    'POINTLAYOUT'
+    'POINTLAYOUT',
+    'Mech Pipe',
+    'Mech Duct',
+    'Process'
 ]
 
 
@@ -30,7 +35,7 @@ def get_workset_by_name(document, name):
 
 
 def find_default_levels_workset(document):
-    for name in OTHER_DEFAULT_NAMES:
+    for name in OTHER_DEFAULT_LEVEL_NAMES:
         ws = get_workset_by_name(document, name)
         if ws:
             return ws
@@ -46,9 +51,9 @@ if not doc.IsWorkshared:
             else:
                 raise Exception("Cloud worksharing cannot be enabled for this model.")
         elif doc.CanEnableWorksharing():
-            # Correct parameter order:
+            # Parameter order:
             # (levels/grids, all other model elements)
-            doc.EnableWorksharing(TARGET_LEVELS_WS, 'Workset1')
+            doc.EnableWorksharing(TARGET_LEVELS_WS, TARGET_DEFAULT_WS)
         else:
             raise Exception("Worksharing cannot be enabled for this model.")
     except Exception as e:
@@ -60,14 +65,21 @@ else:
     t = Transaction(doc, "Configure Murray Worksets")
     t.Start()
     try:
-        # For cloud models, rename the default levels/grids workset first
-        default_ws = find_default_levels_workset(doc)
-        target_ws = get_workset_by_name(doc, TARGET_LEVELS_WS)
+        # Rename default shared levels/grids workset if needed
+        default_levels_ws = find_default_levels_workset(doc)
+        target_levels_ws = get_workset_by_name(doc, TARGET_LEVELS_WS)
 
-        if default_ws and not target_ws:
-            WorksetTable.RenameWorkset(doc, default_ws.Id, TARGET_LEVELS_WS)
+        if default_levels_ws and not target_levels_ws:
+            WorksetTable.RenameWorkset(doc, default_levels_ws.Id, TARGET_LEVELS_WS)
 
-        # Add only the remaining worksets
+        # Rename Workset1 to Plumbing if needed
+        default_model_ws = get_workset_by_name(doc, 'Workset1')
+        target_default_ws = get_workset_by_name(doc, TARGET_DEFAULT_WS)
+
+        if default_model_ws and not target_default_ws:
+            WorksetTable.RenameWorkset(doc, default_model_ws.Id, TARGET_DEFAULT_WS)
+
+        # Add remaining worksets
         existing_names = [ws.Name for ws in get_user_worksets(doc)]
         for ws_name in WORKSETS_TO_ADD:
             if ws_name not in existing_names:

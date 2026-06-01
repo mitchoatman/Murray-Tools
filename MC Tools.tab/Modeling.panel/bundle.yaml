@@ -1,7 +1,9 @@
 layout:
-  - Connect
+  - FabConnect
   - Wall_Sleeve
   - Floor_Sleeve
+  - '-----'
+  - Duct_Wall_Sleeve
   - SleeveConfig
 
 

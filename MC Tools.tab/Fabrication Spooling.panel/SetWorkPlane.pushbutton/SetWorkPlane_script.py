@@ -66,8 +66,8 @@ def select_fabrication_pipe_and_create_plane():
     curview = doc.ActiveView
 
     try:
-        if curview.ViewType != ViewType.ThreeD:
-            print("Must be in a 3D view")
+        if curview.ViewType not in (ViewType.ThreeD, ViewType.Section):
+            print("Must be in a 3D or Section view")
             return
 
         # Unified selection prompt
@@ -97,25 +97,36 @@ def select_fabrication_pipe_and_create_plane():
             connector_2 = connector_points[1]
             line_vector = (connector_2 - connector_1).Normalize()
 
-            if abs(line_vector.Z) > max(abs(line_vector.X), abs(line_vector.Y)):
-                task_dialog = TaskDialog("Select Axis")
-                task_dialog.MainInstruction = "Choose which axis you want the plane aligned to:"
-                task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Align with X-axis")
-                task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Align with Y-axis")
-                task_dialog.CommonButtons = TaskDialogCommonButtons.Cancel
-                result = task_dialog.Show()
+            # In section views, use a work plane parallel to the view and skip prompts
+            if curview.ViewType == ViewType.Section:
+                plane_origin = (connector_1 + connector_2) / 2
+                x_vector = curview.RightDirection.Normalize()
+                y_vector = curview.UpDirection.Normalize()
 
-                if result == TaskDialogResult.CommandLink1:
-                    x_vector = XYZ.BasisX
-                    y_vector = line_vector
-                    plane_origin = (connector_1 + connector_2) / 2
-                elif result == TaskDialogResult.CommandLink2:
-                    x_vector = line_vector
-                    y_vector = XYZ.BasisY
-                    plane_origin = (connector_1 + connector_2) / 2
+            elif abs(line_vector.Z) > max(abs(line_vector.X), abs(line_vector.Y)):
+                plane_origin = (connector_1 + connector_2) / 2
+
+                if curview.ViewType == ViewType.Section:
+                    # Section views will use the view-parallel work plane later,
+                    # so no axis prompt is needed here.
+                    pass
                 else:
-                    print("Operation cancelled by the user.")
-                    return
+                    task_dialog = TaskDialog("Select Axis")
+                    task_dialog.MainInstruction = "Choose which axis you want the plane aligned to:"
+                    task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Align with X-axis")
+                    task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Align with Y-axis")
+                    task_dialog.CommonButtons = TaskDialogCommonButtons.Cancel
+                    result = task_dialog.Show()
+
+                    if result == TaskDialogResult.CommandLink1:
+                        x_vector = XYZ.BasisX
+                        y_vector = line_vector
+                    elif result == TaskDialogResult.CommandLink2:
+                        x_vector = line_vector
+                        y_vector = XYZ.BasisY
+                    else:
+                        print("Operation cancelled by the user.")
+                        return
             else:
                 task_dialog = TaskDialog("Proceed with Horizontal Pipe")
                 task_dialog.MainInstruction = "The pipe is horizontal. Do you want to create a work plane?"
@@ -149,7 +160,44 @@ def select_fabrication_pipe_and_create_plane():
                 return
             plane_origin = loc.Point
 
-            task_dialog = TaskDialog("Select Plane Orientation")
+            # In section views, use a work plane parallel to the view and skip prompts
+            if curview.ViewType == ViewType.Section:
+                x_vector = curview.RightDirection.Normalize()
+                y_vector = curview.UpDirection.Normalize()
+
+            if curview.ViewType != ViewType.Section:
+                task_dialog = TaskDialog("Select Plane Orientation")
+                task_dialog.MainInstruction = "Choose the plane orientation for the family instance:"
+                task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Horizontal")
+                task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Vertical")
+                task_dialog.CommonButtons = TaskDialogCommonButtons.Cancel
+                result = task_dialog.Show()
+
+                if result == TaskDialogResult.Cancel:
+                    print("Operation cancelled by the user.")
+                    return
+
+                is_vertical = (result == TaskDialogResult.CommandLink2)
+                align_x = True
+
+                if is_vertical:
+                    task_dialog = TaskDialog("Select Axis")
+                    task_dialog.MainInstruction = "Choose the axis direction:"
+                    task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "X-axis")
+                    task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Y-axis")
+                    task_dialog.CommonButtons = TaskDialogCommonButtons.Cancel
+                    result = task_dialog.Show()
+                    if result == TaskDialogResult.Cancel:
+                        print("Operation cancelled by the user.")
+                        return
+                    align_x = (result == TaskDialogResult.CommandLink1)
+
+                if is_vertical:
+                    x_vector = XYZ.BasisX if align_x else XYZ.BasisY
+                    y_vector = XYZ.BasisZ
+                else:
+                    x_vector = XYZ.BasisX
+                    y_vector = XYZ.BasisY
             task_dialog.MainInstruction = "Choose the plane orientation for the family instance:"
             task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Horizontal")
             task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Vertical")
@@ -185,7 +233,17 @@ def select_fabrication_pipe_and_create_plane():
         # =================================================================
         # Plane creation - identical for both cases
         # =================================================================
-        if plane_origin is None or x_vector is None or y_vector is None:
+        if plane_origin is None:
+            print("Error: Failed to determine plane origin.")
+            return
+
+        # In a section view, the work plane must be parallel to the view.
+        # Use the view's screen axes instead of the element-derived axes.
+        if curview.ViewType == ViewType.Section:
+            x_vector = curview.RightDirection.Normalize()
+            y_vector = curview.UpDirection.Normalize()
+
+        if x_vector is None or y_vector is None:
             print("Error: Failed to determine plane parameters.")
             return
 
@@ -210,14 +268,16 @@ def select_fabrication_pipe_and_create_plane():
                 doc.Delete(rid)
             t.Commit()
 
-            t = Transaction(doc, "Set RefPlane")
-            t.Start()
-            bubble_end = plane.Origin
-            free_end = plane.Origin + plane.XVec
-            cut_vec = plane.YVec
-            ref_plane = doc.Create.NewReferencePlane(bubble_end, free_end, cut_vec, curview)
-            ref_plane.Name = "TEMPORARY"
-            t.Commit()
+            # Keep your temporary reference plane behavior in 3D only
+            if curview.ViewType == ViewType.ThreeD:
+                t = Transaction(doc, "Set RefPlane")
+                t.Start()
+                bubble_end = plane.Origin
+                free_end = plane.Origin + plane.XVec
+                cut_vec = plane.YVec
+                ref_plane = doc.Create.NewReferencePlane(bubble_end, free_end, cut_vec, curview)
+                ref_plane.Name = "TEMPORARY"
+                t.Commit()
 
             tg.Assimilate()
         except Exception as ex:
