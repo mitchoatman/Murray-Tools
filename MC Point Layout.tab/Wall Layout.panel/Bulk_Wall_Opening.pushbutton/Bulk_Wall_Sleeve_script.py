@@ -47,9 +47,9 @@ active_view = doc.ActiveView
 
 script_dir, script_name = os.path.split(__file__)
 
-FAMILY_NAME = 'DR-WS'
-FAMILY_TYPE = 'DR-WS'
-FAMILY_FILE = 'DR-WS.rfa'
+FAMILY_NAME = 'WS'
+FAMILY_TYPE = 'WS'
+FAMILY_FILE = 'WS.rfa'
 family_path = os.path.join(script_dir, FAMILY_FILE)
 
 RevitVersion = app.VersionNumber
@@ -115,7 +115,7 @@ def parse_size_to_feet(size_string):
       2 1/2"
       2-1/2"
       2.5"
-    into feet
+    into feet.
     """
     if not size_string:
         raise Exception("Overall Size parameter is empty.")
@@ -141,7 +141,6 @@ def parse_size_to_feet(size_string):
 
 def get_element_connectors(element):
     connectors = []
-
     try:
         connectors = list(element.ConnectorManager.Connectors)
     except:
@@ -161,76 +160,6 @@ def get_pipe_centerline(pipe):
     if isinstance(pipe_location, LocationCurve):
         return pipe_location.Curve
     raise Exception("Selected pipe does not have a valid centerline.")
-
-
-def get_wall_thickness_and_location(document, link_ref):
-    link_instance = document.GetElement(link_ref.ElementId)
-    if not link_instance or not isinstance(link_instance, DB.RevitLinkInstance):
-        raise Exception("Invalid linked wall selection.")
-
-    link_doc = link_instance.GetLinkDocument()
-    if not link_doc:
-        raise Exception("Could not access linked document.")
-
-    wall = link_doc.GetElement(link_ref.LinkedElementId)
-    if not wall or not isinstance(wall, DB.Wall):
-        raise Exception("Selected linked element is not a wall.")
-
-    wall_type = wall.WallType
-    if not wall_type:
-        raise Exception("Selected wall does not have a valid wall type.")
-
-    width_param = wall_type.get_Parameter(DB.BuiltInParameter.WALL_ATTR_WIDTH_PARAM)
-    if not width_param:
-        raise Exception("Could not get wall thickness.")
-
-    thickness = width_param.AsDouble()
-    location = wall.Location
-
-    if isinstance(location, LocationCurve):
-        return thickness, location.Curve
-
-    raise Exception("Selected wall does not have a valid location curve.")
-
-
-def project_wall_curve_to_pipe_plane(wall_curve, pipe_curve):
-    pipe_start = pipe_curve.GetEndPoint(0)
-    pipe_end = pipe_curve.GetEndPoint(1)
-    pipe_direction = (pipe_end - pipe_start).Normalize()
-
-    plane_normal = DB.XYZ(0, 0, 1)
-    if abs(pipe_direction.Z) > 0.99:
-        plane_normal = DB.XYZ(1, 0, 0)
-
-    plane = DB.Plane.CreateByNormalAndOrigin(plane_normal, pipe_start)
-
-    wall_start = wall_curve.GetEndPoint(0)
-    wall_end = wall_curve.GetEndPoint(1)
-
-    uv_start, _ = plane.Project(wall_start)
-    uv_end, _ = plane.Project(wall_end)
-
-    origin = plane.Origin
-    x_axis = plane.XVec
-    y_axis = plane.YVec
-
-    projected_start = origin + x_axis * uv_start.U + y_axis * uv_start.V
-    projected_end = origin + x_axis * uv_end.U + y_axis * uv_end.V
-
-    return DB.Line.CreateBound(projected_start, projected_end)
-
-
-def get_intersection_point(curve_a, curve_b):
-    result_array = clr.Reference[DB.IntersectionResultArray]()
-    result = curve_a.Intersect(curve_b, result_array)
-
-    if result != DB.SetComparisonResult.Overlap:
-        return None
-
-    if result_array.Value and result_array.Value.Size > 0:
-        return result_array.Value[0].XYZPoint
-
-    return None
 
 
 def get_level_from_pipe(pipe):
@@ -264,18 +193,119 @@ def validate_pipe(pipe):
 
 
 def get_pipe_direction(pipe):
-    connectors = get_element_connectors(pipe)
-    if len(connectors) < 2:
-        raise Exception("Pipe does not have enough connectors to determine direction.")
+    curve = get_pipe_centerline(pipe)
+    p0 = curve.GetEndPoint(0)
+    p1 = curve.GetEndPoint(1)
 
-    conn1 = connectors[0]
-    conn2 = connectors[1]
-    direction = (conn2.Origin - conn1.Origin)
-
+    direction = (p1 - p0)
     if direction.GetLength() == 0:
-        raise Exception("Pipe connector direction is invalid.")
+        raise Exception("Pipe direction is invalid.")
 
     return direction.Normalize()
+
+
+def get_horizontal_pipe_direction(pipe):
+    curve = get_pipe_centerline(pipe)
+    p0 = curve.GetEndPoint(0)
+    p1 = curve.GetEndPoint(1)
+
+    v = DB.XYZ(p1.X - p0.X, p1.Y - p0.Y, 0.0)
+
+    if v.GetLength() < 1e-8:
+        raise Exception("Pipe is vertical or too close to vertical for wall sleeve placement.")
+
+    return v.Normalize()
+
+
+# --------------------------------------------------
+# Linked wall helpers
+# --------------------------------------------------
+def get_wall_thickness_curve_and_plan_normal(document, link_ref):
+    link_instance = document.GetElement(link_ref.ElementId)
+    if not link_instance or not isinstance(link_instance, DB.RevitLinkInstance):
+        raise Exception("Invalid linked wall selection.")
+
+    link_doc = link_instance.GetLinkDocument()
+    if not link_doc:
+        raise Exception("Could not access linked document.")
+
+    wall = link_doc.GetElement(link_ref.LinkedElementId)
+    if not wall or not isinstance(wall, DB.Wall):
+        raise Exception("Selected linked element is not a wall.")
+
+    wall_type = wall.WallType
+    if not wall_type:
+        raise Exception("Selected wall does not have a valid wall type.")
+
+    width_param = wall_type.get_Parameter(DB.BuiltInParameter.WALL_ATTR_WIDTH_PARAM)
+    if not width_param:
+        raise Exception("Could not get wall thickness.")
+
+    thickness = width_param.AsDouble()
+
+    location = wall.Location
+    if not isinstance(location, LocationCurve):
+        raise Exception("Selected wall does not have a valid location curve.")
+
+    try:
+        link_transform = link_instance.GetTotalTransform()
+    except:
+        link_transform = link_instance.GetTransform()
+
+    wall_curve_host = location.Curve.CreateTransformed(link_transform)
+
+    try:
+        wall_normal = link_transform.OfVector(wall.Orientation)
+        wall_plan_normal = DB.XYZ(wall_normal.X, wall_normal.Y, 0.0)
+    except:
+        w0 = wall_curve_host.GetEndPoint(0)
+        w1 = wall_curve_host.GetEndPoint(1)
+        wall_dir = DB.XYZ(w1.X - w0.X, w1.Y - w0.Y, 0.0)
+        wall_plan_normal = DB.XYZ(-wall_dir.Y, wall_dir.X, 0.0)
+
+    if wall_plan_normal.GetLength() < 1e-8:
+        raise Exception("Could not determine wall plan normal.")
+
+    return thickness, wall_curve_host, wall_plan_normal.Normalize()
+
+
+def get_sloped_pipe_wall_intersection_point(pipe_curve, wall_curve, wall_plan_normal):
+    """
+    Solve wall crossing in plan, then rebuild the actual 3D point on the pipe
+    using the same t parameter.
+    """
+    p0 = pipe_curve.GetEndPoint(0)
+    p1 = pipe_curve.GetEndPoint(1)
+    wall_origin = wall_curve.GetEndPoint(0)
+
+    p0_xy = DB.XYZ(p0.X, p0.Y, 0.0)
+    p1_xy = DB.XYZ(p1.X, p1.Y, 0.0)
+    o_xy = DB.XYZ(wall_origin.X, wall_origin.Y, 0.0)
+    n_xy = DB.XYZ(wall_plan_normal.X, wall_plan_normal.Y, 0.0)
+
+    if n_xy.GetLength() < 1e-8:
+        return None
+
+    n_xy = n_xy.Normalize()
+
+    d0 = n_xy.DotProduct(p0_xy - o_xy)
+    d1 = n_xy.DotProduct(p1_xy - o_xy)
+
+    if abs(d0) < 1e-9:
+        return p0
+    if abs(d1) < 1e-9:
+        return p1
+
+    if abs(d0 - d1) < 1e-9:
+        return None
+
+    t = d0 / float(d0 - d1)
+
+    if t < -1e-9 or t > 1.0 + 1e-9:
+        return None
+
+    t = max(0.0, min(1.0, t))
+    return p0 + ((p1 - p0) * t)
 
 
 # --------------------------------------------------
@@ -308,7 +338,7 @@ def shared_family_dialog_fallback(sender, args):
 # --------------------------------------------------
 # Family manager
 # --------------------------------------------------
-class DRWSFamilyManager(object):
+class WSFamilyManager(object):
     def __init__(self, document, family_name, family_path):
         self.doc = document
         self.family_name = family_name
@@ -458,7 +488,7 @@ class DRWSFamilyManager(object):
 # --------------------------------------------------
 # Family symbol ready
 # --------------------------------------------------
-family_manager = DRWSFamilyManager(doc, FAMILY_NAME, family_path)
+family_manager = WSFamilyManager(doc, FAMILY_NAME, family_path)
 famsymb = family_manager.get_ready_symbol(FAMILY_TYPE)
 
 if not famsymb:
@@ -593,24 +623,31 @@ def rotate_instance_to_pipe_direction(new_family_instance, insertion_point, pipe
     DB.ElementTransformUtils.RotateElement(doc, new_family_instance.Id, axis, angle)
 
 
-def place_and_modify_family(pipe, wall_ref, symbol, fixed_pipe_direction):
+def place_and_modify_family(pipe, wall_ref, famsymb):
     centerline_curve = get_pipe_centerline(pipe)
-    wall_thickness, wall_curve = get_wall_thickness_and_location(doc, wall_ref)
-    projected_wall_curve = project_wall_curve_to_pipe_plane(wall_curve, centerline_curve)
 
-    intersection_point = get_intersection_point(centerline_curve, projected_wall_curve)
+    wall_thickness, wall_curve, wall_plan_normal = \
+        get_wall_thickness_curve_and_plan_normal(doc, wall_ref)
+
+    flat_pipe_direction = get_horizontal_pipe_direction(pipe)
+
+    intersection_point = get_sloped_pipe_wall_intersection_point(
+        centerline_curve,
+        wall_curve,
+        wall_plan_normal
+    )
+
     if not intersection_point:
         raise Exception(
-            "Pipe Id {} does not intersect the projected linked wall."
+            "Pipe Id {} does not cross the selected linked wall in plan."
             .format(get_id_value(pipe.Id))
         )
 
     level = get_level_from_pipe(pipe)
 
-    offset_distance = wall_thickness / 2.0
-    insertion_point = intersection_point - fixed_pipe_direction * offset_distance
+    insertion_point = intersection_point - flat_pipe_direction * (wall_thickness / 2.0)
 
-    new_family_instance = create_family_instance_at_point(insertion_point, symbol, level)
+    new_family_instance = create_family_instance_at_point(insertion_point, famsymb, level)
     if not new_family_instance:
         raise Exception("Failed to create family instance for pipe Id {}.".format(get_id_value(pipe.Id)))
 
@@ -625,7 +662,7 @@ def place_and_modify_family(pipe, wall_ref, symbol, fixed_pipe_direction):
         level
     )
 
-    rotate_instance_to_pipe_direction(new_family_instance, insertion_point, fixed_pipe_direction)
+    rotate_instance_to_pipe_direction(new_family_instance, insertion_point, flat_pipe_direction)
 
     return new_family_instance
 
@@ -637,7 +674,6 @@ def main():
     try:
         pipes = select_fabrication_pipes()
         wall_ref = select_linked_wall()
-        fixed_pipe_direction = get_pipe_direction(pipes[0])
 
     except OperationCanceledException:
         return
@@ -650,12 +686,12 @@ def main():
 
     t = None
     try:
-        t = Transaction(doc, 'Place DR-WS Family')
+        t = Transaction(doc, 'Place Trimble Wall Sleeve Family')
         t.Start()
 
         for pipe in pipes:
             try:
-                place_and_modify_family(pipe, wall_ref, famsymb, fixed_pipe_direction)
+                place_and_modify_family(pipe, wall_ref, famsymb)
                 placed_count += 1
             except Exception as pipe_ex:
                 failed.append(
@@ -665,7 +701,7 @@ def main():
         if placed_count == 0 and failed:
             t.RollBack()
             safe_taskdialog(
-                "DR-WS Placement",
+                "Wall Sleeve Placement",
                 "No sleeves were placed.\n\n{}".format("\n".join(failed[:20]))
             )
             return
@@ -692,9 +728,9 @@ def main():
         msg += "\n\n" + "\n".join(failed[:20])
         if len(failed) > 20:
             msg += "\n..."
-        safe_taskdialog("DR-WS Placement", msg)
+        safe_taskdialog("Wall Sleeve Placement", msg)
     else:
-        safe_taskdialog("DR-WS Placement", "Placed {} sleeve(s).".format(placed_count))
+        safe_taskdialog("Wall Sleeve Placement", "Placed {} sleeve(s).".format(placed_count))
 
 
 if __name__ == '__main__':

@@ -19,18 +19,14 @@ from Autodesk.Revit.UI.Events import TaskDialogShowingEventArgs
 import os
 import sys
 
-# Check active view type
-view = __revit__.ActiveUIDocument.ActiveView
-if view.ViewType == ViewType.ThreeD:
-    TaskDialog.Show("Error", "Cannot use in 3D view.")
-    sys.exit()
-
-path, filename = os.path.split(__file__)
-family_file = '\\Control Point.rfa'
-
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 uiapp = __revit__
+revit_version = int(doc.Application.VersionNumber)
+
+path, filename = os.path.split(__file__)
+family_file = '\\Control Point.rfa'
+family_path = path + family_file
 
 FamilyName = 'Control Point'
 TypeName = 'CP'
@@ -63,7 +59,6 @@ class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
         return True
 
     def OnSharedFamilyFound(self, sharedFamily, familyInUse, source, overwriteParameterValues):
-        # Always use the shared family that already exists in the project
         source.Value = DB.FamilySource.Project
         overwriteParameterValues.Value = False
         return True
@@ -134,18 +129,11 @@ def set_text_parameter(element, param_name, value):
 
 
 def shared_family_dialog_fallback(sender, args):
-    """
-    Fallback only: if Revit still shows the shared-family conflict dialog,
-    automatically choose:
-      'Use the existing sub-component family that is in the project'
-    which is the 3rd button -> result code 1003.
-    """
     try:
         if isinstance(args, TaskDialogShowingEventArgs):
             msg = (args.Message or "").lower()
             dialog_id = (args.DialogId or "").lower()
 
-            # Match the shared family conflict dialog conservatively
             if ("shared" in msg and "already exists" in msg and "project" in msg) \
                or ("shared" in dialog_id and "family" in dialog_id):
                 args.OverrideResult(1003)
@@ -153,8 +141,44 @@ def shared_family_dialog_fallback(sender, args):
         pass
 
 
+def load_family_if_missing(document, family_name, family_path):
+    family = get_family(document, family_name)
+    if family:
+        return family, False
+
+    if not os.path.exists(family_path):
+        TaskDialog.Show("Error", "Family file not found:\n{}".format(family_path))
+        return None, False
+
+    fload_handler = FamilyLoaderOptionsHandler()
+    loaded_family_ref = clr.StrongBox[DB.Family]()
+
+    uiapp.DialogBoxShowing += shared_family_dialog_fallback
+    try:
+        t = Transaction(document, 'Load Control Point Family')
+        t.Start()
+        try:
+            loaded_ok = document.LoadFamily(family_path, fload_handler, loaded_family_ref)
+            t.Commit()
+        except Exception as e:
+            if t.HasStarted():
+                t.RollBack()
+            TaskDialog.Show("Error", "Error loading family: {}".format(str(e)))
+            return None, False
+    finally:
+        uiapp.DialogBoxShowing -= shared_family_dialog_fallback
+
+    family = get_family(document, family_name)
+    if not family and loaded_family_ref.Value:
+        family = loaded_family_ref.Value
+
+    return family, True if family else False
+
+
 class ControlPointWindow(Window):
     def __init__(self, revit_window_handle, default_number, default_name):
+        Window.__init__(self)
+
         self.Title = "Set Control Point Data"
         self.Width = 320
         self.Height = 200
@@ -255,110 +279,105 @@ class ControlPointWindow(Window):
         self.Close()
 
 
-family_path = path + family_file
+def main():
+    # Check active view type
+    view = uidoc.ActiveView
+    if view.ViewType == ViewType.ThreeD:
+        TaskDialog.Show("Error", "Cannot use in 3D view.")
+        return
 
-# Load family if not present
-family = get_family(doc, FamilyName)
+    # Show dialog first
+    revit_window_handle = uiapp.MainWindowHandle
+    form = ControlPointWindow(revit_window_handle, default_point_number, default_point_name)
+    form.ShowDialog()
 
-if not family:
-    fload_handler = FamilyLoaderOptionsHandler()
-    loaded_family_ref = clr.Reference[DB.Family]()
+    if not form.confirmed:
+        return
 
-    uiapp.DialogBoxShowing += shared_family_dialog_fallback
+    # Save entered values
     try:
-        t = Transaction(doc, 'Load Control Point Family')
+        with open(filepath, 'w') as f:
+            f.write(form.point_number + '\n')
+            f.write(form.point_name)
+    except:
+        pass
+
+    # Load family if needed
+    family, newly_loaded = load_family_if_missing(doc, FamilyName, family_path)
+    if not family:
+        return
+
+    # Revit 2022 only: force rerun after load
+    if revit_version == 2022 and newly_loaded:
+        TaskDialog.Show(
+            "Control Point",
+            "Family loaded successfully.\n\nRevit 2022: run the command again to place the family."
+        )
+        return
+
+    target_symbol = get_family_symbol_by_name(doc, FamilyName, TypeName)
+    if not target_symbol:
+        TaskDialog.Show("Error", "Type '{}' was not found in family '{}'.".format(TypeName, FamilyName))
+        return
+
+    # Activate symbol if needed
+    if not target_symbol.IsActive:
+        t = Transaction(doc, 'Activate Control Point Type')
         t.Start()
         try:
-            loaded_ok = doc.LoadFamily(family_path, fload_handler, loaded_family_ref)
+            target_symbol.Activate()
+            doc.Regenerate()
             t.Commit()
         except Exception as e:
+            TaskDialog.Show("Error", "Error activating type '{}': {}".format(TypeName, str(e)))
             if t.HasStarted():
                 t.RollBack()
-            TaskDialog.Show("Error", "Error loading family: {}".format(str(e)))
-            sys.exit()
-    finally:
-        uiapp.DialogBoxShowing -= shared_family_dialog_fallback
+            return
 
-family = get_family(doc, FamilyName)
-if not family:
-    TaskDialog.Show("Error", "Family '{}' was not found in the project.".format(FamilyName))
-    sys.exit()
+    # Track placed instances
+    before_ids = get_instance_ids_for_symbol(doc, target_symbol.Id)
 
-target_symbol = get_family_symbol_by_name(doc, FamilyName, TypeName)
-if not target_symbol:
-    TaskDialog.Show("Error", "Type '{}' was not found in family '{}'.".format(TypeName, FamilyName))
-    sys.exit()
+    try:
+        uidoc.PromptForFamilyInstancePlacement(target_symbol)
+    except Exception:
+        pass
 
-# Show dialog
-revit_window_handle = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle
-form = ControlPointWindow(revit_window_handle, default_point_number, default_point_name)
-form.ShowDialog()
+    after_ids = get_instance_ids_for_symbol(doc, target_symbol.Id)
+    new_ids = after_ids - before_ids
 
-if not form.confirmed:
-    sys.exit()
+    if not new_ids:
+        return
 
-# Save entered values
-try:
-    with open(filepath, 'w') as f:
-        f.write(form.point_number + '\n')
-        f.write(form.point_name)
-except:
-    pass
-
-# Activate symbol if needed
-if not target_symbol.IsActive:
-    t = Transaction(doc, 'Activate Control Point Type')
+    # Write values to newly placed instances
+    t = Transaction(doc, 'Set Control Point Parameters')
     t.Start()
     try:
-        target_symbol.Activate()
-        doc.Regenerate()
+        errors = []
+
+        for int_id in new_ids:
+            elem = doc.GetElement(DB.ElementId(int_id))
+            if not elem:
+                continue
+
+            err1 = set_text_parameter(elem, "TS_Point_Number", form.point_number)
+            err2 = set_text_parameter(elem, "TS_Point_Description", form.point_name)
+
+            if err1:
+                errors.append(err1)
+            if err2:
+                errors.append(err2)
+
         t.Commit()
+
+        if errors:
+            unique_errors = sorted(set(errors))
+            TaskDialog.Show("Warning", "\n".join(unique_errors))
+
     except Exception as e:
-        TaskDialog.Show("Error", "Error activating type '{}': {}".format(TypeName, str(e)))
         if t.HasStarted():
             t.RollBack()
-        sys.exit()
+        TaskDialog.Show("Error", "Error setting control point parameters: {}".format(str(e)))
 
-# Track placed instances
-before_ids = get_instance_ids_for_symbol(doc, target_symbol.Id)
 
-try:
-    uidoc.PromptForFamilyInstancePlacement(target_symbol)
-except Exception:
-    pass
-
-after_ids = get_instance_ids_for_symbol(doc, target_symbol.Id)
-new_ids = after_ids - before_ids
-
-if not new_ids:
-    sys.exit()
-
-# Write values to newly placed instances
-t = Transaction(doc, 'Set Control Point Parameters')
-t.Start()
-try:
-    errors = []
-
-    for int_id in new_ids:
-        elem = doc.GetElement(DB.ElementId(int_id))
-        if not elem:
-            continue
-
-        err1 = set_text_parameter(elem, "TS_Point_Number", form.point_number)
-        err2 = set_text_parameter(elem, "TS_Point_Description", form.point_name)
-
-        if err1:
-            errors.append(err1)
-        if err2:
-            errors.append(err2)
-
-    t.Commit()
-
-    if errors:
-        unique_errors = sorted(set(errors))
-        TaskDialog.Show("Warning", "\n".join(unique_errors))
-
-except Exception as e:
-    if t.HasStarted():
-        t.RollBack()
-    TaskDialog.Show("Error", "Error setting control point parameters: {}".format(str(e)))
+if __name__ == '__main__':
+    main()

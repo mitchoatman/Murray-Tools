@@ -2,8 +2,7 @@ layout:
   - Control
   - UG Point Layout
   - Point Layout
-  - WallPointPipe[title:Wall Layout [Pipe]]
-  - WallPointDuct[title:Wall Layout [Duct]]
+  - Wall Layout
   - Manage
   - Export
   - QC

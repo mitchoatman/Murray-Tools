@@ -1,7 +1,7 @@
 layout:
-  - MoveControlPoint
   - ImportControlPoint
   - ControlPoint
+  - MoveControlPoint
 
   
 background:

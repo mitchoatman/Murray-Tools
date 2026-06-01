@@ -35,6 +35,7 @@ uidoc = __revit__.ActiveUIDocument
 doc = uidoc.Document
 uiapp = __revit__
 view = uidoc.ActiveView
+revit_version = int(doc.Application.VersionNumber)
 
 if view.ViewType == ViewType.ThreeD:
     TaskDialog.Show("Error", "Cannot use in 3D view.")
@@ -45,7 +46,6 @@ family_filename = 'FixtureCL.rfa'
 family_path = os.path.join(script_dir, family_filename)
 family_name = 'FixtureCL'
 
-# Last used fixture type storage
 folder_name = r"c:\temp"
 filepath = os.path.join(folder_name, 'Ribbon_FixtureType.txt')
 
@@ -88,19 +88,12 @@ class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
         return True
 
     def OnSharedFamilyFound(self, sharedFamily, familyInUse, source, overwriteParameterValues):
-        # Always use existing shared family already loaded in the project
         source.Value = DB.FamilySource.Project
         overwriteParameterValues.Value = False
         return True
 
 
 def shared_family_dialog_fallback(sender, args):
-    """
-    Fallback only:
-    If Revit still shows the shared family conflict prompt,
-    auto-pick the 3rd button:
-    'Use the existing sub-component family that is in the project'
-    """
     try:
         if isinstance(args, TaskDialogShowingEventArgs):
             msg = (args.Message or "").lower()
@@ -122,7 +115,7 @@ class FixtureFamilyManager(object):
         self.family_name = target_family_name
         self.family_path = target_family_path
         self.family = None
-        self.symbol_cache = {}   # uppercase type name -> FamilySymbol
+        self.symbol_cache = {}
 
     def get_family_by_name(self):
         if self.family and self.family.IsValidObject:
@@ -156,11 +149,11 @@ class FixtureFamilyManager(object):
     def load_family_if_missing(self):
         fam = self.get_family_by_name()
         if fam:
-            return fam
+            return fam, False
 
         if not os.path.exists(self.family_path):
             TaskDialog.Show("Error", "Family file not found:\n{}".format(self.family_path))
-            return None
+            return None, False
 
         t = None
         uiapp.DialogBoxShowing += shared_family_dialog_fallback
@@ -169,24 +162,25 @@ class FixtureFamilyManager(object):
             t.Start()
 
             fload_handler = FamilyLoaderOptionsHandler()
-            loaded_family_ref = clr.Reference[Family]()
+            loaded_family_ref = clr.StrongBox[Family]()
             result = self.doc.LoadFamily(self.family_path, fload_handler, loaded_family_ref)
 
             t.Commit()
 
             if result and loaded_family_ref.Value:
                 self.family = loaded_family_ref.Value
-                return self.family
+                self.symbol_cache = {}
+                return self.family, True
 
-            # Fallback lookup by name in case Revit loaded/kept existing family
             self.family = None
-            return self.get_family_by_name()
+            fallback = self.get_family_by_name()
+            return fallback, False
 
         except Exception as e:
             if t and t.HasStarted() and not t.HasEnded():
                 t.RollBack()
             TaskDialog.Show("Error", "Error loading family: {}".format(str(e)))
-            return None
+            return None, False
 
         finally:
             uiapp.DialogBoxShowing -= shared_family_dialog_fallback
@@ -307,6 +301,8 @@ class FixtureFamilyManager(object):
 # --------------------------------------------------
 class FixtureTypeWindow(Window):
     def __init__(self, revit_window_handle, default_input):
+        Window.__init__(self)
+
         self.Title = "Set Fixture Type"
         self.Width = 300
         self.Height = 150
@@ -394,13 +390,7 @@ class FixtureTypeWindow(Window):
 def main():
     family_manager = FixtureFamilyManager(doc, family_name, family_path)
 
-    fam = family_manager.load_family_if_missing()
-    if not fam:
-        sys.exit()
-
-    family_manager.build_symbol_cache()
-
-    revit_window_handle = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle
+    revit_window_handle = uiapp.MainWindowHandle
     form = FixtureTypeWindow(revit_window_handle, prev_input)
     form.ShowDialog()
 
@@ -408,6 +398,20 @@ def main():
         return
 
     fixture_type = form.selected_type
+
+    fam, newly_loaded = family_manager.load_family_if_missing()
+    if not fam:
+        return
+
+    family_manager.build_symbol_cache()
+
+    if revit_version == 2022 and newly_loaded:
+        save_last_fixture_type(filepath, fixture_type)
+        TaskDialog.Show(
+            "Fixture CL",
+            "Family loaded successfully.\n\nRevit 2022: run the command again to place the family."
+        )
+        return
 
     target_symbol = family_manager.get_symbol_by_type_name(fixture_type)
     if not target_symbol:

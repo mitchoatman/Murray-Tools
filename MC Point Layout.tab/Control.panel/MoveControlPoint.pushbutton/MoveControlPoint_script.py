@@ -1,123 +1,225 @@
 # -*- coding: utf-8 -*-
-from pyrevit import revit, DB, UI, forms
-from Autodesk.Revit.DB import Transaction, XYZ, ElementId
-from rpw.ui.forms import FlexForm, Label, TextBox, Button
+import clr
+clr.AddReference('System')
+import System
+clr.AddReference('PresentationFramework')
+clr.AddReference('PresentationCore')
+clr.AddReference('WindowsBase')
+
+from System.Windows import Window, Thickness, HorizontalAlignment, WindowStartupLocation, ResizeMode
+from System.Windows.Controls import Grid, RowDefinition, Label, TextBox, Button, StackPanel, Orientation
+from System.Windows.Interop import WindowInteropHelper
+
+from Autodesk.Revit import DB
+from Autodesk.Revit.DB import XYZ, Transaction
+from Autodesk.Revit.UI import TaskDialog
+from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+
 import os
 
-# Get the current Revit document and UI document
+# Current Revit document and UI document
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+uiapp = __revit__
 
-# Define the file path for saving distances
+# File path for saving distances
 folder_name = "c:\\Temp"
 filepath = os.path.join(folder_name, 'Ribbon_MoveGeneric.txt')
 
-# Custom selection filter for generic model elements
-class GenericModelFilter(UI.Selection.ISelectionFilter):
+
+class GenericModelFilter(ISelectionFilter):
     def AllowElement(self, element):
-        # Allow only elements in the Generic Models category
         return element.Category and element.Category.Id.IntegerValue == int(DB.BuiltInCategory.OST_GenericModel)
 
     def AllowReference(self, reference, point):
-        return False  # Not allowing references (e.g., edges, faces)
+        return False
 
-# Function to prompt user to window select generic model elements
+
+class MoveGenericWindow(Window):
+    def __init__(self, revit_window_handle, default_x, default_y):
+        Window.__init__(self)
+
+        self.Title = "Move Generic Model Elements"
+        self.Width = 420
+        self.Height = 220
+        self.ResizeMode = ResizeMode.NoResize
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
+
+        self.x_dist = default_x
+        self.y_dist = default_y
+        self.confirmed = False
+
+        self.InitializeComponents()
+        WindowInteropHelper(self).Owner = revit_window_handle
+
+    def InitializeComponents(self):
+        grid = Grid()
+        self.Content = grid
+
+        row_definitions = [
+            RowDefinition(Height=System.Windows.GridLength.Auto),
+            RowDefinition(Height=System.Windows.GridLength.Auto),
+            RowDefinition(Height=System.Windows.GridLength.Auto),
+            RowDefinition(Height=System.Windows.GridLength.Auto),
+            RowDefinition(Height=System.Windows.GridLength.Auto)
+        ]
+
+        for row in row_definitions:
+            grid.RowDefinitions.Add(row)
+
+        row_index = 0
+
+        label_x = Label()
+        label_x.Content = "X Distance (ft) (positive = right, negative = left):"
+        label_x.Margin = Thickness(10, 10, 10, 2)
+        Grid.SetRow(label_x, row_index)
+        grid.Children.Add(label_x)
+        row_index += 1
+
+        self.textbox_x = TextBox()
+        self.textbox_x.Text = str(self.x_dist)
+        self.textbox_x.Margin = Thickness(10, 0, 10, 8)
+        Grid.SetRow(self.textbox_x, row_index)
+        grid.Children.Add(self.textbox_x)
+        row_index += 1
+
+        label_y = Label()
+        label_y.Content = "Y Distance (ft) (positive = up, negative = down):"
+        label_y.Margin = Thickness(10, 5, 10, 2)
+        Grid.SetRow(label_y, row_index)
+        grid.Children.Add(label_y)
+        row_index += 1
+
+        self.textbox_y = TextBox()
+        self.textbox_y.Text = str(self.y_dist)
+        self.textbox_y.Margin = Thickness(10, 0, 10, 8)
+        Grid.SetRow(self.textbox_y, row_index)
+        grid.Children.Add(self.textbox_y)
+        row_index += 1
+
+        button_panel = StackPanel()
+        button_panel.Orientation = Orientation.Horizontal
+        button_panel.HorizontalAlignment = HorizontalAlignment.Center
+        button_panel.Margin = Thickness(0, 10, 0, 10)
+        Grid.SetRow(button_panel, row_index)
+        grid.Children.Add(button_panel)
+
+        self.ok_button = Button()
+        self.ok_button.Content = "OK"
+        self.ok_button.Width = 75
+        self.ok_button.Height = 25
+        self.ok_button.Margin = Thickness(5, 0, 5, 0)
+        self.ok_button.Click += self.on_ok_click
+        button_panel.Children.Add(self.ok_button)
+
+        self.cancel_button = Button()
+        self.cancel_button.Content = "Cancel"
+        self.cancel_button.Width = 75
+        self.cancel_button.Height = 25
+        self.cancel_button.Margin = Thickness(5, 0, 5, 0)
+        self.cancel_button.Click += self.on_cancel_click
+        button_panel.Children.Add(self.cancel_button)
+
+    def on_ok_click(self, sender, event):
+        x_text = self.textbox_x.Text.strip()
+        y_text = self.textbox_y.Text.strip()
+
+        try:
+            float(x_text)
+            float(y_text)
+        except:
+            TaskDialog.Show("Error", "Please enter valid numeric values for distances.")
+            return
+
+        self.x_dist = x_text
+        self.y_dist = y_text
+        self.confirmed = True
+        self.Close()
+
+    def on_cancel_click(self, sender, event):
+        self.confirmed = False
+        self.Close()
+
+
 def pick_elements():
     try:
-        # Window selection with filter
-        filter = GenericModelFilter()
+        selection_filter = GenericModelFilter()
         selections = uidoc.Selection.PickObjects(
-            UI.Selection.ObjectType.Element,
-            filter,
+            ObjectType.Element,
+            selection_filter,
             "Window select generic model elements to move (drag from left to right)."
         )
+
         if selections:
-            selected_elements = [doc.GetElement(sel.ElementId) for sel in selections]
-            return selected_elements
+            return [doc.GetElement(sel.ElementId) for sel in selections]
         else:
-            forms.alert("No generic model elements selected. Script will exit.", exitscript=True)
+            TaskDialog.Show("Move Generic Model Elements", "No generic model elements selected. Script will exit.")
+            return None
 
     except:
-        forms.alert("Selection cancelled or failed. Script will exit.", exitscript=True)
+        TaskDialog.Show("Move Generic Model Elements", "Selection cancelled or failed. Script will exit.")
+        return None
 
-# Function to load saved distances from file
+
 def load_saved_distances():
-    # Create folder and file if they don't exist
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
+
     if not os.path.exists(filepath):
         with open(filepath, 'w') as the_file:
-            line1 = "0\n"  # Default X distance
-            line2 = "0\n"  # Default Y distance
-            the_file.writelines([line1, line2])
+            the_file.writelines(["0\n", "0\n"])
 
-    # Read text file for stored values
     with open(filepath, 'r') as file:
         lines = [line.rstrip() for line in file.readlines()]
 
-    # Ensure file has at least 2 lines, reset to defaults if not
     if len(lines) < 2:
         with open(filepath, 'w') as the_file:
-            line1 = "0\n"
-            line2 = "0\n"
-            the_file.writelines([line1, line2])
+            the_file.writelines(["0\n", "0\n"])
         return "0", "0"
 
     return lines[0], lines[1]
 
-# Function to save distances to file
+
 def save_distances(x_dist, y_dist):
     with open(filepath, 'w') as file:
         file.write("{}\n{}\n".format(x_dist, y_dist))
 
-# Main script execution
+
 def move_elements():
-    # Step 1: Prompt user to window select generic model elements
     elements = pick_elements()
     if not elements:
         return
 
-    # Step 2: Load saved distances
     saved_x_dist, saved_y_dist = load_saved_distances()
 
-    # Step 3: Create and show the FlexForm dialog for X and Y distances with saved values
-    components = [
-        Label("X Distance (ft) (positive = right, negative = left):"),
-        TextBox("x_dist", default=saved_x_dist, placeholder="Enter X distance (positive = right, negative = left)"),
-        Label("Y Distance (ft) (positive = up, negative = down):"),
-        TextBox("y_dist", default=saved_y_dist, placeholder="Enter Y distance (positive = up, negative = down)"),
-        Button("OK")
-    ]
-    form = FlexForm("Move Generic Model Elements", components)
-    result = form.show()
+    revit_window_handle = uiapp.MainWindowHandle
+    form = MoveGenericWindow(revit_window_handle, saved_x_dist, saved_y_dist)
+    form.ShowDialog()
 
-    # Step 4: Exit quietly if dialog is closed (result is False or None)
-    if not result:  # Dialog closed without clicking "OK"
+    if not form.confirmed:
         return
 
-    # Step 5: Retrieve and validate the input values
-    values = form.values
     try:
-        x_dist = float(values["x_dist"])
-        y_dist = float(values["y_dist"])
-    except ValueError:
-        forms.alert("Please enter valid numeric values for distances. Script will exit.", exitscript=True)
+        x_dist = float(form.x_dist)
+        y_dist = float(form.y_dist)
+    except:
+        TaskDialog.Show("Error", "Please enter valid numeric values for distances.")
         return
 
-    # Step 6: Save the new distances
     save_distances(x_dist, y_dist)
 
-    # Step 7: Move each selected element individually by the specified distances
-    with revit.Transaction("Move Generic Model Elements"):
-        # Create a translation vector (Revit uses feet internally)
+    t = Transaction(doc, "Move Generic Model Elements")
+    t.Start()
+    try:
         translation = XYZ(x_dist, y_dist, 0)
         for element in elements:
-            # Move each element individually from its current location
             DB.ElementTransformUtils.MoveElement(doc, element.Id, translation)
+        t.Commit()
+    except Exception as e:
+        if t.HasStarted():
+            t.RollBack()
+        TaskDialog.Show("Error", "Error moving elements: {}".format(str(e)))
 
-    # Optional: Uncomment if you want a confirmation message
-    # forms.alert("Elements moved successfully!\nX: {} ft, Y: {} ft".format(x_dist, y_dist))
 
-# Execute the script
 if __name__ == "__main__":
     move_elements()

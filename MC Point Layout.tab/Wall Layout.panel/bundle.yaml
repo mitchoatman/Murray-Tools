@@ -3,4 +3,8 @@ layout:
   - Blockout
   - Bulk_Wall_Opening
   - Wall_Sleeve_Schedule
+  - '-----'
+  - Round_Duct_Wall_Sleeve
+  - Rect_Duct_Wall_Sleeve
+  - Duct_Wall_Sleeve_Schedule
   - PointLayoutConfig

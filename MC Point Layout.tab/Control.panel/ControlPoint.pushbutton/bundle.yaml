@@ -7,7 +7,11 @@ title:
 
 # bundle tooltip
 tooltip: |-
-  This will Insert the Control Point Family into the Active View.
+  Insert the Control Point Family into the Active View.
+
+
+  [Shift]+Click:    
+  Insert the Control Point Family at selected grid line intersection(s).
 
 # context directives are listed under `context` key, the order does not matter
 #context:

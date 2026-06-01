@@ -12,6 +12,9 @@ tooltip: |-
   3. Elements will be selected.
   4. Do what you will with selected elements...
 
+  [Shift]+Click:    
+  A leaner faster more betterer TS_Point_Number locate tool.
+  It only looks for TS_Point_Number and nothing else.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

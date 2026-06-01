@@ -30,6 +30,7 @@ uidoc = __revit__.ActiveUIDocument
 doc = uidoc.Document
 uiapp = __revit__
 view = uidoc.ActiveView
+revit_version = int(doc.Application.VersionNumber)
 
 if view.ViewType == ViewType.ThreeD:
     TaskDialog.Show("Error", "Cannot use in 3D view.")
@@ -143,11 +144,11 @@ class ManualPointFamilyManager(object):
     def load_family_if_missing(self):
         fam = self.get_family_by_name()
         if fam:
-            return fam
+            return fam, False
 
         if not os.path.exists(self.family_path):
             TaskDialog.Show("Error", "Family file not found:\n{}".format(self.family_path))
-            return None
+            return None, False
 
         t = None
         uiapp.DialogBoxShowing += shared_family_dialog_fallback
@@ -156,23 +157,25 @@ class ManualPointFamilyManager(object):
             t.Start()
 
             fload_handler = FamilyLoaderOptionsHandler()
-            loaded_family_ref = clr.Reference[Family]()
+            loaded_family_ref = clr.StrongBox[Family]()
             result = self.doc.LoadFamily(self.family_path, fload_handler, loaded_family_ref)
 
             t.Commit()
 
             if result and loaded_family_ref.Value:
                 self.family = loaded_family_ref.Value
-                return self.family
+                self.symbol_cache = {}
+                return self.family, True
 
             self.family = None
-            return self.get_family_by_name()
+            fallback = self.get_family_by_name()
+            return fallback, False
 
         except Exception as e:
             if t and t.HasStarted() and not t.HasEnded():
                 t.RollBack()
             TaskDialog.Show("Error", "Error loading family: {}".format(str(e)))
-            return None
+            return None, False
 
         finally:
             uiapp.DialogBoxShowing -= shared_family_dialog_fallback
@@ -293,6 +296,8 @@ class ManualPointFamilyManager(object):
 # --------------------------------------------------
 class ManualPointTypeWindow(Window):
     def __init__(self, revit_window_handle, default_input):
+        Window.__init__(self)
+
         self.Title = "Set Manual Point Type"
         self.Width = 300
         self.Height = 150
@@ -380,13 +385,7 @@ class ManualPointTypeWindow(Window):
 def main():
     family_manager = ManualPointFamilyManager(doc, family_name, family_path)
 
-    fam = family_manager.load_family_if_missing()
-    if not fam:
-        sys.exit()
-
-    family_manager.build_symbol_cache()
-
-    revit_window_handle = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle
+    revit_window_handle = uiapp.MainWindowHandle
     form = ManualPointTypeWindow(revit_window_handle, prev_input)
     form.ShowDialog()
 
@@ -394,6 +393,20 @@ def main():
         return
 
     point_type = form.selected_type
+
+    fam, newly_loaded = family_manager.load_family_if_missing()
+    if not fam:
+        return
+
+    family_manager.build_symbol_cache()
+
+    if revit_version == 2022 and newly_loaded:
+        save_last_type(filepath, point_type)
+        TaskDialog.Show(
+            "Manual Point",
+            "Family loaded successfully.\n\nRevit 2022: run the command again to place the family."
+        )
+        return
 
     target_symbol = family_manager.get_or_create_symbol(point_type)
     if not target_symbol:

@@ -9,8 +9,6 @@ title:
 tooltip: |-
   This will Insert the Fixture CL Family into the Active View.
 
-  THERE IS A NOTED ISSUE WITH REVIT 2022!  LOAD THE FAMILY MANUALLY...
-
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Selection
