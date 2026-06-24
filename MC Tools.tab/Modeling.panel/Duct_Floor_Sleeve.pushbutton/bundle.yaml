@@ -1,0 +1,31 @@
+#highlight: new
+title:
+  "Duct Floor\nSleeve"
+
+tooltip: |-
+  Place floor sleeve family on duct centerline at vertical duct and
+  level line intersection. Fabrication service name and abbreviation
+  will be added to the sleeves.  It will also assign the proper
+  schedule level while not duplicating existing sleeves.
+  
+  1.  Click the button.
+  2.  Sleeves are placed on ducts in the active view that cross a level line.
+
+  Floorplan View - sleeves are placed on level above.
+  3D View - visible ducts crossing level lines are populated with sleeves.
+  
+  Pre-Selected - sleeves are placed on the selected element(s) only.
+
+  [Shift]+Click:
+  Place floor sleeve manually. Pay attention to workplane setting
+  under ribbon.  Set to appropriate level you wish to place sleeve on.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://youtu.be/2464K7fS2iY"
+
+# bundle author
+author: Mitchell Oatman

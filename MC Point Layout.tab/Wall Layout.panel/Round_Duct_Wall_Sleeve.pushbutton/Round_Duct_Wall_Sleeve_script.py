@@ -243,6 +243,29 @@ def project_point_on_curve(point, curve):
     result = curve.Project(point)
     return result.XYZPoint
 
+def get_metal_diameter_from_duct(duct, connector=None):
+    try:
+        if connector and connector.Shape == DB.ConnectorProfileType.Round:
+            return connector.Radius * 2.0
+    except:
+        pass
+
+    overall_size = get_parameter_value_by_name_AsString(duct, 'Overall Size')
+    if not overall_size:
+        raise Exception("Could not read duct size.")
+
+    def frac2string(s):
+        i, f = s.groups(0)
+        f = Fraction(f)
+        return str(int(i) + float(f))
+
+    if '/' in overall_size:
+        return float(
+            re.sub(r'(?:(\d+)[-\s])?(\d+/\d+)[^\d.]', frac2string, overall_size)
+        ) / 12.0
+    else:
+        return float(re.sub(r'[^\d.]', '', overall_size)) / 12.0
+
 
 # --------------------------------------------------
 # Placement
@@ -265,21 +288,6 @@ def place_and_modify_family(duct, famsymb):
             DB.Structure.StructuralType.NonStructural
         )
 
-        def frac2string(s):
-            i, f = s.groups(0)
-            f = Fraction(f)
-            return str(int(i) + float(f))
-
-        overall_size = get_parameter_value_by_name_AsString(duct, 'Overall Size')
-        if '/' in overall_size:
-            diameter = float(
-                re.sub(r'(?:(\d+)[-\s])?(\d+/\d+)[^\d.]', frac2string, overall_size)
-            ) / 12 + (AnnularSpace / 12)
-        else:
-            diameter = float(re.sub(r'[^\d.]', '', overall_size)) / 12 + (AnnularSpace / 12)
-
-        set_parameter_by_name(new_family_instance, 'Diameter', diameter)
-
         pipe_connectors = list(duct.ConnectorManager.Connectors)
         if len(pipe_connectors) < 2:
             raise Exception("Selected duct does not have at least 2 connectors.")
@@ -290,6 +298,9 @@ def place_and_modify_family(duct, famsymb):
         distance2 = picked_point.DistanceTo(connector2.Origin)
         if distance2 < distance1:
             connector1, connector2 = connector2, connector1
+
+        diameter = get_metal_diameter_from_duct(duct, connector1) + (AnnularSpace / 12.0)
+        set_parameter_by_name(new_family_instance, 'Diameter', diameter)
 
         vec_x = connector2.Origin.X - connector1.Origin.X
         vec_y = connector2.Origin.Y - connector1.Origin.Y

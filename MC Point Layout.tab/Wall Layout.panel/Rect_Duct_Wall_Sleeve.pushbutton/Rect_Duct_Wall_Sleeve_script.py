@@ -150,45 +150,56 @@ else:
         result = curve.Project(point)
         return result.XYZPoint
 
+    def get_rectangular_size_from_duct(duct, connector=None):
+        try:
+            if connector and connector.Shape == DB.ConnectorProfileType.Rectangular:
+                return connector.Width, connector.Height
+        except:
+            pass
+
+        overall_size = get_parameter_value_by_name_AsString(duct, 'Overall Size')
+        match = re.match(r'(\d+)"x(\d+)"', overall_size)
+        if match:
+            return float(match.group(1)) / 12.0, float(match.group(2)) / 12.0
+
+        raise ValueError("Invalid duct size format")
+
     def place_and_modify_family(duct, famsymb):
         try:
             centerline_curve = get_duct_centerline(duct)
             picked_point = pick_point()
             if not picked_point:
-                return False  # Quietly exit if user cancels point selection
+                return False
+
             projected_point = project_point_on_curve(picked_point, centerline_curve)
             insertion_point = DB.XYZ(picked_point.X, picked_point.Y, projected_point.Z)
 
-            # Get reference level from duct
             level = doc.GetElement(duct.LevelId)
-            
+
             new_family_instance = doc.Create.NewFamilyInstance(insertion_point, famsymb, DB.Structure.StructuralType.NonStructural)
 
-            def extract_width_height(duct):
-                overall_size = get_parameter_value_by_name_AsString(duct, 'Overall Size')
-                match = re.match(r'(\d+)"x(\d+)"', overall_size)
-                if match:
-                    return float(match.group(1)), float(match.group(2))
-                raise ValueError("Invalid Overall Size format")
-
-            width, height = extract_width_height(duct)
-            set_parameter_by_name(new_family_instance, 'Width', width / 12 + (AnnularSpace / 12))
-            set_parameter_by_name(new_family_instance, 'Height', height / 12 + (AnnularSpace / 12))
-
             duct_connectors = list(duct.ConnectorManager.Connectors)
+            if len(duct_connectors) < 2:
+                raise Exception("Selected duct does not have at least 2 connectors.")
+
             connector1, connector2 = duct_connectors[0], duct_connectors[1]
             distance1 = picked_point.DistanceTo(connector1.Origin)
             distance2 = picked_point.DistanceTo(connector2.Origin)
+
             if distance1 < distance2:
                 connector1, connector2 = connector1, connector2
             else:
                 connector1, connector2 = connector2, connector1
 
+            width, height = get_rectangular_size_from_duct(duct, connector1)
+            set_parameter_by_name(new_family_instance, 'Width', width + (AnnularSpace / 12.0))
+            set_parameter_by_name(new_family_instance, 'Height', height + (AnnularSpace / 12.0))
+
             vec_x = connector2.Origin.X - connector1.Origin.X
             vec_y = connector2.Origin.Y - connector1.Origin.Y
             angle = atan2(vec_y, vec_x)
             axis = DB.Line.CreateBound(insertion_point, DB.XYZ(insertion_point.X, insertion_point.Y, insertion_point.Z + 1))
-            
+
             DB.ElementTransformUtils.RotateElement(doc, new_family_instance.Id, axis, angle)
             set_parameter_by_name(new_family_instance, 'FP_Service Name', get_parameter_value_by_name_AsString(duct, 'Fabrication Service Name'))
             schedule_level_param = new_family_instance.LookupParameter("Schedule Level")
@@ -206,9 +217,9 @@ else:
             t.Start()
             duct = select_fabrication_duct()
             if not duct:
-                break  # Quietly exit if user cancels duct selection
+                break
             if not place_and_modify_family(duct, famsymb):
-                break  # Quietly exit if user cancels point selection
+                break
             t.Commit()
         except OperationCanceledException:
             if t and t.HasStarted() and not t.HasEnded():

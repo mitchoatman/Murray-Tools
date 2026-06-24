@@ -5,8 +5,7 @@ layout:
   - WorksetMonitor
   - RemoveParameters
   - ExtendStiffyRod
-  - UpgradeFamilies
-  - ViewRefresh
+  - ImportExcelToDetail
 
 collapsed: true
 

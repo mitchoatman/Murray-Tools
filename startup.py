@@ -6,16 +6,16 @@ from Autodesk.Revit.UI import SelectionUIOptions
 from System.Windows.Media.Imaging import BitmapImage
 import System
 
-# Revit Selection Options 
+# Revit Selection Options
 uidoc = HOST_APP.uidoc
 opts  = SelectionUIOptions.GetSelectionUIOptions()
 opts.DragOnSelection = False
 opts.SelectLinks     = False
 opts.SelectUnderlay  = True
 
-# Restore FP Hook button icon on load 
+# Restore FP Hook button icon on load
 FLAG_FILE  = r'C:\temp\fabrication_hook_enabled.txt'
-RIBBON_TAB = 'MurrayTools'
+RIBBON_TAB = 'MC Tools'
 
 def get_hook_state():
     try:
@@ -40,14 +40,25 @@ def set_hook_icon(sender, args):
 
         state      = get_hook_state()
         bundle_dir = os.path.dirname(os.path.abspath(__file__))
-        icon_dir   = os.path.join(bundle_dir, 'MurrayTools.tab', 'Fabrication.panel', 'ToggleFPSync.pushbutton')
+        icon_dir   = os.path.join(
+            bundle_dir,
+            'MC Tools.tab',
+            'Fabrication.panel',
+            'SyncData.splitpushbutton',
+            'ToggleFPSync.smartbutton'
+        )
         icon_path  = os.path.join(icon_dir, 'on.png' if state else 'off.png')
+
+        if not os.path.exists(icon_path):
+            with open(r'C:\temp\startup_debug.txt', 'a') as log:
+                log.write("Icon not found: {}\n".format(icon_path))
+            return
 
         uri = System.Uri(icon_path, System.UriKind.Absolute)
         img = BitmapImage(uri)
 
         for tab in ComponentManager.Ribbon.Tabs:
-            if 'Murray' not in tab.Title:
+            if tab.Title != RIBBON_TAB:
                 continue
             for panel in tab.Panels:
                 try:
@@ -55,17 +66,20 @@ def set_hook_icon(sender, args):
                         if hasattr(item, 'Text') and item.Text and 'Auto\nSync' in item.Text:
                             item.LargeImage = img
                             item.Image      = img
+                            return
                 except Exception:
                     pass
 
-    except Exception as e:
+    except Exception:
         import traceback
         with open(r'C:\temp\startup_debug.txt', 'w') as log:
             log.write("set_hook_icon error:\n{}\n".format(traceback.format_exc()))
 
     finally:
-        # Unsubscribe after first run - only need to set icon once
-        HOST_APP.uiapp.ViewActivated -= set_hook_icon
+        try:
+            HOST_APP.uiapp.ViewActivated -= set_hook_icon
+        except Exception:
+            pass
 
 # Subscribe - will fire once the first view is activated after Revit loads
 HOST_APP.uiapp.ViewActivated += set_hook_icon

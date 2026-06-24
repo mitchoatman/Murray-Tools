@@ -1,6 +1,6 @@
 # highlight: new
 title:
-  "Bulk Wall\nOpening"
+  "Pipe Bulk\nWall Opening"
 
 tooltip: |-
   Place WS family on pipe centerline at wall locations for point layout purposes.
@@ -9,15 +9,15 @@ tooltip: |-
   
   1.  Select the pipe(s) to place sleeve on.
   2.  Click Finish
-  3.  Pick the wall to place sleeves in.
+  3.  Pick the linked wall to place sleeves in.
 
   [Shift]+Click:
   Place DR-WS family on pipe centerline at wall locations for point layout purposes.
   It will also append Fabrication service name and abbreviation to the sleeve.
   
-  1.  Select the pipe to place sleeve on.
-  2.  Pick the intersection of the pipe centerline and wall.
-  3.  Repeat as necessary, ESC to end the command.
+  1.  Select the pipe(s) to place sleeve on.
+  2.  Click Finish
+  3.  Pick the linked wall to place sleeves in.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

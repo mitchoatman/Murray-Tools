@@ -1,7 +1,7 @@
 import Autodesk
 from Autodesk.Revit.UI import TaskDialog
 from Autodesk.Revit.DB import Transaction, FabricationConfiguration, BuiltInParameter, BuiltInCategory, FabricationPart, FabricationServiceButton, \
-                                FabricationService, XYZ, ElementTransformUtils, BoundingBoxXYZ, Transform, Line
+                                FabricationService, XYZ, ElementTransformUtils, BoundingBoxXYZ, Transform, Line, ElementId
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 import math
 import os
@@ -19,18 +19,31 @@ uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 app = doc.Application
 RevitVersion = app.VersionNumber
-RevitINT = float(RevitVersion)
+RevitINT = int(RevitVersion)
 #------------------------------------------------------------------------------------SELECTING ELEMENTS
+
+def get_id_value(elem_id):
+    try:
+        return int(elem_id.Value)   # Revit 2024+
+    except:
+        return int(elem_id.IntegerValue)  # Revit 2022/2023
 
 class FabPipeDuctSelectionFilter(ISelectionFilter):
     def AllowElement(self, elem):
-        if elem.Category is None:
+        try:
+            if elem is None or elem.Category is None or elem.Category.Id is None:
+                return False
+
+            cat_id = get_id_value(elem.Category.Id)
+
+            allowed = [
+                get_id_value(ElementId(BuiltInCategory.OST_FabricationPipework)),
+                get_id_value(ElementId(BuiltInCategory.OST_FabricationDuctwork))
+            ]
+
+            return cat_id in allowed
+        except:
             return False
-        cat_id = elem.Category.Id.IntegerValue
-        return cat_id in [
-            int(BuiltInCategory.OST_FabricationPipework),
-            int(BuiltInCategory.OST_FabricationDuctwork)
-        ]
 
     def AllowReference(self, reference, point):
         return True
@@ -63,7 +76,7 @@ try:
     buttonnames = []
     unique_hangers = set()
     for service_idx, service in enumerate(LoadedServices):
-        palette_count = service.PaletteCount if RevitINT > 2022 else service.GroupCount
+        palette_count = service.PaletteCount if RevitINT >= 2023 else service.GroupCount
         for palette_idx in range(palette_count):
             buttoncount = service.GetButtonCount(palette_idx)
             for btn_idx in range(buttoncount):
@@ -235,7 +248,7 @@ try:
             else:
                 return 0.0
         # Gets bottom elevation of selected pipe (no longer used after fixes)
-        if RevitINT > 2022:
+        if RevitINT >= 2023:
             PRTElevation = get_parameter_value(element, 'Lower End Bottom Elevation')
         else:
             PRTElevation = get_parameter_value(element, 'Bottom')
@@ -269,7 +282,7 @@ try:
             fab_btn = None
             for servicenum, service in enumerate(LoadedServices):
                 if service.Name == SelectedServiceName:
-                    palette_count = service.PaletteCount if RevitINT > 2022 else service.GroupCount
+                    palette_count = service.PaletteCount if RevitINT >= 2023 else service.GroupCount
                     for palette_idx in range(palette_count):
                         button_count = service.GetButtonCount(palette_idx)
                         for btn_idx in range(button_count):
@@ -324,9 +337,12 @@ try:
                 return level
          
             def get_level_elevation(level):
-                if level:
+                if not level:
+                    return 0.0
+                try:
                     return level.ProjectElevation
-                return 0.0
+                except:
+                    return level.Elevation
          
             # Determine pipe direction from the first pipe's location curve
             curve = element.Location.Curve
@@ -559,7 +575,7 @@ try:
             fab_btn = None
             for servicenum, service in enumerate(LoadedServices):
                 if service.Name == SelectedServiceName:
-                    palette_count = service.PaletteCount if RevitINT > 2022 else service.GroupCount
+                    palette_count = service.PaletteCount if RevitINT >= 2023 else service.GroupCount
                     for palette_idx in range(palette_count):
                         button_count = service.GetButtonCount(palette_idx)
                         for btn_idx in range(button_count):

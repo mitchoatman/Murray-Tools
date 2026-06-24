@@ -1,0 +1,30 @@
+#highlight: new
+
+# bundle title
+title:
+  "Rogue Element Scanner"
+
+# bundle tooltip
+tooltip: |-
+  Scans the active Revit model for physical model elements that are located
+  outside a safe distance from the Internal Origin and may cause Navisworks
+  (NWC) export failures.
+
+  The tool checks model elements such as:
+  • MEP Fabrication Pipework
+  • MEP Fabrication Hangers
+  • Pipe Accessories
+  • Pipe Fittings
+  • Mechanical Equipment
+  • Generic Models
+  • Plumbing Fixtures
+
+  Useful for troubleshooting:
+  • NWC export failures
+  • "Input point lies outside Revit design limits"
+  • Rogue fabrication parts
+  • Corrupt model geometry
+  • Elements located far outside the project area
+
+# bundle author
+author: LeeAndro Garduno

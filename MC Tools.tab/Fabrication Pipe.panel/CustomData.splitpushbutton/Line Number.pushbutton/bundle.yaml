@@ -12,6 +12,8 @@ tooltip: >-
         3a. Optionally user can pick from existing numbers.
     4. Click Ok
 
+  [Shift]+Click:    
+  Creates view filters for line numbers in model.
 
 # context directives are listed under `context` key, the order does not matter
 # context:

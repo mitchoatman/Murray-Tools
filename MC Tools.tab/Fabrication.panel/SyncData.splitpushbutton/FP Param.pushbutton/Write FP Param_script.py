@@ -295,47 +295,106 @@ else:
         except:
             pass
 
-    def safely_set_parameter(action, elements):
-        for element in elements:
-            try:
-                action(element)
-            except Exception as e:
-                pass
+    setp = set_parameter_by_name
+    get_str = get_parameter_value_by_name_AsString
+    get_dbl = get_parameter_value_by_name_AsDouble
+    get_val = get_parameter_value_by_name_AsValueString
+    get_service_type_name = Config.GetServiceTypeName
 
-    actions = [
-        lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength) if x.ItemCustomId == 2041 else None,
-        lambda x: set_parameter_by_name(x, 'FP_CID', x.ItemCustomId),
-        lambda x: set_parameter_by_name(x, 'FP_Service Type', Config.GetServiceTypeName(x.ServiceType)),
-        lambda x: set_parameter_by_name(x, 'FP_Service Name', get_parameter_value_by_name_AsString(x, 'Fabrication Service Name')),
-        lambda x: set_parameter_by_name(x, 'FP_Service Abbreviation', get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation')),
-        lambda x: set_parameter_by_name(x, 'FP_Rod Attached', 'Yes') if x.GetRodInfo().IsAttachedToStructure else set_parameter_by_name(x, 'FP_Rod Attached', 'No'),
-        lambda x: [set_parameter_by_name(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter) for n in x.GetPartAncillaryUsage() if n.AncillaryWidthOrDiameter > 0],
-        lambda x: set_parameter_by_name(x, 'FP_Hanger Diameter', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') else None,
-        lambda x: set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Product Entry')) if x.LookupParameter('Product Entry') \
-        else set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Size')),
-        lambda x: set_parameter_by_name(x, 'FP_Product Entry', (get_parameter_value_by_name_AsString(x, 'Size') or '') + ' x ' + (get_parameter_value_by_name_AsValueString(x, 'Angle') \
-        or '')) if x.Alias and x.Alias.upper() == 'TRM' else get_parameter_value_by_name_AsString(x, 'Size'),
-        lambda x: set_parameter_by_name(x, 'FP_Centerline Length', x.CenterlineLength),
-        lambda x: set_parameter_by_name(x, 'FP_Centerline Length', get_parameter_value_by_name_AsDouble(x, 'Length')),
-        lambda x: set_parameter_by_name(x, 'FP_Product Entry', get_parameter_value_by_name_AsString(x, 'Overall Size')),
-        lambda x: set_parameter_by_name(x, 'FP_Part Material', get_parameter_value_by_name_AsValueString(x, 'Part Material')) if get_parameter_value_by_name_AsValueString(x, 'Part Material') else None,
-    ]
 
-    safely_set_parameter(actions[0], AllElements)
-    safely_set_parameter(actions[1], AllElements)
-    safely_set_parameter(actions[2], AllElements)
-    safely_set_parameter(actions[3], AllElements)
-    safely_set_parameter(actions[4], AllElements)
-    safely_set_parameter(actions[5], hanger_collector)
-    safely_set_parameter(actions[6], hanger_collector)
-    safely_set_parameter(actions[7], hanger_collector)
-    safely_set_parameter(actions[8], AllElements)
-    safely_set_parameter(actions[9], pipe_collector)
-    safely_set_parameter(actions[10], duct_collector)
-    safely_set_parameter(actions[11], flex_duct_collector)
-    safely_set_parameter(actions[12], flex_duct_collector)
-    safely_set_parameter(actions[13], pipe_collector)
-    safely_set_parameter(actions[13], duct_collector)
+    # 0 fab pipe and only pipe pattern
+    for x in pipe_collector:
+        try:
+            if x.ItemCustomId == 2041:
+                setp(x, 'FP_Centerline Length', x.CenterlineLength)
+        except Exception:
+            pass
+
+
+    # 1, 2, 3, 4, 8, 12 all fab parts
+    for x in AllElements:
+        try:
+            setp(x, 'FP_CID', x.ItemCustomId)
+        except Exception:
+            pass
+
+        try:
+            setp(x, 'FP_Service Type', get_service_type_name(x.ServiceType))
+        except Exception:
+            pass
+
+        try:
+            setp(x, 'FP_Service Name', get_str(x, 'Fabrication Service Name'))
+        except Exception:
+            pass
+
+        try:
+            setp(x, 'FP_Service Abbreviation', get_str(x, 'Fabrication Service Abbreviation'))
+        except Exception:
+            pass
+
+        try:
+            product_entry = get_str(x, 'Product Entry') if x.LookupParameter('Product Entry') else None
+            size = get_str(x, 'Size')
+
+            value = (
+                ((size or '') + ' x ' + (get_val(x, 'Angle') or ''))
+                if x.Alias and x.Alias.upper() == 'TRM'
+                else (product_entry if product_entry else size)
+            )
+
+            setp(x, 'FP_Product Entry', value)
+        except Exception:
+            pass
+
+        try:
+            part_material = get_val(x, 'Part Material')
+            if part_material:
+                setp(x, 'FP_Part Material', part_material)
+        except Exception:
+            pass
+
+
+    # 5, 6, 7 fab hangers
+    for x in hanger_collector:
+        try:
+            setp(x, 'FP_Rod Attached', 'Yes' if x.GetRodInfo().IsAttachedToStructure else 'No')
+        except Exception:
+            pass
+
+        try:
+            for n in x.GetPartAncillaryUsage():
+                if n.AncillaryWidthOrDiameter > 0:
+                    setp(x, 'FP_Rod Size', n.AncillaryWidthOrDiameter)
+        except Exception:
+            pass
+
+        try:
+            if x.LookupParameter('Product Entry'):
+                setp(x, 'FP_Hanger Diameter', get_str(x, 'Product Entry'))
+        except Exception:
+            pass
+
+
+    # 9 fab duct
+    for x in duct_collector:
+        try:
+            setp(x, 'FP_Centerline Length', x.CenterlineLength)
+        except Exception:
+            pass
+
+
+    # 10, 11 flex duct
+    for x in flex_duct_collector:
+        try:
+            setp(x, 'FP_Centerline Length', get_dbl(x, 'Length'))
+        except Exception:
+            pass
+
+        try:
+            setp(x, 'FP_Product Entry', get_str(x, 'Overall Size'))
+        except Exception:
+            pass
 
     try:
         for x in AllElements:

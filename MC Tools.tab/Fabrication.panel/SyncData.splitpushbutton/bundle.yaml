@@ -1,3 +1,5 @@
 layout:
+  - ToggleFPSync
   - FP Param
   - Sync Custom Data
+  - ParamToParam

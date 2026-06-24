@@ -8,11 +8,30 @@ Shared_Params()
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 
+def create_equals_string_rule(param_id, value):
+    try:
+        return ParameterFilterRuleFactory.CreateEqualsRule(param_id, value)
+    except TypeError:
+        return ParameterFilterRuleFactory.CreateEqualsRule(param_id, value, False)
+
 def set_parameter_by_name(element, parameterName, value):
-    element.LookupParameter(parameterName).Set(value)
+    p = element.LookupParameter(parameterName)
+    if p and not p.IsReadOnly:
+        p.Set(value)
 
 def get_parameter_value_by_name(element, parameterName):
-    return element.LookupParameter(parameterName).AsString()
+    p = element.LookupParameter(parameterName)
+    if p:
+        return p.AsString()
+    return None
+
+def create_equals_string_rule(param_id, value):
+    try:
+        # Revit 2025/2026/2027+
+        return ParameterFilterRuleFactory.CreateEqualsRule(param_id, value)
+    except TypeError:
+        # Revit 2021-2024
+        return ParameterFilterRuleFactory.CreateEqualsRule(param_id, value, False)
 
 class CustomISelectionFilter(ISelectionFilter):
     def __init__(self, categories):
@@ -34,7 +53,7 @@ filter_color = DB.Color(0, 255, 255)
 fill_patterns = FilteredElementCollector(doc).OfClass(FillPatternElement).ToElements()
 solid_fill_id = None
 for pattern in fill_patterns:
-    if pattern.Name == "<Solid fill>" and pattern.GetFillPattern().IsSolidFill:
+    if pattern.GetFillPattern().IsSolidFill:
         solid_fill_id = pattern.Id
         break
 
@@ -83,7 +102,7 @@ if hangers:
             break
 if filter_name not in existing_filter_names:
     if param_id:
-        rule = ParameterFilterRuleFactory.CreateEqualsRule(param_id, "Yes", False)
+        rule = create_equals_string_rule(param_id, "Yes")
         filter_element = ElementParameterFilter(rule)
         filter_elem = ParameterFilterElement.Create(doc, filter_name, categories)
         filter_elem.SetElementFilter(filter_element)

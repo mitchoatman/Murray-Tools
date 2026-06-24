@@ -1,8 +1,23 @@
 import Autodesk
 
 #FUNCTION TO GET PARAMETER VALUE  change "AsDouble()" to "AsString()" to change data type.
-def set_parameter_by_name(element, parameterName, value):
-    element.LookupParameter(parameterName).Set(value)
+from Autodesk.Revit.DB import StorageType
+
+def set_parameter_by_name(element, parameter_name, value):
+    if element is None or not parameter_name:
+        return False, "Invalid input"
+
+    param = element.LookupParameter(parameter_name)
+    if param is None:
+        return False, "Parameter not found"
+    if param.IsReadOnly:
+        return False, "Parameter is read-only"
+
+    try:
+        param.Set(value)
+        return True, None
+    except Exception as e:
+        return False, str(e)
 
 def get_parameter_value_by_name_AsString(element, parameterName):
     return element.LookupParameter(parameterName).AsString()

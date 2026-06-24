@@ -16,7 +16,7 @@ from System.Windows.Controls import (
     RowDefinition, ColumnDefinition, SelectionMode, StackPanel,
     Orientation, ListBoxItem
 )
-from System.Windows.Media import Brushes
+from System.Windows.Media import Brushes, SolidColorBrush, Color
 from System.Collections.Generic import List
 from System.Windows.Threading import DispatcherFrame, Dispatcher
 
@@ -138,7 +138,7 @@ class MultiPropertyFilterForm(Window):
     def InitializeComponents(self):
         self.Title = "Multi-Property Filter"
         self.Width = 550
-        self.Height = 620
+        self.Height = 625
         self.WindowStyle = WindowStyle.SingleBorderWindow
         self.ResizeMode = 0
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
@@ -285,8 +285,8 @@ class MultiPropertyFilterForm(Window):
                 Margin=Thickness(0 if txt == "Update Data" else 5, 0, 0 if txt == "Close" else 5, 0)
             )
             if txt == "Reset View":
-                btn.Background = Brushes.Red
-                btn.Foreground = Brushes.Black
+                btn.Background = SolidColorBrush(Color.FromRgb(160, 82, 82))
+                btn.Foreground = Brushes.White
             btn.Click += handler
             panel.Children.Add(btn)
 
@@ -310,8 +310,9 @@ class MultiPropertyFilterForm(Window):
                 'CID', 'ServiceType', 'Service Name', 'Service Abbreviation', 'Size',
                 'STRATUS Assembly', 'Line Number', 'STRATUS Status', 'Reference Level',
                 'Item Number', 'Bundle Number', 'REF BS Designation', 'REF Line Number',
-                'Specification', 'Hanger Rod Size', 'Valve Number', 'Beam Hanger',
-                'Product Entry', 'TS_Point_Number', 'TS_Point_Description', 'Alias'
+                'Specification', 'Insulation Specification', 'Hanger Rod Size',
+                'Valve Number', 'Beam Hanger', 'Product Entry',
+                'TS_Point_Number', 'TS_Point_Description', 'Alias'
             ]
 
             for prop in fab_props:
@@ -324,6 +325,12 @@ class MultiPropertyFilterForm(Window):
                 vals = set(filter(None, [get_property_value(e, prop, self.config, False) for e in self.all_elements]))
                 if vals:
                     self.property_options[prop] = sorted(vals)
+
+            workset_elements = [e for e in self.all_elements if is_valid_workset_element(e)]
+            if workset_elements:
+                vals = set(filter(None, [get_property_value(e, 'Workset', self.config, False) for e in workset_elements]))
+                if vals:
+                    self.property_options['Workset'] = sorted(vals)
 
             self.property_combo.Items.Clear()
             for p in sorted(self.property_options.keys()):
@@ -457,8 +464,14 @@ class MultiPropertyFilterForm(Window):
 
         try:
             pre = [self.doc.GetElement(i) for i in self.uidoc.Selection.GetElementIds()]
-            use_all = any(k in self.selected_filters for k in ("Name", "Comments", "Category", "TS_Point_Number", "TS_Point_Description"))
+            use_all = any(
+                k in self.selected_filters
+                for k in ("Name", "Comments", "Category", "Workset", "TS_Point_Number", "TS_Point_Description")
+            )
             elems = pre or (self.all_elements if use_all else self.fab_elements)
+
+            if "Workset" in self.selected_filters:
+                elems = [e for e in elems if is_valid_workset_element(e)]
 
             ids = []
             for e in elems:
@@ -513,8 +526,14 @@ class MultiPropertyFilterForm(Window):
 
         try:
             pre = [self.doc.GetElement(i) for i in self.uidoc.Selection.GetElementIds()]
-            use_all = any(k in self.selected_filters for k in ("Name", "Comments", "Category", "TS_Point_Number", "TS_Point_Description"))
+            use_all = any(
+                k in self.selected_filters
+                for k in ("Name", "Comments", "Category", "Workset", "TS_Point_Number", "TS_Point_Description")
+            )
             elems = pre or (self.all_elements if use_all else self.fab_elements)
+
+            if "Workset" in self.selected_filters:
+                elems = [e for e in elems if is_valid_workset_element(e)]
 
             ids = []
             for e in elems:
@@ -591,6 +610,11 @@ def get_property_value(elem, property_name, config, debug=False):
         'TS_Point_Description': lambda x: get_parameter_value_by_name_AsString(x, 'TS_Point_Description'),
         'Alias': lambda x: get_parameter_value_by_name_AsString(x, 'Alias'),
         'Category': lambda x: x.Category.Name if x.Category else None,
+        'Workset': lambda x: get_user_workset_name(x),
+        'Insulation Specification': lambda x:
+            get_parameter_value_by_name_AsValueString(x, 'Insulation Specification') or
+            (config.GetInsulationSpecificationAbbreviation(x.InsulationSpecification)
+             if getattr(x, 'InsulationSpecification', 0) else None),
     }
 
     try:
@@ -618,11 +642,112 @@ def get_parameter_id(property_name):
         'Beam Hanger': 'FP_Beam Hanger',
         'Product Entry': 'Product Entry',
         'Name': 'Family',
+        'Workset': 'Workset',
         'TS_Point_Number': 'TS_Point_Number',
         'TS_Point_Description': 'TS_Point_Description',
         'Alias': 'Alias',
+        'Insulation Specification': 'Insulation Specification',
     }
     return param_map.get(property_name)
+
+
+def geometry_has_3d_objects(geo_elem):
+    if geo_elem is None:
+        return False
+
+    for g in geo_elem:
+        if isinstance(g, DB.Solid):
+            try:
+                if g.Volume > 0 or g.Faces.Size > 0:
+                    return True
+            except:
+                pass
+
+        elif isinstance(g, DB.Mesh):
+            try:
+                if g.NumTriangles > 0:
+                    return True
+            except:
+                pass
+
+        elif isinstance(g, DB.GeometryInstance):
+            try:
+                inst_geo = g.GetInstanceGeometry()
+                if geometry_has_3d_objects(inst_geo):
+                    return True
+            except:
+                pass
+
+    return False
+
+
+def has_3d_geometry(elem):
+    if elem is None or not elem.IsValidObject:
+        return False
+
+    try:
+        opt = DB.Options()
+        opt.IncludeNonVisibleObjects = False
+        geo = elem.get_Geometry(opt)
+        return geometry_has_3d_objects(geo)
+    except:
+        return False
+
+
+def get_user_workset_name(elem):
+    if elem is None or not elem.IsValidObject:
+        return None
+
+    try:
+        ws = elem.Document.GetWorksetTable().GetWorkset(elem.WorksetId)
+        if ws and ws.Kind == DB.WorksetKind.UserWorkset:
+            return ws.Name
+    except:
+        pass
+
+    return None
+
+
+def is_valid_workset_element(elem):
+    if elem is None or not elem.IsValidObject:
+        return False
+
+    try:
+        if isinstance(elem, DB.View):
+            return False
+    except:
+        pass
+
+    try:
+        if elem.ViewSpecific:
+            return False
+    except:
+        pass
+
+    cat = elem.Category
+    if cat is None:
+        return False
+
+    try:
+        if cat.CategoryType != DB.CategoryType.Model:
+            return False
+    except:
+        return False
+
+    if isinstance(elem, DB.Level):
+        return False
+    if isinstance(elem, DB.Grid):
+        return False
+    if isinstance(elem, DB.ReferencePlane):
+        return False
+
+    if not get_user_workset_name(elem):
+        return False
+
+    if not has_3d_geometry(elem):
+        return False
+
+    return True
 
 
 def run(uiapp):
@@ -655,8 +780,9 @@ def run(uiapp):
         'CID', 'ServiceType', 'Service Name', 'Service Abbreviation', 'Size',
         'STRATUS Assembly', 'Line Number', 'STRATUS Status', 'Reference Level',
         'Item Number', 'Bundle Number', 'REF BS Designation', 'REF Line Number',
-        'Specification', 'Hanger Rod Size', 'Valve Number', 'Beam Hanger',
-        'Product Entry', 'TS_Point_Number', 'TS_Point_Description', 'Alias'
+        'Specification', 'Insulation Specification', 'Hanger Rod Size',
+        'Valve Number', 'Beam Hanger', 'Product Entry',
+        'TS_Point_Number', 'TS_Point_Description', 'Alias'
     ]
 
     for prop in fab_props:
@@ -670,6 +796,12 @@ def run(uiapp):
             vals = set(filter(None, [get_property_value(e, prop, config, False) for e in all_elements]))
             if vals:
                 property_options[prop] = sorted(vals)
+
+    workset_elements = [e for e in all_elements if is_valid_workset_element(e)]
+    if workset_elements:
+        vals = set(filter(None, [get_property_value(e, 'Workset', config, False) for e in workset_elements]))
+        if vals:
+            property_options['Workset'] = sorted(vals)
 
     if not property_options:
         dlg = TaskDialog("Error")

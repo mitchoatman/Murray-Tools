@@ -9,8 +9,7 @@ import System
 
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import (
-    FilteredElementCollector, Family, FamilySymbol, BuiltInCategory,
-    LocationCurve, Transaction
+    FilteredElementCollector, Family, LocationCurve, Transaction
 )
 from Autodesk.Revit.UI import TaskDialog
 from Autodesk.Revit.UI.Selection import ObjectType
@@ -191,37 +190,158 @@ def get_pipe_centerline(pipe):
         return pipe_location.Curve
     raise Exception("Selected element does not have a valid centerline.")
 
-def project_point_on_curve(point, curve):
-    result = curve.Project(point)
-    if not result:
-        raise Exception("Could not project picked point onto pipe centerline.")
-    return result.XYZPoint
-
 def round_up_to_nearest_quarter(value_feet):
     value_inches = value_feet * 12.0
     rounded_inches = math.ceil(value_inches * 4.0) / 4.0
     return rounded_inches / 12.0
 
-def select_fabrication_pipe():
-    pipe_ref = uidoc.Selection.PickObject(ObjectType.Element, "Select an MEP Fabrication Pipe")
-    return doc.GetElement(pipe_ref.ElementId)
+def select_reference_element():
+    ref = uidoc.Selection.PickObject(
+        ObjectType.Element,
+        "Select a fabrication pipe or related fabrication element"
+    )
+    element = doc.GetElement(ref.ElementId)
+
+    picked_ref_point = None
+    try:
+        picked_ref_point = ref.GlobalPoint
+    except:
+        picked_ref_point = None
+
+    return element, picked_ref_point
 
 def pick_point():
-    return uidoc.Selection.PickPoint("Pick a point along the centerline of the pipe")
+    return uidoc.Selection.PickPoint("Pick a point where the sleeve should be placed")
+
+def get_connector_manager(element):
+    try:
+        cm = element.ConnectorManager
+        if cm:
+            return cm
+    except:
+        pass
+
+    try:
+        mep_model = element.MEPModel
+        if mep_model:
+            cm = mep_model.ConnectorManager
+            if cm:
+                return cm
+    except:
+        pass
+
+    return None
+
+def get_connectors(element):
+    cm = get_connector_manager(element)
+    if not cm:
+        return []
+    return [c for c in cm.Connectors]
+
+def get_nearest_connector(element, point):
+    connectors = get_connectors(element)
+    if not connectors:
+        raise Exception("Selected element has no connectors.")
+    return min(connectors, key=lambda c: c.Origin.DistanceTo(point))
+
+def is_fabrication_pipe_cid_2041(element):
+    try:
+        return isinstance(element, DB.FabricationPart) and element.ItemCustomId == 2041
+    except:
+        return False
+
+def get_reference_level(element):
+    try:
+        if element.LevelId and element.LevelId != DB.ElementId.InvalidElementId:
+            return doc.GetElement(element.LevelId)
+    except:
+        pass
+    return None
+
+def project_point_on_pipe_xy(point, pipe):
+    connectors = get_connectors(pipe)
+    if len(connectors) < 2:
+        raise Exception("Pipe does not have 2 connectors.")
+
+    p1 = connectors[0].Origin
+    p2 = connectors[1].Origin
+
+    dx = p2.X - p1.X
+    dy = p2.Y - p1.Y
+    denom = (dx * dx) + (dy * dy)
+
+    # Vertical / near-vertical fallback
+    if denom < 1e-9:
+        curve = get_pipe_centerline(pipe)
+        result = curve.Project(point)
+        if not result:
+            raise Exception("Could not project picked point onto pipe centerline.")
+        projected = result.XYZPoint
+        return DB.XYZ(point.X, point.Y, projected.Z)
+
+    # Project onto infinite pipe centerline in XY
+    t = ((point.X - p1.X) * dx + (point.Y - p1.Y) * dy) / denom
+
+    x = p1.X + (p2.X - p1.X) * t
+    y = p1.Y + (p2.Y - p1.Y) * t
+    z = p1.Z + (p2.Z - p1.Z) * t
+
+    return DB.XYZ(x, y, z)
+
+def get_insertion_point(reference_element, selection_pick_point, family_pick_point):
+    if is_fabrication_pipe_cid_2041(reference_element):
+        return project_point_on_pipe_xy(family_pick_point, reference_element)
+
+    if selection_pick_point is None:
+        selection_pick_point = family_pick_point
+
+    nearest_conn = get_nearest_connector(reference_element, selection_pick_point)
+    return DB.XYZ(family_pick_point.X, family_pick_point.Y, nearest_conn.Origin.Z)
+
+def get_plan_angle_from_connectors(reference_element, point_for_direction):
+    connectors = get_connectors(reference_element)
+    if len(connectors) < 2:
+        return 0.0
+
+    nearest = min(connectors, key=lambda c: c.Origin.DistanceTo(point_for_direction))
+    others = [c for c in connectors if c is not nearest]
+
+    if not others:
+        return 0.0
+
+    farthest = max(others, key=lambda c: c.Origin.DistanceTo(nearest.Origin))
+
+    vec_x = farthest.Origin.X - nearest.Origin.X
+    vec_y = farthest.Origin.Y - nearest.Origin.Y
+
+    if abs(vec_x) < 1e-9 and abs(vec_y) < 1e-9:
+        return 0.0
+
+    return atan2(vec_y, vec_x)
+
+def get_size_data(reference_element):
+    od_param = reference_element.LookupParameter('Outside Diameter')
+    if od_param is None:
+        raise Exception("Outside Diameter parameter not found on selected element.")
+    outside_dia = od_param.AsDouble()
+
+    ins_thick = 0.0
+    ins_spec_param = reference_element.LookupParameter('Insulation Specification')
+    if ins_spec_param and ins_spec_param.AsInteger() != 0:
+        it_param = reference_element.LookupParameter('Insulation Thickness')
+        if it_param:
+            ins_thick = it_param.AsDouble()
+
+    return outside_dia, ins_thick
 
 
 # --------------------------------------------------
 # Placement
 # --------------------------------------------------
-def place_ws_family(pipe, symbol):
-    centerline_curve = get_pipe_centerline(pipe)
-    picked_point = pick_point()
-    projected_point = project_point_on_curve(picked_point, centerline_curve)
-
-    level = doc.GetElement(pipe.LevelId)
-
-    # Better than mixing XY/Z: place directly on pipe centerline
-    insertion_point = projected_point
+def place_ws_family(reference_element, selection_pick_point, symbol):
+    family_pick_point = pick_point()
+    insertion_point = get_insertion_point(reference_element, selection_pick_point, family_pick_point)
+    level = get_reference_level(reference_element)
 
     new_inst = doc.Create.NewFamilyInstance(
         insertion_point,
@@ -229,50 +349,34 @@ def place_ws_family(pipe, symbol):
         DB.Structure.StructuralType.NonStructural
     )
 
-    od_param = pipe.LookupParameter('Outside Diameter')
-    if od_param is None:
-        raise Exception("Outside Diameter parameter not found.")
-    outside_dia = od_param.AsDouble()
-
-    ins_thick = 0.0
-    ins_spec_param = pipe.LookupParameter('Insulation Specification')
-    if ins_spec_param and ins_spec_param.AsInteger() != 0:
-        it_param = pipe.LookupParameter('Insulation Thickness')
-        if it_param:
-            ins_thick = it_param.AsDouble()
+    outside_dia, ins_thick = get_size_data(reference_element)
 
     overall_dia_feet = outside_dia + (2 * ins_thick)
     sleeve_dia = overall_dia_feet + 0.0833333  # +1"
+
     set_parameter_by_name(new_inst, 'Diameter', round_up_to_nearest_quarter(sleeve_dia))
 
-    pipe_connectors = list(pipe.ConnectorManager.Connectors)
-    if len(pipe_connectors) < 2:
-        raise Exception("Pipe does not have 2 connectors.")
-
-    c1 = pipe_connectors[0]
-    c2 = pipe_connectors[1]
-
-    if picked_point.DistanceTo(c2.Origin) < picked_point.DistanceTo(c1.Origin):
-        c1, c2 = c2, c1
-
-    vec_x = c2.Origin.X - c1.Origin.X
-    vec_y = c2.Origin.Y - c1.Origin.Y
-    angle = atan2(vec_y, vec_x)
-
+    angle = get_plan_angle_from_connectors(reference_element, family_pick_point)
     axis = DB.Line.CreateBound(
         insertion_point,
-        DB.XYZ(insertion_point.X, insertion_point.Y, insertion_point.Z + 1)
+        DB.XYZ(insertion_point.X, insertion_point.Y, insertion_point.Z + 1.0)
     )
     DB.ElementTransformUtils.RotateElement(doc, new_inst.Id, axis, angle)
 
     set_parameter_by_name(new_inst, 'FP_Product Entry', str(overall_dia_feet * 12.0))
-    set_parameter_by_name(new_inst, 'FP_Service Name',
-        get_parameter_value_by_name_AsString(pipe, 'Fabrication Service Name'))
-    set_parameter_by_name(new_inst, 'FP_Service Abbreviation',
-        get_parameter_value_by_name_AsString(pipe, 'Fabrication Service Abbreviation'))
+    set_parameter_by_name(
+        new_inst,
+        'FP_Service Name',
+        get_parameter_value_by_name_AsString(reference_element, 'Fabrication Service Name')
+    )
+    set_parameter_by_name(
+        new_inst,
+        'FP_Service Abbreviation',
+        get_parameter_value_by_name_AsString(reference_element, 'Fabrication Service Abbreviation')
+    )
 
     sched_level = new_inst.LookupParameter("Schedule Level")
-    if sched_level and not sched_level.IsReadOnly:
+    if sched_level and not sched_level.IsReadOnly and level:
         sched_level.Set(level.Id)
 
 
@@ -288,9 +392,9 @@ def main():
     while True:
         t = Transaction(doc, "Place Trimble Wall Sleeve Family")
         try:
-            pipe = select_fabrication_pipe()
+            reference_element, selection_pick_point = select_reference_element()
             t.Start()
-            place_ws_family(pipe, ws_symbol)
+            place_ws_family(reference_element, selection_pick_point, ws_symbol)
             t.Commit()
 
         except OperationCanceledException:

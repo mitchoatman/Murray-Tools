@@ -1,6 +1,6 @@
-highlight: updated
+# highlight: updated
 title:
-  "Sync FP \nParameters"
+  "Sync FP\nParameters"
 
 tooltip: |-
   Writes Fabrication CID Value, ServiceType, Hanger Size, 

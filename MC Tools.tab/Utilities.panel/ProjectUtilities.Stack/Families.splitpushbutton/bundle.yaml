@@ -2,6 +2,7 @@ layout:
   - LoadFamFromLibrary
   - LoadFamiliesFromFolder
   - SaveFamilies
+  - UpgradeFamiles
 
 
 background:

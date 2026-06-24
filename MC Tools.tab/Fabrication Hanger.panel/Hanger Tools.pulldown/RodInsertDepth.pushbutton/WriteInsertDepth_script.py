@@ -1,9 +1,16 @@
 import Autodesk
 from Autodesk.Revit.DB import FabricationAncillaryUsage, FabricationPart, Transaction
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
-from rpw.ui.forms import FlexForm, Label, ComboBox, TextBox, Separator, Button, CheckBox
 from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString
+from collections import OrderedDict
+import clr
+clr.AddReference("PresentationCore")
+clr.AddReference("PresentationFramework")
+clr.AddReference("WindowsBase")
+from System.Windows import Window, Thickness, WindowStartupLocation, ResizeMode, HorizontalAlignment
+from System.Windows.Controls import StackPanel, Label, ComboBox, TextBox, Button, Orientation
+from System.Windows.Media import FontFamily
 import sys, math
 
 Shared_Params()
@@ -76,7 +83,26 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                     elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
                         InsertDepth = (-4.0 / 12)
 
-    elif insert_type == 2:  # BlueBanger WD
+    if insert_type == 2:  # BlueBanger-2 MD
+        set_parameter_by_name(hanger, 'FP_Insert Type', 'BlueBanger-2 MD - ' + str(deck_thickness * 12))
+        if not is_beam_hanger:
+            AnciObj = hanger.GetPartAncillaryUsage()
+            for n in AnciObj:
+                AnciDiam.append(n.AncillaryWidthOrDiameter)
+                for elinfo in AnciDiam:
+                    formatted_elinfo = "{:.6f}".format(elinfo)
+                    if formatted_elinfo == '0.031250':  # 3/8"
+                        InsertDepth = (deck_thickness + (1.625 / 12))
+                    elif formatted_elinfo == '0.041667':  # 1/2"
+                        InsertDepth = (deck_thickness + (1.25 / 12))
+                    elif formatted_elinfo == '0.052083':  # 5/8"
+                        InsertDepth = (deck_thickness + (1.875 / 12))
+                    elif formatted_elinfo == '0.062500':  # 3/4"
+                        InsertDepth = (deck_thickness + (1.125 / 12))
+                    elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
+                        InsertDepth = (-4.0 / 12)
+
+    elif insert_type == 3:  # BlueBanger WD
         set_parameter_by_name(hanger, 'FP_Insert Type', 'BlueBanger WD')
         if not is_beam_hanger:
             AnciObj = hanger.GetPartAncillaryUsage()
@@ -95,7 +121,7 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                     elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
                         InsertDepth = (-4.0 / 12)
 
-    elif insert_type == 3:  # BlueBanger RDI
+    elif insert_type == 4:  # BlueBanger RDI
         set_parameter_by_name(hanger, 'FP_Insert Type', 'BlueBanger RDI')
         if not is_beam_hanger:
             AnciObj = hanger.GetPartAncillaryUsage()
@@ -111,7 +137,7 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                         print('Some rod sizes bigger than insert can accept! \n Depth not written for hanger.')
                         InsertDepth = 0
 
-    elif insert_type == 4:  # Dewalt DDI
+    elif insert_type == 5:  # Dewalt DDI
         set_parameter_by_name(hanger, 'FP_Insert Type', 'Dewalt DDI')
         if not is_beam_hanger:
             AnciObj = hanger.GetPartAncillaryUsage()
@@ -130,7 +156,7 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                     elif formatted_elinfo == '0.083333':  # 1"
                         InsertDepth = (-4.0 / 12)
 
-    elif insert_type == 5:  # Dewalt Wood Knocker
+    elif insert_type == 6:  # Dewalt Wood Knocker
         set_parameter_by_name(hanger, 'FP_Insert Type', 'Dewalt Wood Knocker')
         if not is_beam_hanger:
             AnciObj = hanger.GetPartAncillaryUsage()
@@ -145,7 +171,7 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                     elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
                         InsertDepth = (-4.0 / 12)
 
-    elif insert_type == 6:  # Dewalt BangIt+
+    elif insert_type == 7:  # Dewalt BangIt+
         set_parameter_by_name(hanger, 'FP_Insert Type', 'Dewalt BangIt+')
         if not is_beam_hanger:
             AnciObj = hanger.GetPartAncillaryUsage()
@@ -164,7 +190,7 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                     elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
                         InsertDepth = (-4.0 / 12)
 
-    elif insert_type == 7:  # Hilti KCM-WF
+    elif insert_type == 8:  # Hilti KCM-WF
         set_parameter_by_name(hanger, 'FP_Insert Type', 'Hilti KCM-WF')
         if not is_beam_hanger:
             AnciObj = hanger.GetPartAncillaryUsage()
@@ -183,8 +209,8 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                     elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
                         InsertDepth = (-4.0 / 12)
 
-    elif insert_type == 8:  # Mason West PAL_CIP WD
-        set_parameter_by_name(hanger, 'FP_Insert Type', 'Hilti KCM-WF')
+    elif insert_type == 9:  # Mason West PAL_CIP WD
+        set_parameter_by_name(hanger, 'FP_Insert Type', 'Mason West PAL_CIP WD')
         if not is_beam_hanger:
             AnciObj = hanger.GetPartAncillaryUsage()
             for n in AnciObj:
@@ -202,8 +228,8 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
                     elif formatted_elinfo in ['0.072917', '0.083333']:  # 7/8" or 1"
                         InsertDepth = (1.0 / 12)
 
-    elif insert_type == 9:  # Custom Cut/Extended Rod
-        set_parameter_by_name(hanger, 'FP_Insert Type', 'User Custom')
+    elif insert_type == 10:  # Custom Cut/Extended Rod
+        set_parameter_by_name(hanger, 'FP_Insert Type', 'Custom Cut')
         if not is_beam_hanger:
             InsertDepth = deck_thickness
 
@@ -212,32 +238,96 @@ def process_hanger_insert(hanger, insert_type, deck_thickness, rla):
         set_customdata_by_custid(hanger, 9, InsertDepth)
         set_fp_parameters(hanger, InsertDepth, rla, is_beam_hanger)
 
+class InsertTypeDialog(Window):
+    def __init__(self):
+        self.Title = "Insert Type"
+        self.Width = 340
+        self.Height = 220
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
+        self.ResizeMode = ResizeMode.NoResize
+        self.values = {}
+
+        self.insert_options = OrderedDict([
+            ('(01) BlueBanger MD', 1),
+            ('(02) BlueBanger-2 MD', 2),
+            ('(03) BlueBanger WD', 3),
+            ('(04) BlueBanger RDI', 4),
+            ('(05) Dewalt DDI', 5),
+            ('(06) Dewalt Wood Knocker', 6),
+            ('(07) Dewalt BangIt+', 7),
+            ('(08) Hilti KCM-WF', 8),
+            ('(09) Mason West PAL_CIP WD', 9),
+            ('(10) Extend or Cut Rod', 10)
+        ])
+
+        stack = StackPanel()
+        stack.Orientation = Orientation.Vertical
+        stack.Margin = Thickness(10)
+
+        label_insert = Label()
+        label_insert.Content = 'Insert Type:'
+        label_insert.FontSize = 12
+        label_insert.FontFamily = FontFamily("Arial")
+        stack.Children.Add(label_insert)
+
+        self.combobox_insert = ComboBox()
+        self.combobox_insert.Width = 300
+        self.combobox_insert.Height = 24
+        self.combobox_insert.FontSize = 12
+        self.combobox_insert.FontFamily = FontFamily("Arial")
+        self.combobox_insert.HorizontalAlignment = HorizontalAlignment.Left
+        self.combobox_insert.Margin = Thickness(0, 0, 0, 10)
+        for key in self.insert_options.keys():
+            self.combobox_insert.Items.Add(key)
+        self.combobox_insert.SelectedIndex = 0
+        stack.Children.Add(self.combobox_insert)
+
+        label_deck = Label()
+        label_deck.Content = 'Deck Thickness(Decimal In.) \n(Pos Num = Ext / Neg Num = Cut):'
+        label_deck.FontSize = 12
+        label_deck.FontFamily = FontFamily("Arial")
+        stack.Children.Add(label_deck)
+
+        self.textbox_deck = TextBox()
+        self.textbox_deck.Width = 300
+        self.textbox_deck.Height = 20
+        self.textbox_deck.FontSize = 12
+        self.textbox_deck.FontFamily = FontFamily("Arial")
+        self.textbox_deck.Text = '3'
+        self.textbox_deck.HorizontalAlignment = HorizontalAlignment.Left
+        self.textbox_deck.Margin = Thickness(0, 0, 0, 10)
+        stack.Children.Add(self.textbox_deck)
+
+        self.button_ok = Button()
+        self.button_ok.Content = 'Ok'
+        self.button_ok.Width = 74
+        self.button_ok.Height = 25
+        self.button_ok.HorizontalAlignment = HorizontalAlignment.Center
+        self.button_ok.Click += self.ok_button_clicked
+        stack.Children.Add(self.button_ok)
+
+        self.Content = stack
+
+    def ok_button_clicked(self, sender, event):
+        selected_key = self.combobox_insert.SelectedItem
+        self.values = {
+            'Insert': self.insert_options[selected_key],
+            'Deck': self.textbox_deck.Text
+        }
+        self.DialogResult = True
+        self.Close()
+
 # Main execution
 pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
     CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers")
 hangers = [doc.GetElement(elId) for elId in pipesel]
 
 if len(hangers) > 0:
-    # Define dialog options and show it
-    components = [
-        Label('Insert Type:'),
-        ComboBox('Insert', {
-            '(1) BlueBanger MD': 1,
-            '(2) BlueBanger WD': 2,
-            '(3) BlueBanger RDI': 3,
-            '(4) Dewalt DDI': 4,
-            '(5) Dewalt Wood Knocker': 5,
-            '(6) Dewalt BangIt+': 6,
-            '(7) Hilti KCM-WF': 7,
-            '(8) Mason West PAL_CIP WD': 8,
-            '(9) Extend or Cut Rod': 9
-        }),
-        Label('Deck Thickness(Decimal In.) | (Num = +Ext or -Cut):'),
-        TextBox('Deck', '3'),
-        Button('Ok')
-    ]
-    form = FlexForm('Insert Type', components)
-    form.show()
+    form = InsertTypeDialog()
+    result = form.ShowDialog()
+
+    if not result or not form.values or 'Insert' not in form.values:
+        sys.exit()
 
     InsertType = form.values['Insert']
     DeckThickness = float(form.values['Deck']) / 12

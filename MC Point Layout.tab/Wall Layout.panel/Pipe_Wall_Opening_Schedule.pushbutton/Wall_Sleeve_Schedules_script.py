@@ -4,7 +4,7 @@ clr.AddReference('RevitAPIUI')
 clr.AddReference('RevitServices')
 
 from System.Collections.Generic import List
-from Autodesk.Revit.DB import BuiltInCategory, Transaction, ElementId, ViewSchedule, FilteredElementCollector, ParameterElement, ScheduleFieldType, BuiltInParameter, ScheduleFilter, ScheduleFilterType
+from Autodesk.Revit.DB import BuiltInCategory, Transaction, ElementId, ViewSchedule, FilteredElementCollector, ParameterElement, ScheduleFieldType, BuiltInParameter, ScheduleFilter, ScheduleFilterType, SpecTypeId, ScheduleSortGroupField, ScheduleSortOrder
 from Autodesk.Revit.UI import TaskDialog
 import System
 
@@ -127,21 +127,48 @@ for schedule_info in schedules:
         schedule.Name = schedule_name
         definition = schedule.Definition
 
-        # Add fields to the schedule and store the family or type field
+        # Add fields to the schedule and store filter fields
         family_field = None
+        ts_point_field = None
+        type_field = None
+
         for paramName, userColumnName in fieldNames:
             field = add_field_by_name(definition, paramName, userColumnName, parameters)
+
+            if paramName in ["Diameter", "Width", "Height"]:
+                fmt = doc.GetUnits().GetFormatOptions(SpecTypeId.Length)
+                fmt.UseDefault = False
+                if fmt.CanSuppressLeadingZeros():
+                    fmt.SuppressLeadingZeros = True
+                field.SetFormatOptions(fmt)
+
+            if paramName == "TS_Point_Number":
+                ts_point_field = field
+
+            if paramName == "Type":
+                type_field = field
+
             if paramName in ["Family", "Type"]:  # Updated to account for both Family and Type
                 family_field = field
 
-        # Add filter for family or type names ending with specific suffix if Revit 2022 or newer
-        if is_revit_2022_or_newer and family_field is not None:
-            schedule_filter = ScheduleFilter(
-                family_field.FieldId,
-                ScheduleFilterType.EndsWith,
-                family_filter
-            )
-            definition.AddFilter(schedule_filter)
+        definition.IsItemized = False
+
+        if schedule_name == "WALL OPENING SCHEDULE" and ts_point_field is not None and type_field is not None:
+            definition.AddSortGroupField(ScheduleSortGroupField(ts_point_field.FieldId, ScheduleSortOrder.Ascending))
+            definition.AddSortGroupField(ScheduleSortGroupField(type_field.FieldId, ScheduleSortOrder.Ascending))
+
+        # Add filters
+        if is_revit_2022_or_newer:
+            if schedule_name == "WALL OPENING SCHEDULE" and ts_point_field is not None and type_field is not None:
+                definition.AddFilter(ScheduleFilter(ts_point_field.FieldId, ScheduleFilterType.HasValue))
+                definition.AddFilter(ScheduleFilter(type_field.FieldId, ScheduleFilterType.NotEndsWith, "BLOCKOUT"))
+            elif family_field is not None:
+                schedule_filter = ScheduleFilter(
+                    family_field.FieldId,
+                    ScheduleFilterType.EndsWith,
+                    family_filter
+                )
+                definition.AddFilter(schedule_filter)
     else:
         TaskDialog.Show("Schedule Exists", "'{}' already exists.".format(schedule_name))
 

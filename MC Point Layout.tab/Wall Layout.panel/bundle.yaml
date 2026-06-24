@@ -2,7 +2,7 @@ layout:
   - Wall_Opening
   - Blockout
   - Bulk_Wall_Opening
-  - Wall_Sleeve_Schedule
+  - Pipe_Wall_Opening_Schedule
   - '-----'
   - Round_Duct_Wall_Sleeve
   - Rect_Duct_Wall_Sleeve
