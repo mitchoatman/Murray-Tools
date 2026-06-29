@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# doc-updater.py
 
 import os
 import clr

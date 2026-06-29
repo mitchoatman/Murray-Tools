@@ -6,12 +6,30 @@ from Autodesk.Revit.UI import SelectionUIOptions
 from System.Windows.Media.Imaging import BitmapImage
 import System
 
+from pyrevit import forms
+from pyrevit.framework import Threading
+from LineNumberPane.pane import MyPane
+from LineNumberPane.config import is_visible, set_visible
+
 # Revit Selection Options
 uidoc = HOST_APP.uidoc
 opts  = SelectionUIOptions.GetSelectionUIOptions()
 opts.DragOnSelection = False
 opts.SelectLinks     = False
 opts.SelectUnderlay  = True
+
+PANE_AVAILABLE = False
+
+try:
+    from pyrevit import forms
+    from pyrevit.framework import Threading
+    from LineNumberPane.pane import MyPane
+    from LineNumberPane.config import is_visible, set_visible
+    PANE_AVAILABLE = True
+except Exception:
+    import traceback
+    with open(r'C:\temp\startup_debug.txt', 'a') as log:
+        log.write("Pane import error:\n{}\n".format(traceback.format_exc()))
 
 # Restore FP Hook button icon on load
 FLAG_FILE  = r'C:\temp\fabrication_hook_enabled.txt'
@@ -85,21 +103,71 @@ def set_hook_icon(sender, args):
 HOST_APP.uiapp.ViewActivated += set_hook_icon
 
 
-# test dockable panel =========================================================
+# dockable pane ===============================================================
 
-# from pyrevit import forms
-# import os.path as op
+if PANE_AVAILABLE:
+    def _pane_defer(func):
+        try:
+            Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
+                Threading.DispatcherPriority.Background,
+                System.Action(func)
+            )
+        except Exception:
+            try:
+                func()
+            except Exception:
+                pass
 
-# class DockableExample(forms.WPFPanel):
-    # panel_title = "pyRevit Dockable Panel Title"
-    # panel_id = "3110e336-f81c-4927-87da-4e0d30d4d64a"
-    # panel_source = op.join(op.dirname(__file__), "DockableExample.xaml")
+    def _ensure_my_pane_registered():
+        try:
+            if not forms.is_registered_dockable_panel(MyPane):
+                forms.register_dockable_panel(MyPane, default_visible=False)
+        except Exception:
+            import traceback
+            with open(r'C:\temp\startup_debug.txt', 'a') as log:
+                log.write("Pane register error:\n{}\n".format(traceback.format_exc()))
 
-    # def do_something(self, sender, args):
-        # forms.alert("Voila!!!")
+    def _restore_my_pane_visibility():
+        try:
+            if is_visible():
+                forms.open_dockable_panel(MyPane)
+            else:
+                forms.close_dockable_panel(MyPane)
+        except Exception:
+            pass
 
+    def _sync_my_pane_visibility():
+        try:
+            dockable = forms.get_dockable_panel(MyPane)
+            set_visible(dockable.IsShown())
+        except Exception:
+            pass
 
-# if not forms.is_registered_dockable_panel(DockableExample):
-    # forms.register_dockable_panel(DockableExample)
-# else:
-    # print("Skipped registering dockable pane. Already exists.")
+    def _on_my_pane_visibility_changed(sender, args):
+        _pane_defer(_sync_my_pane_visibility)
+
+    def _on_my_pane_document_opened(sender, args):
+        try:
+            HOST_APP.uiapp.Application.DocumentOpened -= _on_my_pane_document_opened
+        except Exception:
+            pass
+
+        _pane_defer(_restore_my_pane_visibility)
+
+    _ensure_my_pane_registered()
+
+    try:
+        HOST_APP.uiapp.DockableFrameVisibilityChanged += _on_my_pane_visibility_changed
+    except Exception:
+        pass
+
+    try:
+        if HOST_APP.uidoc is not None:
+            _pane_defer(_restore_my_pane_visibility)
+        else:
+            HOST_APP.uiapp.Application.DocumentOpened += _on_my_pane_document_opened
+    except Exception:
+        try:
+            HOST_APP.uiapp.Application.DocumentOpened += _on_my_pane_document_opened
+        except Exception:
+            pass

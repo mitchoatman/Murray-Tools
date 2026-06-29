@@ -3,17 +3,12 @@
 title:
   "Line\nNumber"
 
-tooltip: >-
-  Writes User Defined Line Number Value to the FP_Line Number Parameter and to Fabrication Custom Data Field so data will follow MAJ export
-
-    1. Select elements you want to assign a Valve Number.
-    2. Run Script.
-    3. Enter Valve Number value in the dialog.
-        3a. Optionally user can pick from existing numbers.
-    4. Click Ok
-
-  [Shift]+Click:    
-  Creates view filters for line numbers in model.
+tooltip: |-
+  Opens a panel that allows the folling actions:
+   - Writes line number value to the FP_Line Number parameter.
+   - Collects a list of all line numbers in project.
+   - Zoom to elements using specific line number.
+   - Make view filters of line numbers.
 
 # context directives are listed under `context` key, the order does not matter
 # context:
