@@ -202,6 +202,13 @@ def Sync_FP_Params_Entire_Model(doc, uidoc):
         except Exception:
             pass
 
+        try:
+            cut_type = get_val(x, 'Cut Type')
+            if cut_type:
+                setp(x, 'FP_Cut Type', cut_type)
+        except Exception:
+            pass
+
 
     # 5, 6, 7 fab hangers
     for x in hanger_collector:

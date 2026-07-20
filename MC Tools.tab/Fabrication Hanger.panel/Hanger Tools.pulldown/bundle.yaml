@@ -13,3 +13,5 @@ layout:
   - ExtendAllThreadRod
   - PlaceStrutClamps
   - RackAlign
+  - SwapHangers
+  - ExtendStiffyRod

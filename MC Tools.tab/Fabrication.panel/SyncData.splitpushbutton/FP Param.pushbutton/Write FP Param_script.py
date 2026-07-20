@@ -103,6 +103,11 @@ if selection:
                 pass
 
             try:
+                set_parameter_by_name(x, 'FP_Cut Type', get_parameter_value_by_name_AsValueString(x, 'Cut Type'))
+            except:
+                pass
+
+            try:
                 set_parameter_by_name(x, 'FP_CID', x.ItemCustomId)
             except:
                 pass
@@ -351,6 +356,13 @@ else:
             part_material = get_val(x, 'Part Material')
             if part_material:
                 setp(x, 'FP_Part Material', part_material)
+        except Exception:
+            pass
+
+        try:
+            cut_type = get_val(x, 'Cut Type')
+            if cut_type:
+                setp(x, 'FP_Cut Type', cut_type)
         except Exception:
             pass
 

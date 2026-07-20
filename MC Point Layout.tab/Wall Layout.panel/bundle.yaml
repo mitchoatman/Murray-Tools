@@ -1,10 +1,11 @@
 layout:
   - Wall_Opening
   - Blockout
-  - Bulk_Wall_Opening
+  - Pipe_Bulk_Wall_Opening
   - Pipe_Wall_Opening_Schedule
   - '-----'
   - Round_Duct_Wall_Sleeve
   - Rect_Duct_Wall_Sleeve
+  - Duct_Bulk_Wall_Opening
   - Duct_Wall_Sleeve_Schedule
   - PointLayoutConfig

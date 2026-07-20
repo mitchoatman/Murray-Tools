@@ -13,8 +13,8 @@ tooltip: |-
     5. Click Ok.
 
 # context directives are listed under `context` key, the order does not matter
-context:
-  - Selection
+# context:
+  # - Selection
 
 
 # bundle help url

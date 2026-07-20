@@ -2,7 +2,7 @@
 import os
 from pyrevit import script, forms
 
-FLAG_FILE = r'C:\temp\fabrication_hook_enabled.txt'
+FLAG_FILE = r'C:\temp\Ribbon_fabrication-hook-status.txt'
 
 
 def get_state():
@@ -29,11 +29,21 @@ def set_state(value):
 
 
 def __selfinit__(script_cmp, ui_button_cmp, __rvt__):
-    state = get_state()
-    icon_path = script_cmp.get_bundle_file('on.png' if state else 'off.png')
-    if icon_path:
-        ui_button_cmp.set_icon(icon_path)
-    return True
+    try:
+        state = get_state()
+        icon_name = 'on.png' if state else 'off.png'
+        icon_path = script_cmp.get_bundle_file(icon_name)
+
+        if icon_path and os.path.exists(icon_path):
+            ui_button_cmp.set_icon(icon_path)
+        else:
+            fallback = script_cmp.get_bundle_file('off.png')
+            if fallback and os.path.exists(fallback):
+                ui_button_cmp.set_icon(fallback)
+
+        return True
+    except Exception:
+        return True
 
 
 def main():

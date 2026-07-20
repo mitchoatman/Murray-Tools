@@ -1,0 +1,23 @@
+#highlight: new
+
+# bundle title
+title:
+  "Swap\nHangers"
+
+# bundle tooltip
+tooltip: |-
+  Swap selected hangers with a hanger loaded in fabrication service.
+  1. Execute command.
+  2. Pick a single hanger on service.
+  3. Choose hanger and if you want rod attached to structure.
+  4. Select hangers to replace.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

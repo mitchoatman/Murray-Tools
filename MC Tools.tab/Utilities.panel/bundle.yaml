@@ -1,8 +1,8 @@
 layout:
   - DB_Update
+  - SaveViews
   - Exports
   - ProjectUtilities
-  - SaveViews
   - Views and Sheets[title:Views and\nSheets]
   - ZoomToElement
   - IssueTracker

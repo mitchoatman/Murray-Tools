@@ -48,6 +48,41 @@ def to_bool(value):
     return str(value).strip().lower() == "true"
 
 
+def qualifies_for_rck_prefix(element):
+    if not is_fab_hanger(element):
+        return False
+
+    try:
+        rod_info = element.GetRodInfo()
+        if rod_info is None or rod_info.RodCount <= 1:
+            return False
+    except:
+        return False
+
+    family_name = ""
+    try:
+        p = element.get_Parameter(DB.BuiltInParameter.ELEM_FAMILY_PARAM)
+        if p and p.HasValue:
+            family_name = p.AsValueString() or ""
+    except:
+        pass
+
+    if not family_name:
+        try:
+            type_id = element.GetTypeId()
+            if type_id != DB.ElementId.InvalidElementId:
+                elem_type = doc.GetElement(type_id)
+                if elem_type:
+                    p = elem_type.get_Parameter(DB.BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM)
+                    if p and p.HasValue:
+                        family_name = p.AsString() or p.AsValueString() or ""
+        except:
+            pass
+
+    family_name = family_name.upper()
+    return "TRAPEZE" in family_name or "TRAPEEZE" in family_name
+
+
 def load_export_settings(default_output_path):
     settings = {
         "coordinate_order": "YXZ",
@@ -57,6 +92,7 @@ def load_export_settings(default_output_path):
         "use_item_number": False,
         "use_rck_prefix": False,
         "update_sleeve_descriptions": True,
+        "exclude_beam_hangers": True,
         "output_path": default_output_path
     }
 
@@ -86,6 +122,8 @@ def load_export_settings(default_output_path):
                         settings["use_rck_prefix"] = to_bool(value)
                     elif key == "update_sleeve_descriptions":
                         settings["update_sleeve_descriptions"] = to_bool(value)
+                    elif key == "exclude_beam_hangers":
+                        settings["exclude_beam_hangers"] = to_bool(value)
                     elif key == "output_path":
                         settings["output_path"] = value
     except:
@@ -108,6 +146,7 @@ def save_export_settings(settings):
                 "use_item_number={}\n".format(settings.get("use_item_number", False)),
                 "use_rck_prefix={}\n".format(settings.get("use_rck_prefix", False)),
                 "update_sleeve_descriptions={}\n".format(settings.get("update_sleeve_descriptions", True)),
+                "exclude_beam_hangers={}\n".format(settings.get("exclude_beam_hangers", True)),
                 "output_path={}\n".format(settings.get("output_path", ""))
             ])
     except:
@@ -128,6 +167,7 @@ def get_id_value(id_obj):
         except:
             return id_obj.IntegerValue
 
+
 def is_beam_hanger(element):
     """Returns True if the element has FP_Beam Hanger parameter set to 'yes'."""
     if not is_fab_hanger(element):
@@ -141,6 +181,7 @@ def is_beam_hanger(element):
     except:
         pass
     return False
+
 
 def get_element_id_value(element):
     if not element:
@@ -178,16 +219,6 @@ def is_fab_hanger(element):
     try:
         return element and element.Category and \
                get_id_value(element.Category.Id) == int(BuiltInCategory.OST_FabricationHangers)
-    except:
-        return False
-
-
-def is_trapeze_hanger(element):
-    if not is_fab_hanger(element):
-        return False
-    try:
-        rod_info = element.GetRodInfo()
-        return rod_info is not None and rod_info.RodCount > 1
     except:
         return False
 
@@ -686,7 +717,7 @@ class ExportHangerPointsDialog(Window):
     def __init__(self):
         self.Title = "Export Hanger Rod & GTP Points to CSV"
         self.Width = 500
-        self.Height = 600
+        self.Height = 610
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
         self.WindowStyle = WindowStyle.SingleBorderWindow
         self.ResizeMode = 0
@@ -705,6 +736,7 @@ class ExportHangerPointsDialog(Window):
         self.use_item_number = settings["use_item_number"]
         self.use_rck_prefix = settings["use_rck_prefix"]
         self.update_sleeve_descriptions = settings["update_sleeve_descriptions"]
+        self.exclude_beam_hangers = settings["exclude_beam_hangers"]
         self.output_path = settings["output_path"]
 
         self.InitializeComponents()
@@ -800,15 +832,19 @@ class ExportHangerPointsDialog(Window):
         self.rb_all.Content = "All points in active view"
         self.rb_all.IsChecked = (self.selection_mode == "ALL")
         self.rb_all.Margin = Thickness(0, 0, 0, 8)
-        self.rb_all.Checked += lambda s, e: setattr(self, "selection_mode", "ALL")
         select_panel.Children.Add(self.rb_all)
 
         self.rb_pick = RadioButton()
         self.rb_pick.Content = "Pick / Window select points"
         self.rb_pick.IsChecked = (self.selection_mode == "PICK")
         self.rb_pick.Margin = Thickness(0, 0, 0, 8)
-        self.rb_pick.Checked += lambda s, e: setattr(self, "selection_mode", "PICK")
         select_panel.Children.Add(self.rb_pick)
+
+        self.cb_exclude_beam_hangers = CheckBox()
+        self.cb_exclude_beam_hangers.Content = "Exclude Beam Hangers"
+        self.cb_exclude_beam_hangers.IsChecked = self.exclude_beam_hangers
+        self.cb_exclude_beam_hangers.Margin = Thickness(0, 0, 0, 8)
+        select_panel.Children.Add(self.cb_exclude_beam_hangers)
 
         options_group = GroupBox()
         options_group.Header = "Point Number Options"
@@ -1017,6 +1053,7 @@ class ExportHangerPointsDialog(Window):
         self.output_path = self.txt_filename.Text.strip() if self.txt_filename.Text else self.output_path
         self.update_sleeve_descriptions = True if self.cb_update_sleeve_descriptions.IsChecked else False
         self.use_rck_prefix = True if self.cb_rck_prefix.IsChecked else False
+        self.exclude_beam_hangers = True if self.cb_exclude_beam_hangers.IsChecked else False
 
         if not self.output_path:
             TaskDialog.Show("Error", "No file path selected.")
@@ -1030,6 +1067,7 @@ class ExportHangerPointsDialog(Window):
             "use_item_number": self.use_item_number,
             "use_rck_prefix": self.use_rck_prefix,
             "update_sleeve_descriptions": self.update_sleeve_descriptions,
+            "exclude_beam_hangers": self.exclude_beam_hangers,
             "output_path": self.output_path
         }
         save_export_settings(settings)
@@ -1157,12 +1195,25 @@ def perform_export():
         gtps = [el for el in generics if is_gtp_element(el)]
         selected_elements = list(hangers) + gtps
 
-    # Exclude fabrication hangers flagged as beam hangers
-        # Exclude GTP points belonging to structural stiffener (seismic brace) parents
+    if dlg.exclude_beam_hangers:
         selected_elements = [
             el for el in selected_elements
             if not (is_fab_hanger(el) and is_beam_hanger(el))
         ]
+
+    if dlg.update_sleeve_descriptions:
+        t_sleeve = Transaction(doc, "Update Sleeve Descriptions")
+        try:
+            t_sleeve.Start()
+            update_sleeve_descriptions_in_view()
+            t_sleeve.Commit()
+            doc.Regenerate()
+        except:
+            try:
+                if t_sleeve.HasStarted():
+                    t_sleeve.RollBack()
+            except:
+                pass
 
     if dlg.rb_yxz.IsChecked:
         coord_order = "YXZ"
@@ -1200,7 +1251,7 @@ def perform_export():
         current_val = ""
 
         if is_fab_hanger(owner):
-            if dlg.use_rck_prefix and is_trapeze_hanger(owner):
+            if dlg.use_rck_prefix and qualifies_for_rck_prefix(owner):
                 current_val = ""
             elif dlg.use_item_number:
                 item_val = get_hanger_item_number(owner)
@@ -1319,7 +1370,7 @@ def perform_export():
             continue
 
         if is_fab_hanger(owner):
-            if dlg.use_rck_prefix and is_trapeze_hanger(owner):
+            if dlg.use_rck_prefix and qualifies_for_rck_prefix(owner):
                 candidate = "RCK{}".format(str(rck_counter).zfill(2))
                 while candidate in used_numbers:
                     rck_counter += 1
@@ -1364,7 +1415,7 @@ def perform_export():
         is_hanger = is_fab_hanger(element)
 
         if is_hanger:
-            rod_diameter_inches = ""
+            rod_diameter_inches = None
             try:
                 ancillaries = element.GetPartAncillaryUsage()
                 for anc in ancillaries:
@@ -1374,8 +1425,12 @@ def perform_export():
             except:
                 pass
 
-            frac_dia = decimal_to_fraction_inches(rod_diameter_inches)
-            description = "INSERT " + frac_dia if frac_dia else "INSERT"
+            description = ""
+            if rod_diameter_inches is not None and rod_diameter_inches <= 2.0:
+                frac_dia = decimal_to_fraction_inches(rod_diameter_inches)
+                if frac_dia:
+                    description = "INSERT " + frac_dia
+
             assigned_descriptions[get_element_id_value(element)] = description
 
             try:
@@ -1397,7 +1452,7 @@ def perform_export():
                     if rod_count == 1:
                         point_id = base_id
                     else:
-                        if dlg.use_rck_prefix and is_trapeze_hanger(element):
+                        if dlg.use_rck_prefix and qualifies_for_rck_prefix(element):
                             point_id = make_rck_child_point_number(base_id, i)
                         else:
                             point_id = make_child_point_number(base_id, i)
@@ -1512,13 +1567,9 @@ def perform_export():
                     desc_param = element.LookupParameter("TS_Point_Description")
                     if desc_param and not desc_param.IsReadOnly:
                         desc = assigned_descriptions.get(get_element_id_value(element), "")
-                        if desc:
-                            desc_param.Set(desc)
+                        desc_param.Set(desc)
             except:
                 pass
-
-        if dlg.update_sleeve_descriptions:
-            update_sleeve_descriptions_in_view()
 
         t.Commit()
 

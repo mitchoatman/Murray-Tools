@@ -9,7 +9,7 @@ clr.AddReference('PresentationCore')
 clr.AddReference('PresentationFramework')
 clr.AddReference('WindowsBase')
 clr.AddReference('System')
-from System.Windows import Application, Window, Thickness, HorizontalAlignment, ResizeMode, WindowStartupLocation
+from System.Windows import Application, Window, Thickness, HorizontalAlignment, ResizeMode, WindowStartupLocation, GridLength
 from System.Windows.Controls import Button, TextBox, CheckBox, Grid, RowDefinition, ColumnDefinition, Label
 
 Shared_Params()
@@ -125,9 +125,17 @@ try:
             grid.Margin = Thickness(10)
             for i in range(5):  # 5 rows: 2 for textboxes/buttons, 2 for checkboxes, 1 for OK button
                 grid.RowDefinitions.Add(RowDefinition())
-            grid.ColumnDefinitions.Add(ColumnDefinition())  # Label column
-            grid.ColumnDefinitions.Add(ColumnDefinition())  # TextBox column
-            grid.ColumnDefinitions.Add(ColumnDefinition())  # Enable button column
+            col1 = ColumnDefinition()
+            col1.Width = GridLength(90)   # Label column
+            grid.ColumnDefinitions.Add(col1)
+
+            col2 = ColumnDefinition()
+            col2.Width = GridLength(160)  # TextBox column
+            grid.ColumnDefinitions.Add(col2)
+
+            col3 = ColumnDefinition()
+            col3.Width = GridLength(70)   # Enable button column
+            grid.ColumnDefinitions.Add(col3)
 
             # Prefix label and textbox
             label_pre = Label()
@@ -150,7 +158,7 @@ try:
             enable_pre.Content = "Enable"
             enable_pre.Width = 50
             enable_pre.Height = 20
-            enable_pre.Margin = Thickness(-15, 0, 20, 0)
+            enable_pre.Margin = Thickness(-15, 0, 15, 0)
             enable_pre.HorizontalAlignment = HorizontalAlignment.Right
             enable_pre.Click += lambda sender, args: self.ToggleTextBox(self.textbox_pre, enable_pre)
             Grid.SetRow(enable_pre, 0)
@@ -178,7 +186,7 @@ try:
             enable_desc.Content = "Enable"
             enable_desc.Width = 50
             enable_desc.Height = 20
-            enable_desc.Margin = Thickness(-15, 0, 20, 0)
+            enable_desc.Margin = Thickness(-15, 0, 15, 0)
             enable_desc.HorizontalAlignment = HorizontalAlignment.Right
             enable_desc.Click += lambda sender, args: self.ToggleTextBox(self.textbox_desc, enable_desc)
             Grid.SetRow(enable_desc, 1)

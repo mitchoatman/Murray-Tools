@@ -1,608 +1,302 @@
 # -*- coding: utf-8 -*-
-
-from pyrevit import forms, script
-from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+import sys
+import clr
 from Autodesk.Revit.DB import (
-    FabricationPart,
-    FabricationConfiguration,
-    FabricationPartType,
-    ElementId,
-    LocationCurve,
-    LocationPoint,
-    Transaction,
-    TransactionGroup,
-    XYZ
+    FilteredElementCollector, BuiltInCategory, Transaction,
+    BuiltInParameter, RevitLinkInstance, FabricationPart
 )
-from System.Collections.Generic import List
+from Autodesk.Revit.DB.Architecture import Room
+from Autodesk.Revit.UI import TaskDialog
+from Parameters.Add_SharedParameters import Shared_Params
+from Parameters.Get_Set_Params import set_parameter_by_name
+
+clr.AddReference('PresentationCore')
+clr.AddReference('PresentationFramework')
+clr.AddReference('WindowsBase')
+clr.AddReference('System')
+
+from System.Windows import (
+    Window, Thickness, HorizontalAlignment, VerticalAlignment,
+    ResizeMode, WindowStartupLocation, GridLength, GridUnitType
+)
+from System.Windows.Controls import (
+    Button, CheckBox, Grid, RowDefinition, ColumnDefinition,
+    Label, StackPanel, ScrollViewer, TextBox
+)
+from System.Windows.Media import Brushes, FontFamily
+from System.Windows.Controls.Primitives import UniformGrid
+from System.Windows.Input import Keyboard, ModifierKeys
+
+# ── init ──────────────────────────────────────────────────────────────────────
+Shared_Params()
 
 doc = __revit__.ActiveUIDocument.Document
-uidoc = __revit__.ActiveUIDocument
-app = doc.Application
-output = script.get_output()
+curview = doc.ActiveView
 
+# ── collect fabrication valves in active view only ────────────────────────────
+FIRE_DAMPER_SERVICE_TYPE = 36
 
-# -----------------------------------------------------------------------------
-# helpers
-# -----------------------------------------------------------------------------
+all_pipework = (
+    FilteredElementCollector(doc, curview.Id)
+    .OfCategory(BuiltInCategory.OST_FabricationDuctwork)
+    .WhereElementIsNotElementType()
+    .ToElements()
+)
 
-# def log(msg):
-    # try:
-        # output.print_md(msg)
-    # except:
-        # print(msg)
+elements_in_view = [
+    p for p in all_pipework
+    if isinstance(p, FabricationPart) and p.ServiceType == FIRE_DAMPER_SERVICE_TYPE
+]
 
+if not elements_in_view:
+    TaskDialog.Show("Error", "No fabrication valves found in the current view.")
+    sys.exit()
 
-def norm(s):
-    if s is None:
-        return ""
-    return str(s).strip().lower()
+# ── collect all link instances ────────────────────────────────────────────────
+all_link_instances = list(
+    FilteredElementCollector(doc)
+    .OfClass(RevitLinkInstance)
+    .WhereElementIsNotElementType()
+    .ToElements()
+)
 
+valid_links = [
+    (lnk, lnk.GetLinkDocument())
+    for lnk in all_link_instances
+    if lnk.GetLinkDocument() is not None
+]
 
-def get_service_param_value(elem):
-    p = elem.LookupParameter("Fabrication Service")
-    if not p:
-        return None
-    try:
-        v = p.AsValueString()
-        if v:
-            return v
-    except:
-        pass
-    try:
-        v = p.AsString()
-        if v:
-            return v
-    except:
-        pass
-    return None
+if not valid_links:
+    TaskDialog.Show("Error", "No loaded Revit links found in the model.")
+    sys.exit()
 
+# ── Link Selection Dialog ─────────────────────────────────────────────────────
+class LinkSelectionForm(object):
+    def __init__(self, link_pairs):
+        self.link_pairs = link_pairs
+        self.selected = []
+        self.checkboxes = []
+        self.check_all_state = False
+        self.last_checked_index = None
+        self._confirmed = False
+        self._build()
 
-def safe_service_name(service):
-    try:
-        if service.Name:
-            return service.Name
-    except:
-        pass
-    try:
-        if service.FabricationSystemName:
-            return service.FabricationSystemName
-    except:
-        pass
-    return "<Unknown Service>"
+    def _build(self):
+        win = Window()
+        win.Title = "Select Linked Models"
+        win.Width = 440
+        win.Height = 420
+        win.MinWidth = win.Width
+        win.MinHeight = win.Height
+        win.ResizeMode = ResizeMode.NoResize
+        win.WindowStartupLocation = WindowStartupLocation.CenterScreen
+        self._window = win
 
+        root = Grid()
+        root.Margin = Thickness(10)
 
-def get_all_services(config):
-    services = []
-    seen = set()
+        for h in [
+            GridLength.Auto,
+            GridLength.Auto,
+            GridLength(1, GridUnitType.Star),
+            GridLength.Auto
+        ]:
+            rd = RowDefinition()
+            rd.Height = h
+            root.RowDefinitions.Add(rd)
 
-    try:
-        for s in config.GetAllLoadedServices():
-            sid = s.ServiceId
-            if sid not in seen:
-                services.append(s)
-                seen.add(sid)
-    except:
-        pass
+        root.ColumnDefinitions.Add(ColumnDefinition())
 
-    try:
-        for s in config.GetAllUsedServices():
-            sid = s.ServiceId
-            if sid not in seen:
-                services.append(s)
-                seen.add(sid)
-    except:
-        pass
+        lbl = Label()
+        lbl.Content = "Choose linked model(s) to read rooms from:"
+        lbl.FontFamily = FontFamily("Segoe UI")
+        lbl.FontSize = 14
+        lbl.Margin = Thickness(0, 0, 0, 4)
+        Grid.SetRow(lbl, 0)
+        root.Children.Add(lbl)
 
-    return services
+        self._search = TextBox()
+        self._search.Height = 22
+        self._search.FontFamily = FontFamily("Segoe UI")
+        self._search.FontSize = 12
+        self._search.Margin = Thickness(0, 0, 0, 4)
+        self._search.TextChanged += self._on_search
+        Grid.SetRow(self._search, 1)
+        root.Children.Add(self._search)
 
+        self._panel = StackPanel()
 
-def get_group_count(service):
-    try:
-        return service.PaletteCount
-    except:
-        pass
-    try:
-        return service.GroupCount
-    except:
-        pass
-    return 0
+        sv = ScrollViewer()
+        sv.Content = self._panel
+        sv.VerticalAlignment = VerticalAlignment.Stretch
+        Grid.SetRow(sv, 2)
+        root.Children.Add(sv)
 
+        self._populate(self.link_pairs)
 
-def get_group_name(service, idx):
-    try:
-        return service.GetPaletteName(idx)
-    except:
-        pass
-    try:
-        return service.GetGroupName(idx)
-    except:
-        pass
-    return "Group {}".format(idx)
+        btn_grid = UniformGrid()
+        btn_grid.Columns = 3
+        btn_grid.HorizontalAlignment = HorizontalAlignment.Center
+        btn_grid.Margin = Thickness(0, 4, 0, 0)
 
+        for label_text, handler, color in [
+            ("All / None", self._toggle_all, None),
+            ("Cancel", self._cancel, Brushes.IndianRed),
+            ("OK", self._ok, Brushes.SteelBlue),
+        ]:
+            btn = Button()
+            btn.Content = label_text
+            btn.FontFamily = FontFamily("Segoe UI")
+            btn.FontSize = 12
+            btn.Height = 28
+            btn.Margin = Thickness(5, 0, 5, 0)
+            if color:
+                btn.Background = color
+                btn.Foreground = Brushes.White
+            btn.Click += handler
+            btn_grid.Children.Add(btn)
 
-def safe_button_name(button):
-    try:
-        if button.Name:
-            return button.Name
-    except:
-        pass
-    return "<Unnamed Button>"
+        Grid.SetRow(btn_grid, 3)
+        root.Children.Add(btn_grid)
 
+        win.Content = root
 
-def button_is_hanger(button):
-    try:
-        return bool(button.IsAHanger)
-    except:
-        return False
-
-
-def get_hanger_buttons(service):
-    items = []
-    gcount = get_group_count(service)
-
-    for gi in range(gcount):
-        group_name = get_group_name(service, gi)
+    def _get_display_name(self, link, link_doc):
         try:
-            bcount = service.GetButtonCount(gi)
+            return link_doc.Title
         except:
-            bcount = 0
+            return str(link.Id)
 
-        for bi in range(bcount):
-            try:
-                btn = service.GetButton(gi, bi)
-            except:
-                btn = None
+    def _populate(self, pairs):
+        self._panel.Children.Clear()
+        self.checkboxes = []
 
-            if not btn:
-                continue
+        already_selected_names = set(
+            self._get_display_name(lnk, ld) for lnk, ld in self.selected
+        )
 
-            if not button_is_hanger(btn):
-                continue
+        for lnk, ld in pairs:
+            name = self._get_display_name(lnk, ld)
+            cb = CheckBox()
+            cb.Content = name
+            cb.Tag = (lnk, ld)
+            cb.FontFamily = FontFamily("Segoe UI")
+            cb.FontSize = 12
+            cb.Margin = Thickness(4, 2, 4, 2)
+            cb.IsChecked = name in already_selected_names
+            cb.Checked += self._cb_changed
+            cb.Unchecked += self._cb_changed
+            self._panel.Children.Add(cb)
+            self.checkboxes.append(cb)
 
-            btn_name = safe_button_name(btn)
+    def _on_search(self, sender, args):
+        q = self._search.Text.lower()
+        filtered = [
+            (lnk, ld) for lnk, ld in self.link_pairs
+            if q in self._get_display_name(lnk, ld).lower()
+        ]
+        self._populate(filtered)
 
-            items.append({
-                "group_index": gi,
-                "group_name": group_name,
-                "button_index": bi,
-                "button_name": btn_name,
-                "button": btn,
-                "display": u"{} | {}".format(group_name, btn_name)
-            })
+    def _cb_changed(self, sender, args):
+        try:
+            idx = self.checkboxes.index(sender)
+            if Keyboard.Modifiers == ModifierKeys.Shift and self.last_checked_index is not None:
+                start = min(self.last_checked_index, idx)
+                end = max(self.last_checked_index, idx)
+                state = sender.IsChecked
+                for i in range(start, end + 1):
+                    self.checkboxes[i].IsChecked = state
+            self.last_checked_index = idx
+            self.selected = [cb.Tag for cb in self.checkboxes if cb.IsChecked]
+        except Exception as ex:
+            print("Checkbox error: {}".format(ex))
 
-    return items
+    def _toggle_all(self, sender, args):
+        self.check_all_state = not self.check_all_state
+        for cb in self.checkboxes:
+            cb.IsChecked = self.check_all_state
+        self.selected = [cb.Tag for cb in self.checkboxes if cb.IsChecked]
 
+    def _ok(self, sender, args):
+        self.selected = [cb.Tag for cb in self.checkboxes if cb.IsChecked]
+        if not self.selected:
+            TaskDialog.Show("Warning", "Please select at least one linked model.")
+            return
+        self._confirmed = True
+        self._window.Close()
 
-def get_element_center(elem):
-    bb = elem.get_BoundingBox(None)
-    if not bb:
-        return None
-    return XYZ(
-        (bb.Min.X + bb.Max.X) * 0.5,
-        (bb.Min.Y + bb.Max.Y) * 0.5,
-        (bb.Min.Z + bb.Max.Z) * 0.5
+    def _cancel(self, sender, args):
+        self._confirmed = False
+        self._window.Close()
+
+    def ShowDialog(self):
+        self._window.ShowDialog()
+        return self._confirmed
+
+# ── show dialog ───────────────────────────────────────────────────────────────
+form = LinkSelectionForm(valid_links)
+confirmed = form.ShowDialog()
+
+if not confirmed or not form.selected:
+    sys.exit()
+
+chosen_links = form.selected
+
+# ── collect rooms only from chosen links ──────────────────────────────────────
+linked_rooms = []
+for lnk, link_doc in chosen_links:
+    xform = lnk.GetTotalTransform()
+    rooms = (
+        FilteredElementCollector(link_doc)
+        .OfCategory(BuiltInCategory.OST_Rooms)
+        .WhereElementIsNotElementType()
+        .ToElements()
     )
 
+    for room in rooms:
+        if isinstance(room, Room):
+            linked_rooms.append((room, xform))
 
-def get_point_for_element(elem):
-    loc = elem.Location
-    if isinstance(loc, LocationPoint):
-        return loc.Point
-    return get_element_center(elem)
+if not linked_rooms:
+    TaskDialog.Show("Error", "No Rooms found in the selected linked model(s).")
+    sys.exit()
 
-
-def get_connectors(elem):
-    conns = []
+# ── helpers ───────────────────────────────────────────────────────────────────
+def get_element_point(e):
     try:
-        for c in elem.ConnectorManager.Connectors:
-            conns.append(c)
+        return e.Origin
     except:
-        pass
-    return conns
-
-
-def make_net_id_list(ids):
-    net_ids = List[ElementId]()
-    for i in ids:
-        net_ids.Add(i)
-    return net_ids
-
-
-def is_fab_hanger(elem):
-    try:
-        return isinstance(elem, FabricationPart) and elem.IsAHanger()
-    except:
-        return False
-
-
-# -----------------------------------------------------------------------------
-# selection filters
-# -----------------------------------------------------------------------------
-
-class SeedHangerFilter(ISelectionFilter):
-    def AllowElement(self, elem):
-        return is_fab_hanger(elem)
-
-    def AllowReference(self, reference, point):
-        return False
-
-
-class SameFabServiceHangerFilter(ISelectionFilter):
-    def __init__(self, service_value):
-        self.service_value = norm(service_value)
-
-    def AllowElement(self, elem):
-        if not is_fab_hanger(elem):
-            return False
-        val = get_service_param_value(elem)
-        return norm(val) == self.service_value
-
-    def AllowReference(self, reference, point):
-        return False
-
-
-# -----------------------------------------------------------------------------
-# UI wrapper
-# -----------------------------------------------------------------------------
-
-class HangerChoice(forms.TemplateListItem):
-    @property
-    def name(self):
-        return self.item["display"]
-
-
-# -----------------------------------------------------------------------------
-# service resolution
-# -----------------------------------------------------------------------------
-
-def resolve_seed_service_by_parameter(seed):
-    service_value = get_service_param_value(seed)
-    if not service_value:
         return None
 
-    config = FabricationConfiguration.GetFabricationConfiguration(doc)
-    if not config:
-        return None
+# ── assign FP_Location from linked rooms ──────────────────────────────────────
+t = Transaction(doc, "FP_Location <- Linked Room")
+t.Start()
 
-    services = get_all_services(config)
-    exact_matches = []
-    loose_matches = []
+for e in elements_in_view:
+    pt_host = get_element_point(e)
+    if not pt_host:
+        continue
 
-    for s in services:
-        s_name = None
-        s_sys = None
+    fp = e.LookupParameter("FP_Location")
+    if fp is None:
+        continue
+
+    for room, xform in linked_rooms:
+        pt_link = xform.Inverse.OfPoint(pt_host)
 
         try:
-            s_name = s.Name
-        except:
-            pass
+            if room.IsPointInRoom(pt_link):
+                name_param = room.get_Parameter(BuiltInParameter.ROOM_NAME)
+                room_name = name_param.AsString() if name_param else ""
 
-        try:
-            s_sys = s.FabricationSystemName
-        except:
-            pass
+                if not room_name:
+                    lp = room.LookupParameter("Name")
+                    room_name = lp.AsString() if lp else ""
 
-        if norm(service_value) == norm(s_name) or norm(service_value) == norm(s_sys):
-            exact_matches.append(s)
-        elif norm(service_value) in norm(s_name) or norm(s_name) in norm(service_value):
-            loose_matches.append(s)
-        elif norm(service_value) in norm(s_sys) or norm(s_sys) in norm(service_value):
-            loose_matches.append(s)
-
-    candidates = exact_matches if exact_matches else loose_matches
-
-    # log("## Seed Service Resolution")
-    # log("- Seed parameter value: `{}`".format(service_value))
-    # log("- Candidate matches: `{}`".format(len(candidates)))
-
-    # for s in candidates:
-        # log("- Candidate service: `{}`".format(safe_service_name(s)))
-
-    # for s in candidates:
-        # buttons = get_hanger_buttons(s)
-        # if buttons:
-            # return {
-                # "service_value": service_value,
-                # "service": s,
-                # "service_name": safe_service_name(s),
-                # "buttons": buttons,
-                # "source": "parameter"
-            # }
-
-    # if candidates:
-        # return {
-            # "service_value": service_value,
-            # "service": candidates[0],
-            # "service_name": safe_service_name(candidates[0]),
-            # "buttons": [],
-            # "source": "parameter-no-buttons"
-        # }
-
-    # return None
-
-
-def resolve_seed_service_by_type(seed):
-    seed_type_id = seed.GetTypeId()
-    config = FabricationConfiguration.GetFabricationConfiguration(doc)
-    if not config:
-        return None
-
-    services = get_all_services(config)
-
-    for s in services:
-        buttons = get_hanger_buttons(s)
-        matched = False
-
-        for item in buttons:
-            btn = item["button"]
-            try:
-                cond_count = btn.ConditionCount
-            except:
-                cond_count = 1
-
-            for ci in range(cond_count):
-                try:
-                    tid = FabricationPartType.Lookup(doc, btn, ci)
-                except:
-                    tid = ElementId.InvalidElementId
-
-                if tid and tid != ElementId.InvalidElementId and tid.IntegerValue == seed_type_id.IntegerValue:
-                    matched = True
-                    break
-            if matched:
+                if room_name:
+                    set_parameter_by_name(e, "FP_Location", room_name)
                 break
-
-        if matched:
-            return {
-                "service_value": get_service_param_value(seed),
-                "service": s,
-                "service_name": safe_service_name(s),
-                "buttons": buttons,
-                "source": "type-fallback"
-            }
-
-    return None
-
-
-def resolve_seed_service(seed):
-    result = resolve_seed_service_by_parameter(seed)
-    if result and result["buttons"]:
-        return result
-
-    fallback = resolve_seed_service_by_type(seed)
-    if fallback:
-        return fallback
-
-    return result
-
-
-# -----------------------------------------------------------------------------
-# hosted placement
-# -----------------------------------------------------------------------------
-
-def try_get_host_placement(hanger):
-    try:
-        hosted_info = hanger.GetHostedInfo()
-    except:
-        hosted_info = None
-
-    if not hosted_info:
-        return (False, None, None, None)
-
-    try:
-        host_id = hosted_info.HostId
-    except:
-        host_id = ElementId.InvalidElementId
-
-    if not host_id or host_id == ElementId.InvalidElementId:
-        return (False, None, None, None)
-
-    host = doc.GetElement(host_id)
-    if not host or not isinstance(host, FabricationPart):
-        return (False, None, None, None)
-
-    host_loc = host.Location
-    if not isinstance(host_loc, LocationCurve):
-        return (False, None, None, None)
-
-    hanger_pt = get_point_for_element(hanger)
-    if not hanger_pt:
-        return (False, None, None, None)
-
-    try:
-        ir = host_loc.Curve.Project(hanger_pt)
-    except:
-        ir = None
-
-    if not ir:
-        return (False, None, None, None)
-
-    projected = ir.XYZPoint
-    conns = get_connectors(host)
-    if not conns:
-        return (False, None, None, None)
-
-    conns = sorted(conns, key=lambda c: c.Origin.DistanceTo(projected))
-    host_conn = conns[0]
-
-    try:
-        distance = host_conn.Origin.DistanceTo(projected)
-    except:
-        return (False, None, None, None)
-
-    return (True, host_id, host_conn, distance)
-
-
-# -----------------------------------------------------------------------------
-# main
-# -----------------------------------------------------------------------------
-
-def main():
-    try:
-        seed_ref = uidoc.Selection.PickObject(
-            ObjectType.Element,
-            SeedHangerFilter(),
-            "Select one fabrication hanger to define the service"
-        )
-    except:
-        return
-
-    seed = doc.GetElement(seed_ref.ElementId)
-    if not is_fab_hanger(seed):
-        forms.alert("Selected element is not a fabrication hanger.", exitscript=True)
-
-    seed_ctx = resolve_seed_service(seed)
-    if not seed_ctx:
-        forms.alert(
-            "Could not resolve the seed hanger service.\n\n"
-            "Check pyRevit output for debug info.",
-            exitscript=True
-        )
-
-    service_value = seed_ctx["service_value"]
-    service = seed_ctx["service"]
-    service_name = seed_ctx["service_name"]
-    buttons = seed_ctx["buttons"]
-    source = seed_ctx["source"]
-
-    # log("- Resolved service: `{}`".format(service_name))
-    # log("- Resolution source: `{}`".format(source))
-    # log("- Button count: `{}`".format(len(buttons)))
-
-    if not service_value:
-        forms.alert("Seed hanger does not have a readable 'Fabrication Service' value.", exitscript=True)
-
-    if not buttons:
-        forms.alert(
-            "Service resolved but no hanger buttons were found in that service.\n\n"
-            "Service: {}".format(service_name),
-            exitscript=True
-        )
-
-    wrapped = [HangerChoice(x) for x in buttons]
-    selected_button_item = forms.SelectFromList.show(
-        wrapped,
-        title="Select Replacement Hanger - {}".format(service_name),
-        multiselect=False,
-        width=700,
-        button_name="Use Selected Hanger"
-    )
-
-    if not selected_button_item:
-        return
-
-    # pyRevit may return either TemplateListItem or raw dict
-    button_data = getattr(selected_button_item, "item", selected_button_item)
-
-    fab_button = button_data["button"]
-    button_name = button_data["button_name"]
-
-    attach_to_structure = forms.alert(
-        "Attach new hangers to structure?",
-        yes=True,
-        no=True,
-        ok=False
-    )
-
-    try:
-        target_refs = uidoc.Selection.PickObjects(
-            ObjectType.Element,
-            SameFabServiceHangerFilter(service_value),
-            "Select fabrication hangers on the same Fabrication Service"
-        )
-    except:
-        return
-
-    if not target_refs:
-        return
-
-    targets = []
-    seen = set()
-    for r in target_refs:
-        e = doc.GetElement(r.ElementId)
-        if e and is_fab_hanger(e) and e.Id.IntegerValue not in seen:
-            targets.append(e)
-            seen.add(e.Id.IntegerValue)
-
-    if seed.Id.IntegerValue not in seen:
-        targets.insert(0, seed)
-
-    swapped = 0
-    skipped = []
-    delete_ids = []
-
-    tg = TransactionGroup(doc, "Swap Fabrication Hangers")
-    tg.Start()
-
-    t = Transaction(doc, "Swap Fabrication Hangers")
-    t.Start()
-
-    try:
-        for old_hanger in targets:
-            old_id = old_hanger.Id.IntegerValue
-
-            ok, host_id, host_conn, distance = try_get_host_placement(old_hanger)
-            if not ok:
-                skipped.append("Id {}: could not determine host placement".format(old_id))
-                continue
-
-            try:
-                new_hanger = FabricationPart.CreateHanger(
-                    doc,
-                    fab_button,
-                    host_id,
-                    host_conn,
-                    distance,
-                    attach_to_structure
-                )
-            except Exception as ex:
-                skipped.append("Id {}: create failed - {}".format(old_id, ex))
-                continue
-
-            if new_hanger:
-                delete_ids.append(old_hanger.Id)
-                swapped += 1
-            else:
-                skipped.append("Id {}: create returned no hanger".format(old_id))
-
-        if delete_ids:
-            doc.Delete(make_net_id_list(delete_ids))
-
-        t.Commit()
-        tg.Assimilate()
-
-    except Exception as ex:
-        try:
-            t.RollBack()
-        except:
-            pass
-        try:
-            tg.RollBack()
         except:
             pass
 
-        forms.alert("Swap failed: {}".format(ex), exitscript=True)
-
-    if skipped:
-        log("## Skipped")
-        for s in skipped:
-            log("- {}".format(s))
-
-    # forms.alert(
-        # "Fabrication hanger swap complete.\n\n"
-        # "Service: {}\n"
-        # "Replacement: {}\n"
-        # "Selected: {}\n"
-        # "Swapped: {}\n"
-        # "Skipped: {}".format(
-            # service_name,
-            # button_name,
-            # len(targets),
-            # swapped,
-            # len(skipped)
-        # )
-    # )
-
-
-if __name__ == "__main__":
-    main()
+t.Commit()

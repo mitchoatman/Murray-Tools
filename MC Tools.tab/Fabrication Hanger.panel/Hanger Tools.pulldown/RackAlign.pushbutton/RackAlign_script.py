@@ -1,8 +1,16 @@
 import clr
 clr.AddReference("RevitAPI")
-from Autodesk.Revit.DB import Transaction, ElementId, FilteredElementCollector, BuiltInCategory, BuiltInParameter
-from rpw.ui.forms import FlexForm, Label, ComboBox, TextBox, Separator, Button, CheckBox, Alert
+clr.AddReference("RevitAPIUI")
+clr.AddReference("PresentationCore")
+clr.AddReference("PresentationFramework")
+clr.AddReference("WindowsBase")
+
+from Autodesk.Revit.DB import Transaction, BuiltInParameter
+from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
 import re
+from System.Windows import Window, Thickness, WindowStartupLocation, ResizeMode, HorizontalAlignment
+from System.Windows.Controls import StackPanel, Label, TextBox, CheckBox, Button, Orientation
+from System.Windows.Media import FontFamily
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -11,114 +19,152 @@ RevitVersion = app.VersionNumber
 RevitINT = int(RevitVersion)
 
 def parse_elevation(input_str):
-    """
-    Converts various user-input formats into feet as a float.
-    Supported formats:
-    - 5-6         -> 5 feet 6 inches
-    - 5 6         -> 5 feet 6 inches
-    - 5.5         -> 5.5 feet
-    - 5'-6"       -> 5 feet 6 inches
-    - 5' 6"       -> 5 feet 6 inches
-    - 5'-6 3/8"   -> 5 feet 6.375 inches
-    - 5'-6.125"   -> 5 feet 6.125 inches
-    - 0'-0"       -> 0 feet
-    - 0'-5 1/2"   -> 0 feet 5.5 inches
-    - 0'-0.625"   -> 0 feet 0.625 inches
-    - 0'-5.5"     -> 0 feet 5.5 inches
-    - 55'-0"      -> 55 feet
-    - 18' 6 77/128" -> 18 feet 6.6015625 inches
-    """
-    input_str = input_str.strip().replace('"', '')  # Remove quotes if present
-
-    # Case 1: Decimal feet (e.g., "5.5")
+    input_str = input_str.strip().replace('"', '')
     if re.match(r"^\d+(\.\d+)?$", input_str):
         return float(input_str)
-
-    # Case 2: Feet-inches format (e.g., "5'-6"", "0'-5 1/2", "55'-0", "18' 6 77/128")
     match = re.match(r"(\d+)['\s\-]*(?:(?:(\d+)\s+(\d+/\d+)|(\d*(?:\.\d+)?))|\d*)?", input_str)
     if match:
-        feet = float(match.group(1) or 0)  # Feet part, default to 0 if not present
+        feet = float(match.group(1) or 0)
         inches = 0
-
-        if match.group(2) and match.group(3):  # Handles whole inches + fraction (e.g., "6 77/128")
+        if match.group(2) and match.group(3):
             whole_inches = float(match.group(2))
             fraction = match.group(3)
             inches = whole_inches + eval(fraction)
-        elif match.group(4):  # Handles decimal or whole inches (e.g., "5.5" or "6")
+        elif match.group(4):
             inches = float(match.group(4))
-        elif match.group(2):  # Handles whole inches only (e.g., "6")
+        elif match.group(2):
             inches = float(match.group(2))
-
         return feet + (inches / 12)
+    raise ValueError("Invalid elevation format.")
 
-    raise ValueError("Invalid elevation format. Use 5'-6\", 5-6, 5.5, 0'-5 1/2\", 0'-5.5\", 18' 6 77/128\", etc.")
+class FabricationPartFilter(ISelectionFilter):
+    def AllowElement(self, element):
+        return element.LookupParameter("Fabrication Service") is not None
+    def AllowReference(self, reference, point):
+        return False
 
-selected_elements = [doc.GetElement(id) for id in uidoc.Selection.GetElementIds()]
-
-# FUNCTION TO GET PARAMETER VALUE  change "AsDouble()" to "AsString()" to change data type.
-def get_parameter_value_by_name(element, parameterName):
-    return element.LookupParameter(parameterName).AsValueString()
-def get_parameter_value(element, parameterName):
-    return element.LookupParameter(parameterName).AsDouble()
-
-if selected_elements and RevitINT > 2022:
-    ElevationEstimate = get_parameter_value_by_name(selected_elements[0], 'Lower End Bottom Elevation')
-else:
-    ElevationEstimate = get_parameter_value_by_name(selected_elements[0], 'Bottom')
-
-# Display dialog
-components = [
-    CheckBox('TOPmode', 'Align TOP', default=False),
-    CheckBox('BTMmode', 'Align BOTTOM', default=True),
-    CheckBox('INSMmode', 'Ignore Insulation', default=True),
-    Label('Reference Btm Elevation:'),
-    TextBox('Elev', default=str(ElevationEstimate)),
-    Button('Ok')
-]
-form = FlexForm('Alignment Method', components)
-form.show()
-
+# Selection prompt
 try:
- 
-    # Convert dialog input into variable
-    PRTElevation = target_elevation = parse_elevation(form.values['Elev'])
-    TOP = (form.values['TOPmode'])
-    BTM = (form.values['BTMmode'])
-    INS = (form.values['INSMmode'])
-
-    t = Transaction(doc, "Rack Align")
-    t.Start()
-
-    if RevitINT > 2022:
-        for elem in selected_elements:
-            isfabpart = elem.LookupParameter("Fabrication Service")
-            if isfabpart:
-                if elem.ItemCustomId in [2041, 866, 40]:
-                    if BTM:
-                        elem.get_Parameter(BuiltInParameter.MEP_LOWER_BOTTOM_ELEVATION).Set(PRTElevation)
-                    if INS and elem.InsulationThickness:
-                        INSthickness = get_parameter_value(elem, 'Insulation Thickness')
-                        elem.get_Parameter(BuiltInParameter.MEP_LOWER_BOTTOM_ELEVATION).Set(PRTElevation - INSthickness)
-                    if TOP:
-                        elem.get_Parameter(BuiltInParameter.MEP_LOWER_TOP_ELEVATION).Set(PRTElevation)
-                    if INS and elem.InsulationThickness:
-                        INSthickness = get_parameter_value(elem, 'Insulation Thickness')
-                        elem.get_Parameter(BuiltInParameter.MEP_LOWER_TOP_ELEVATION).Set(PRTElevation + INSthickness)
-    else:
-        for elem in selected_elements:
-            isfabpart = elem.LookupParameter("Fabrication Service")
-            if isfabpart:
-                if elem.ItemCustomId in [2041, 866, 40]:
-                    if BTM:
-                        elem.get_Parameter(BuiltInParameter.FABRICATION_BOTTOM_OF_PART).Set(PRTElevation)
-                    if INS and elem.InsulationThickness:
-                        INSthickness = get_parameter_value(elem, 'Insulation Thickness')
-                        elem.get_Parameter(BuiltInParameter.FABRICATION_BOTTOM_OF_PART).Set(PRTElevation - INSthickness)
-                    if TOP:
-                        elem.get_Parameter(BuiltInParameter.FABRICATION_TOP_OF_PART).Set(PRTElevation)
-                    if INS and elem.InsulationThickness:
-                        INSthickness = get_parameter_value(elem, 'Insulation Thickness')
-                        elem.get_Parameter(BuiltInParameter.FABRICATION_TOP_OF_PART).Set(PRTElevation + INSthickness)
-    t.Commit()
+    selected_refs = uidoc.Selection.PickObjects(
+        ObjectType.Element, 
+        FabricationPartFilter(),
+        "Select Fabrication Rack Parts to align"
+    )
+    selected_elements = [doc.GetElement(ref.ElementId) for ref in selected_refs]
 except:
-    pass
+    selected_elements = []
+
+if selected_elements:
+    # Get initial elevation estimate
+    try:
+        if RevitINT > 2022:
+            ElevationEstimate = selected_elements[0].LookupParameter('Lower End Bottom Elevation').AsValueString() or "0"
+        else:
+            ElevationEstimate = selected_elements[0].LookupParameter('Bottom').AsValueString() or "0"
+    except:
+        ElevationEstimate = "0"
+
+    class AlignmentDialog(Window):
+        def __init__(self, default_elev):
+            super(AlignmentDialog, self).__init__()
+            self.Title = "Rack Alignment"
+            self.Width = 380
+            self.Height = 260                    # Reduced height
+            self.WindowStartupLocation = WindowStartupLocation.CenterScreen
+            self.ResizeMode = ResizeMode.NoResize
+
+            stack = StackPanel()
+            stack.Orientation = Orientation.Vertical
+            stack.Margin = Thickness(15, 15, 15, 8)   # Reduced bottom margin
+
+            def create_label(text):
+                lbl = Label()
+                lbl.Content = text
+                lbl.FontSize = 13
+                lbl.FontFamily = FontFamily("Segoe UI")
+                return lbl
+
+            # Checkboxes
+            self.chk_top = CheckBox()
+            self.chk_top.Content = "Align TOP"
+            self.chk_top.IsChecked = False
+            self.chk_top.Margin = Thickness(0, 5, 0, 5)
+            stack.Children.Add(self.chk_top)
+
+            self.chk_bottom = CheckBox()
+            self.chk_bottom.Content = "Align BOTTOM"
+            self.chk_bottom.IsChecked = True
+            self.chk_bottom.Margin = Thickness(0, 5, 0, 5)
+            stack.Children.Add(self.chk_bottom)
+
+            self.chk_ignore_ins = CheckBox()
+            self.chk_ignore_ins.Content = "Ignore Insulation"
+            self.chk_ignore_ins.IsChecked = True
+            self.chk_ignore_ins.Margin = Thickness(0, 5, 0, 10)
+            stack.Children.Add(self.chk_ignore_ins)
+
+            stack.Children.Add(create_label("Reference Bottom Elevation:"))
+
+            self.txt_elev = TextBox()
+            self.txt_elev.Text = str(default_elev) if default_elev else "0"
+            self.txt_elev.Width = 220
+            self.txt_elev.HorizontalAlignment = HorizontalAlignment.Left
+            self.txt_elev.Margin = Thickness(0, 5, 0, 15)
+            stack.Children.Add(self.txt_elev)
+
+            btn_ok = Button()
+            btn_ok.Content = "OK"
+            btn_ok.Width = 80
+            btn_ok.Height = 30
+            btn_ok.HorizontalAlignment = HorizontalAlignment.Center
+            btn_ok.Margin = Thickness(0, 12, 0, 8)   # Reduced bottom spacing
+            btn_ok.Click += self.on_ok_clicked
+            stack.Children.Add(btn_ok)
+
+            self.Content = stack
+
+        def on_ok_clicked(self, sender, event):
+            self.DialogResult = True
+            self.Close()
+
+    # Show WPF dialog
+    form = AlignmentDialog(ElevationEstimate)
+    if form.ShowDialog():
+        try:
+            PRTElevation = parse_elevation(form.txt_elev.Text)
+            TOP = form.chk_top.IsChecked
+            BTM = form.chk_bottom.IsChecked
+            INS = form.chk_ignore_ins.IsChecked
+
+            t = Transaction(doc, "Rack Align")
+            t.Start()
+
+            for elem in selected_elements:
+                isfabpart = elem.LookupParameter("Fabrication Service")
+                if isfabpart and hasattr(elem, 'ItemCustomId') and elem.ItemCustomId in [2041, 866, 40]:
+                    if RevitINT > 2022:
+                        if BTM:
+                            elem.get_Parameter(BuiltInParameter.MEP_LOWER_BOTTOM_ELEVATION).Set(PRTElevation)
+                        if INS and getattr(elem, 'InsulationThickness', 0) > 0:
+                            INSthickness = elem.LookupParameter('Insulation Thickness').AsDouble()
+                            elem.get_Parameter(BuiltInParameter.MEP_LOWER_BOTTOM_ELEVATION).Set(PRTElevation - INSthickness)
+                        if TOP:
+                            elem.get_Parameter(BuiltInParameter.MEP_LOWER_TOP_ELEVATION).Set(PRTElevation)
+                        if INS and getattr(elem, 'InsulationThickness', 0) > 0:
+                            INSthickness = elem.LookupParameter('Insulation Thickness').AsDouble()
+                            elem.get_Parameter(BuiltInParameter.MEP_LOWER_TOP_ELEVATION).Set(PRTElevation + INSthickness)
+                    else:
+                        if BTM:
+                            elem.get_Parameter(BuiltInParameter.FABRICATION_BOTTOM_OF_PART).Set(PRTElevation)
+                        if INS and getattr(elem, 'InsulationThickness', 0) > 0:
+                            INSthickness = elem.LookupParameter('Insulation Thickness').AsDouble()
+                            elem.get_Parameter(BuiltInParameter.FABRICATION_BOTTOM_OF_PART).Set(PRTElevation - INSthickness)
+                        if TOP:
+                            elem.get_Parameter(BuiltInParameter.FABRICATION_TOP_OF_PART).Set(PRTElevation)
+                        if INS and getattr(elem, 'InsulationThickness', 0) > 0:
+                            INSthickness = elem.LookupParameter('Insulation Thickness').AsDouble()
+                            elem.get_Parameter(BuiltInParameter.FABRICATION_TOP_OF_PART).Set(PRTElevation + INSthickness)
+
+            t.Commit()
+        except:
+            pass

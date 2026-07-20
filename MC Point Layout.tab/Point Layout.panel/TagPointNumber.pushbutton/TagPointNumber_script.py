@@ -232,7 +232,7 @@ try:
                     tag_symbol.Id,
                     curview.Id,
                     ref,
-                    False,
+                    True,
                     TagOrientation.Horizontal,
                     tag_point
                 )

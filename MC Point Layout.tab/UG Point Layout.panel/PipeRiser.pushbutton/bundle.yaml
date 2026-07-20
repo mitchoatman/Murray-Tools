@@ -16,6 +16,10 @@ tooltip: |-
   
   Pre-Selected - Riser family is placed on the selected element(s) only.
 
+  [Shift]+Click:
+  Place pipe riser manually. Pay attention to workplane setting
+  under ribbon.  Set to appropriate level you wish to pipe riser on.
+
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Selection

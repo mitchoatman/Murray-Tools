@@ -5,7 +5,7 @@ from Autodesk.Revit.UI import TaskDialog
 from Autodesk.Revit.Exceptions import OperationCanceledException
 from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString
 from Parameters.Add_SharedParameters import Shared_Params
-from math import atan2
+from math import atan2, ceil
 from fractions import Fraction
 import clr
 import sys
@@ -214,6 +214,12 @@ if not famsymb:
 # --------------------------------------------------
 # Helpers
 # --------------------------------------------------
+
+def round_up_to_quarter_inch(feet_value):
+    inches = feet_value * 12.0
+    rounded_inches = ceil(inches * 4.0) / 4.0
+    return rounded_inches / 12.0
+
 def get_parameter_value_by_name(element, parameterName):
     return element.LookupParameter(parameterName).AsDouble()
 
@@ -299,7 +305,8 @@ def place_and_modify_family(duct, famsymb):
         if distance2 < distance1:
             connector1, connector2 = connector2, connector1
 
-        diameter = get_metal_diameter_from_duct(duct, connector1) + (AnnularSpace / 12.0)
+        raw_diameter = get_metal_diameter_from_duct(duct, connector1) + (AnnularSpace / 12.0)
+        diameter = round_up_to_quarter_inch(raw_diameter)
         set_parameter_by_name(new_family_instance, 'Diameter', diameter)
 
         vec_x = connector2.Origin.X - connector1.Origin.X

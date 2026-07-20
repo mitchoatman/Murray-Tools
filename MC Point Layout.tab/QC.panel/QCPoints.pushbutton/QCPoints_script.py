@@ -436,5 +436,5 @@ else:
     if point_count == 0:
         TaskDialog.Show("No Points", "Elements were found but none had a TS_Point_Number assigned.")
     else:
-        win = PointDisplayWindow(lines, point_count)
+        win = PointDisplayWindow(lines, max(0, point_count))
         win.ShowDialog()

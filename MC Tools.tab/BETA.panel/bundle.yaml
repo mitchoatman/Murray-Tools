@@ -1,10 +1,7 @@
 layout:
   - HangerAccessory
   - Test2
-  - ToggleWorsetHook
-  - WorksetMonitor
   - RemoveParameters
-  - ExtendStiffyRod
   - ImportExcelToDetail
 
 collapsed: true

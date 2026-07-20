@@ -1,0 +1,25 @@
+#highlight: new
+
+# bundle title
+title:
+  "Extend\nStiffy Rods"
+
+# bundle tooltip
+tooltip: |-
+  Extend hanger rods in Stiffy families.
+  1. Execute command.
+  2. Select familes with rod to extend. Click Finish.
+  3. Enter elevation above reference level of families.
+
+  # [Shift]+Click:    
+  # Removes tags.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+help_url: "https://youtu.be/ahVfaciq1wg"
+
+# bundle author
+author: Mitchell Oatman

@@ -8,10 +8,10 @@ title:
 tooltip: |-
   Adds tags to visible families with TS_Point_Number Parameter.
   1. Execute command.
-  2. elements will be tagged.
+  2. elements will be tagged (WITH LEADERS).
 
   [Shift]+Click:    
-  Add tags with leaders.
+  Add tags WITHOUT leaders.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

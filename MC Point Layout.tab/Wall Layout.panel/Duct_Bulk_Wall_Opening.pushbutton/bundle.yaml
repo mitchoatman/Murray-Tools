@@ -1,0 +1,24 @@
+# highlight: new
+title:
+  "Duct Bulk\nWall Opening"
+
+tooltip: |-
+  Place RDS and RWS families on duct centerline at ALL wall intersections of
+  round, rectangular, and fire damper intersections at walls of selected Revit link.
+  
+  1.  Select the duct elements to place sleeve(s) on.
+  2.  Click Finish
+  3.  Pick the link containing walls to place families in.
+
+  [Shift]+Click:
+  Set annular space by duct service and fire dampers.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://youtu.be/2464K7fS2iY"
+
+# bundle author
+author: Mitchell Oatman

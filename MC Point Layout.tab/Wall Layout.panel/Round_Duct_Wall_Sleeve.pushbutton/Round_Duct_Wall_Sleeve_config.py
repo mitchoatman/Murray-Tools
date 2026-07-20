@@ -3,7 +3,7 @@ import clr
 import sys
 import os
 import re
-from math import atan2
+from math import atan2, ceil
 from fractions import Fraction
 
 from Autodesk.Revit import DB
@@ -271,6 +271,12 @@ class LinkedWallSelectionFilter(ISelectionFilter):
 # --------------------------------------------------
 # Helpers
 # --------------------------------------------------
+
+def round_up_to_quarter_inch(feet_value):
+    inches = feet_value * 12.0
+    rounded_inches = ceil(inches * 4.0) / 4.0
+    return rounded_inches / 12.0
+
 def get_best_level_id(element):
     try:
         if element.LevelId and element.LevelId != DB.ElementId.InvalidElementId:
@@ -496,7 +502,8 @@ def place_and_modify_family(duct, wall_ref, famsymb):
         if not new_family_instance:
             raise Exception("Failed to create family instance.")
 
-        diameter = get_diameter_from_duct(duct, nearest_connector) + AnnularSpace
+        raw_diameter = get_diameter_from_duct(duct, nearest_connector) + AnnularSpace
+        diameter = round_up_to_quarter_inch(raw_diameter)
         set_parameter_by_name(new_family_instance, 'Diameter', diameter)
 
         safe_set_double_param_if_exists(new_family_instance, 'Length', wall_thickness)

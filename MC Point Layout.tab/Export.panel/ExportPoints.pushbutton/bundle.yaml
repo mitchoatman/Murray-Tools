@@ -3,7 +3,11 @@ title:
   "Export\nPoints"
 
 tooltip: |-
-  Export layout points to CSV
+  Export layout points to CSV.
+  Will export point info on the following:
+  - GTP families by themselves
+  - GTP familes nested in other families
+  - Fabrication Hangers
 
 
 

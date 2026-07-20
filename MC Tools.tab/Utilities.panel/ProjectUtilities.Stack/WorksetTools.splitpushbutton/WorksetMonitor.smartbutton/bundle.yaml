@@ -1,0 +1,18 @@
+#highlight: new
+
+# bundle title
+title:
+  "Workset\nMonitor"
+
+# bundle tooltip
+tooltip: >-
+  When enabled it will change the active workset
+  to match the associated level of a floorplan view activated.
+
+
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Mitchell Oatman

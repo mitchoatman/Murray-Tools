@@ -11,54 +11,49 @@ clr.AddReference("RevitServices")
 from RevitServices.Persistence import DocumentManager
 from RevitServices.Transactions import TransactionManager
 
-
 class AssemblyMemberSelectionFilter(ISelectionFilter):
     def __init__(self, allowed_ids):
         self.allowed_ids = set([eid.IntegerValue for eid in allowed_ids])
-
     def AllowElement(self, elem):
         if elem.Id.IntegerValue not in self.allowed_ids:
             return False
         return isinstance(elem, FabricationPart) or isinstance(elem, FamilyInstance)
-
     def AllowReference(self, reference, position):
         return True
 
-
 def get_target_element(doc, uidoc):
-    ref = uidoc.Selection.PickObject(
-        ObjectType.Element,
-        "Select a fabrication part or family instance"
-    )
-    elem = doc.GetElement(ref.ElementId)
-
-    # ADDED: If user selects an assembly, drill into it and pick a supported member
-    if isinstance(elem, AssemblyInstance):
-        member_ids = list(elem.GetMemberIds())
-        valid_member_ids = []
-
-        for mid in member_ids:
-            member = doc.GetElement(mid)
-            if isinstance(member, FabricationPart) or isinstance(member, FamilyInstance):
-                valid_member_ids.append(mid)
-
-        if not valid_member_ids:
-            print("Error: Selected assembly contains no FabricationPart or FamilyInstance members.")
-            return None
-
-        if len(valid_member_ids) == 1:
-            return doc.GetElement(valid_member_ids[0])
-
-        member_filter = AssemblyMemberSelectionFilter(valid_member_ids)
-        member_ref = uidoc.Selection.PickObject(
+    try:
+        ref = uidoc.Selection.PickObject(
             ObjectType.Element,
-            member_filter,
-            "Assembly selected. Now pick the specific fabrication part or family instance inside the assembly"
+            "Select a fabrication part or family instance"
         )
-        elem = doc.GetElement(member_ref.ElementId)
-
-    return elem
-
+        elem = doc.GetElement(ref.ElementId)
+        
+        # If user selects an assembly, drill into it
+        if isinstance(elem, AssemblyInstance):
+            member_ids = list(elem.GetMemberIds())
+            valid_member_ids = []
+            for mid in member_ids:
+                member = doc.GetElement(mid)
+                if isinstance(member, FabricationPart) or isinstance(member, FamilyInstance):
+                    valid_member_ids.append(mid)
+            if not valid_member_ids:
+                return None
+            if len(valid_member_ids) == 1:
+                return doc.GetElement(valid_member_ids[0])
+            member_filter = AssemblyMemberSelectionFilter(valid_member_ids)
+            try:
+                member_ref = uidoc.Selection.PickObject(
+                    ObjectType.Element,
+                    member_filter,
+                    "Assembly selected. Now pick the specific fabrication part or family instance inside the assembly"
+                )
+                elem = doc.GetElement(member_ref.ElementId)
+            except:
+                return None  # User cancelled inner selection
+        return elem
+    except:
+        return None  # User cancelled main selection
 
 def select_fabrication_pipe_and_create_plane():
     doc = __revit__.ActiveUIDocument.Document
@@ -67,57 +62,45 @@ def select_fabrication_pipe_and_create_plane():
 
     try:
         if curview.ViewType not in (ViewType.ThreeD, ViewType.Section):
-            print("Must be in a 3D or Section view")
+            # Optional: you can remove this print if you want total silence on view type
             return
 
         # Unified selection prompt
         elem = get_target_element(doc, uidoc)
         if elem is None:
-            return
+            return  # Quiet exit on cancellation
 
         x_vector = None
         y_vector = None
         plane_origin = None
 
         # =================================================================
-        # CASE 1: FabricationPart - your original working logic (unchanged)
+        # CASE 1: FabricationPart
         # =================================================================
         if isinstance(elem, FabricationPart):
             connectors = list(elem.ConnectorManager.Connectors)
             if len(connectors) < 2:
-                print("Error: Selected fabrication part does not have enough connectors.")
                 return
-
             connector_points = [conn.Origin for conn in connectors if conn.ConnectorType == ConnectorType.End]
             if len(connector_points) < 2:
-                print("Error: Unable to find two valid endpoints for the selected fabrication part.")
                 return
-
             connector_1 = connector_points[0]
             connector_2 = connector_points[1]
             line_vector = (connector_2 - connector_1).Normalize()
 
-            # In section views, use a work plane parallel to the view and skip prompts
             if curview.ViewType == ViewType.Section:
                 plane_origin = (connector_1 + connector_2) / 2
                 x_vector = curview.RightDirection.Normalize()
                 y_vector = curview.UpDirection.Normalize()
-
             elif abs(line_vector.Z) > max(abs(line_vector.X), abs(line_vector.Y)):
                 plane_origin = (connector_1 + connector_2) / 2
-
-                if curview.ViewType == ViewType.Section:
-                    # Section views will use the view-parallel work plane later,
-                    # so no axis prompt is needed here.
-                    pass
-                else:
+                if curview.ViewType != ViewType.Section:
                     task_dialog = TaskDialog("Select Axis")
                     task_dialog.MainInstruction = "Choose which axis you want the plane aligned to:"
                     task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Align with X-axis")
                     task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Align with Y-axis")
                     task_dialog.CommonButtons = TaskDialogCommonButtons.Cancel
                     result = task_dialog.Show()
-
                     if result == TaskDialogResult.CommandLink1:
                         x_vector = XYZ.BasisX
                         y_vector = line_vector
@@ -125,8 +108,7 @@ def select_fabrication_pipe_and_create_plane():
                         x_vector = line_vector
                         y_vector = XYZ.BasisY
                     else:
-                        print("Operation cancelled by the user.")
-                        return
+                        return  # Cancel
             else:
                 task_dialog = TaskDialog("Proceed with Horizontal Pipe")
                 task_dialog.MainInstruction = "The pipe is horizontal. Do you want to create a work plane?"
@@ -134,7 +116,6 @@ def select_fabrication_pipe_and_create_plane():
                 task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Horizontal")
                 task_dialog.CommonButtons = TaskDialogCommonButtons.Cancel
                 result = task_dialog.Show()
-
                 if result == TaskDialogResult.CommandLink1:
                     x_vector = XYZ.BasisX if abs(line_vector.X) > abs(line_vector.Y) else XYZ.BasisY
                     y_vector = XYZ.BasisZ
@@ -142,44 +123,32 @@ def select_fabrication_pipe_and_create_plane():
                     x_vector = XYZ.BasisX if abs(line_vector.X) > abs(line_vector.Y) else XYZ.BasisY
                     y_vector = XYZ.BasisY if abs(line_vector.X) > abs(line_vector.Y) else XYZ.BasisX
                 else:
-                    print("Operation cancelled by the user.")
-                    return
+                    return  # Cancel
                 plane_origin = (connector_1 + connector_2) / 2
 
         # =================================================================
-        # CASE 2: FamilyInstance - point-based logic with your original prompts
+        # CASE 2: FamilyInstance
         # =================================================================
-        else:
-            if not isinstance(elem, FamilyInstance):
-                print("Error: Selected element is neither a FabricationPart nor a FamilyInstance.")
-                return
-
+        elif isinstance(elem, FamilyInstance):
             loc = elem.Location
             if not isinstance(loc, LocationPoint):
-                print("Error: Selected family instance has no valid location point.")
                 return
             plane_origin = loc.Point
 
-            # In section views, use a work plane parallel to the view and skip prompts
             if curview.ViewType == ViewType.Section:
                 x_vector = curview.RightDirection.Normalize()
                 y_vector = curview.UpDirection.Normalize()
-
-            if curview.ViewType != ViewType.Section:
+            else:
                 task_dialog = TaskDialog("Select Plane Orientation")
                 task_dialog.MainInstruction = "Choose the plane orientation for the family instance:"
                 task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Horizontal")
                 task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Vertical")
                 task_dialog.CommonButtons = TaskDialogCommonButtons.Cancel
                 result = task_dialog.Show()
-
                 if result == TaskDialogResult.Cancel:
-                    print("Operation cancelled by the user.")
                     return
-
                 is_vertical = (result == TaskDialogResult.CommandLink2)
                 align_x = True
-
                 if is_vertical:
                     task_dialog = TaskDialog("Select Axis")
                     task_dialog.MainInstruction = "Choose the axis direction:"
@@ -188,64 +157,26 @@ def select_fabrication_pipe_and_create_plane():
                     task_dialog.CommonButtons = TaskDialogCommonButtons.Cancel
                     result = task_dialog.Show()
                     if result == TaskDialogResult.Cancel:
-                        print("Operation cancelled by the user.")
                         return
                     align_x = (result == TaskDialogResult.CommandLink1)
-
                 if is_vertical:
                     x_vector = XYZ.BasisX if align_x else XYZ.BasisY
                     y_vector = XYZ.BasisZ
                 else:
                     x_vector = XYZ.BasisX
                     y_vector = XYZ.BasisY
-            task_dialog.MainInstruction = "Choose the plane orientation for the family instance:"
-            task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Horizontal")
-            task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Vertical")
-            task_dialog.CommonButtons = TaskDialogCommonButtons.Cancel
-            result = task_dialog.Show()
-
-            if result == TaskDialogResult.Cancel:
-                print("Operation cancelled by the user.")
-                return
-
-            is_vertical = (result == TaskDialogResult.CommandLink2)
-            align_x = True
-
-            if is_vertical:
-                task_dialog = TaskDialog("Select Axis")
-                task_dialog.MainInstruction = "Choose the axis direction:"
-                task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "X-axis")
-                task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Y-axis")
-                task_dialog.CommonButtons = TaskDialogCommonButtons.Cancel
-                result = task_dialog.Show()
-                if result == TaskDialogResult.Cancel:
-                    print("Operation cancelled by the user.")
-                    return
-                align_x = (result == TaskDialogResult.CommandLink1)
-
-            if is_vertical:
-                x_vector = XYZ.BasisX if align_x else XYZ.BasisY
-                y_vector = XYZ.BasisZ
-            else:
-                x_vector = XYZ.BasisX
-                y_vector = XYZ.BasisY
-
-        # =================================================================
-        # Plane creation - identical for both cases
-        # =================================================================
-        if plane_origin is None:
-            print("Error: Failed to determine plane origin.")
+        else:
             return
 
-        # In a section view, the work plane must be parallel to the view.
-        # Use the view's screen axes instead of the element-derived axes.
+        # =================================================================
+        # Plane creation
+        # =================================================================
+        if plane_origin is None or x_vector is None or y_vector is None:
+            return
+
         if curview.ViewType == ViewType.Section:
             x_vector = curview.RightDirection.Normalize()
             y_vector = curview.UpDirection.Normalize()
-
-        if x_vector is None or y_vector is None:
-            print("Error: Failed to determine plane parameters.")
-            return
 
         plane = Plane.CreateByOriginAndBasis(plane_origin, x_vector, y_vector)
 
@@ -268,7 +199,6 @@ def select_fabrication_pipe_and_create_plane():
                 doc.Delete(rid)
             t.Commit()
 
-            # Keep your temporary reference plane behavior in 3D only
             if curview.ViewType == ViewType.ThreeD:
                 t = Transaction(doc, "Set RefPlane")
                 t.Start()
@@ -280,13 +210,11 @@ def select_fabrication_pipe_and_create_plane():
                 t.Commit()
 
             tg.Assimilate()
-        except Exception as ex:
+        except:
             tg.RollBack()
-            print("Error during transaction:", str(ex))
 
-    except Exception as e:
-        print("Error:", str(e))
-
+    except:
+        pass  # Quiet exit on any top-level cancellation or error
 
 # Run the function
 select_fabrication_pipe_and_create_plane()

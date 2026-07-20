@@ -1,32 +1,164 @@
 import Autodesk
 from Autodesk.Revit.UI import TaskDialog
-from Autodesk.Revit.DB import Transaction, FabricationConfiguration, BuiltInParameter, BuiltInCategory, FabricationPart, FabricationServiceButton, \
-                                FabricationService, XYZ, ElementTransformUtils, BoundingBoxXYZ, Transform, Line, ElementId
+from Autodesk.Revit.DB import (
+    Transaction,
+    FabricationConfiguration,
+    BuiltInParameter,
+    BuiltInCategory,
+    FabricationPart,
+    XYZ,
+    ElementTransformUtils,
+    Line,
+    ElementId
+)
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 import math
 import os
 import clr
+
 clr.AddReference("PresentationCore")
 clr.AddReference("PresentationFramework")
 clr.AddReference("WindowsBase")
+
 from System.Windows import Window, Thickness, WindowStartupLocation, ResizeMode, HorizontalAlignment
 from System.Windows.Controls import StackPanel, Label, ComboBox, TextBox, CheckBox, Button, Orientation
 from System.Windows.Media import FontFamily
 from System import Array
-#------------------------------------------------------------------------------------DEFINE SOME VARIABLES EASY USE
+
+
+# ------------------------------------------------------------------------------------
+# REVIT CONTEXT
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 app = doc.Application
-RevitVersion = app.VersionNumber
-RevitINT = int(RevitVersion)
-#------------------------------------------------------------------------------------SELECTING ELEMENTS
+RevitINT = int(app.VersionNumber)
+
+
+# ------------------------------------------------------------------------------------
+# HELPERS
 
 def get_id_value(elem_id):
     try:
-        return int(elem_id.Value)   # Revit 2024+
+        return int(elem_id.Value)  # Revit 2024+
     except:
         return int(elem_id.IntegerValue)  # Revit 2022/2023
+
+
+def get_center_point(element_id):
+    bbox = doc.GetElement(element_id).get_BoundingBox(None)
+    if not bbox:
+        raise Exception("No bounding box found for element {}".format(element_id))
+    return (bbox.Max + bbox.Min) / 2
+
+
+def round_up_to_multiple(value, multiple):
+    return multiple * math.ceil(value / multiple)
+
+
+def get_outside_diameter(part):
+    param = part.LookupParameter("Outside Diameter")
+    if param and param.HasValue:
+        return param.AsDouble()
+    return 0.0
+
+
+def get_level_elevation_from_element(element):
+    level = doc.GetElement(element.LevelId)
+    if not level:
+        return 0.0
+    try:
+        return level.ProjectElevation
+    except:
+        return level.Elevation
+
+
+def get_service_names(loaded_services):
+    names = []
+    for service in loaded_services:
+        try:
+            names.append(service.Name)
+        except:
+            names.append([])
+    return names
+
+
+def get_all_hanger_button_names(loaded_services):
+    button_names = []
+    unique_names = set()
+
+    for service in loaded_services:
+        palette_count = service.PaletteCount if RevitINT >= 2023 else service.GroupCount
+        for palette_idx in range(palette_count):
+            button_count = service.GetButtonCount(palette_idx)
+            for btn_idx in range(button_count):
+                button = service.GetButton(palette_idx, btn_idx)
+                if button.IsAHanger and button.Name not in unique_names:
+                    unique_names.add(button.Name)
+                    button_names.append(button.Name)
+
+    return button_names
+
+
+def find_hanger_button(loaded_services, selected_service_name, selected_button_name):
+    for service in loaded_services:
+        if service.Name != selected_service_name:
+            continue
+
+        palette_count = service.PaletteCount if RevitINT >= 2023 else service.GroupCount
+        for palette_idx in range(palette_count):
+            button_count = service.GetButtonCount(palette_idx)
+            for btn_idx in range(button_count):
+                button = service.GetButton(palette_idx, btn_idx)
+                if button.Name == selected_button_name:
+                    return button
+
+    return None
+
+
+def ensure_settings_file(filepath):
+    default_lines = [
+        '1.625 Single Strut Trapeze\n',
+        '1.0\n',
+        '8.0\n',
+        'PLUMBING: DOMESTIC COLD WATER\n',
+        'True\n',
+        'True'
+    ]
+
+    folder_name = os.path.dirname(filepath)
+    if not os.path.exists(folder_name):
+        os.makedirs(folder_name)
+
+    if not os.path.exists(filepath):
+        with open(filepath, 'w') as file_obj:
+            file_obj.writelines(default_lines)
+
+    with open(filepath, 'r') as file_obj:
+        lines = [line.rstrip() for line in file_obj.readlines()]
+
+    if len(lines) < 6:
+        with open(filepath, 'w') as file_obj:
+            file_obj.writelines(default_lines)
+        lines = [line.rstrip() for line in default_lines]
+
+    return lines
+
+
+def write_settings_file(filepath, hanger_name, end_distance, spacing, service_name, attach_to_structure, boi_value):
+    with open(filepath, 'w') as file_obj:
+        file_obj.writelines([
+            str(hanger_name) + '\n',
+            str(end_distance) + '\n',
+            str(spacing) + '\n',
+            str(service_name) + '\n',
+            str(attach_to_structure) + '\n',
+            str(boi_value) + '\n'
+        ])
+
+
+# ------------------------------------------------------------------------------------
+# SELECTION FILTER
 
 class FabPipeDuctSelectionFilter(ISelectionFilter):
     def AllowElement(self, elem):
@@ -36,526 +168,412 @@ class FabPipeDuctSelectionFilter(ISelectionFilter):
 
             cat_id = get_id_value(elem.Category.Id)
 
-            allowed = [
+            allowed_categories = [
                 get_id_value(ElementId(BuiltInCategory.OST_FabricationPipework)),
                 get_id_value(ElementId(BuiltInCategory.OST_FabricationDuctwork))
             ]
 
-            return cat_id in allowed
+            return cat_id in allowed_categories
         except:
             return False
 
     def AllowReference(self, reference, point):
         return True
 
+
+# ------------------------------------------------------------------------------------
+# DIALOG
+
+class HangerSpacingDialog(Window):
+    def __init__(self, button_names, service_names, settings_lines, checkboxdefBOI, checkboxdef, is_ptrap=False):
+        super(HangerSpacingDialog, self).__init__()
+
+        self.Title = "Hanger and Spacing" if not is_ptrap else "Hanger for P-Trap"
+        self.Width = 336
+        self.Height = 350 if not is_ptrap else 275
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
+        self.ResizeMode = ResizeMode.NoResize
+
+        stack = StackPanel()
+        stack.Orientation = Orientation.Vertical
+        stack.Margin = Thickness(10)
+
+        label_hanger = Label()
+        label_hanger.Content = "Choose Hanger:"
+        label_hanger.FontSize = 12
+        label_hanger.FontFamily = FontFamily("Arial")
+        stack.Children.Add(label_hanger)
+
+        self.combobox_hanger = ComboBox()
+        self.combobox_hanger.Width = 300
+        self.combobox_hanger.Height = 20
+        self.combobox_hanger.FontSize = 12
+        self.combobox_hanger.FontFamily = FontFamily("Arial")
+        self.combobox_hanger.ItemsSource = Array[object](button_names)
+        if settings_lines[0] in button_names:
+            self.combobox_hanger.SelectedItem = settings_lines[0]
+        self.combobox_hanger.Margin = Thickness(0, 0, 0, 10)
+        self.combobox_hanger.HorizontalAlignment = HorizontalAlignment.Left
+        stack.Children.Add(self.combobox_hanger)
+
+        if not is_ptrap:
+            label_end_dist = Label()
+            label_end_dist.Content = "Distance from End (In):"
+            label_end_dist.FontSize = 12
+            label_end_dist.FontFamily = FontFamily("Arial")
+            stack.Children.Add(label_end_dist)
+
+            self.textbox_end_dist = TextBox()
+            self.textbox_end_dist.Width = 200
+            self.textbox_end_dist.Height = 20
+            self.textbox_end_dist.FontSize = 12
+            self.textbox_end_dist.FontFamily = FontFamily("Arial")
+            self.textbox_end_dist.Text = str(round(float(settings_lines[1]) * 12.0, 4))
+            self.textbox_end_dist.Margin = Thickness(0, 0, 0, 10)
+            self.textbox_end_dist.HorizontalAlignment = HorizontalAlignment.Left
+            stack.Children.Add(self.textbox_end_dist)
+
+            label_spacing = Label()
+            label_spacing.Content = "Hanger Spacing (Ft):"
+            label_spacing.FontSize = 12
+            label_spacing.FontFamily = FontFamily("Arial")
+            stack.Children.Add(label_spacing)
+
+            self.textbox_spacing = TextBox()
+            self.textbox_spacing.Width = 200
+            self.textbox_spacing.Height = 20
+            self.textbox_spacing.FontSize = 12
+            self.textbox_spacing.FontFamily = FontFamily("Arial")
+            self.textbox_spacing.Text = settings_lines[2]
+            self.textbox_spacing.Margin = Thickness(0, 0, 0, 10)
+            self.textbox_spacing.HorizontalAlignment = HorizontalAlignment.Left
+            stack.Children.Add(self.textbox_spacing)
+
+            self.checkbox_boi = CheckBox()
+            self.checkbox_boi.Content = "Align Trapeze to Bottom of Insulation"
+            self.checkbox_boi.FontSize = 12
+            self.checkbox_boi.FontFamily = FontFamily("Arial")
+            self.checkbox_boi.IsChecked = checkboxdefBOI
+            self.checkbox_boi.Margin = Thickness(0, 0, 0, 5)
+            stack.Children.Add(self.checkbox_boi)
+
+        self.checkbox_attach = CheckBox()
+        self.checkbox_attach.Content = "Attach to Structure"
+        self.checkbox_attach.FontSize = 12
+        self.checkbox_attach.FontFamily = FontFamily("Arial")
+        self.checkbox_attach.IsChecked = checkboxdef
+        self.checkbox_attach.Margin = Thickness(0, 0, 0, 5 if is_ptrap else 10)
+        stack.Children.Add(self.checkbox_attach)
+
+        if is_ptrap:
+            label_trap_width = Label()
+            label_trap_width.Content = "Trapeze Rod - Rod Width (Ft):"
+            label_trap_width.FontSize = 12
+            label_trap_width.FontFamily = FontFamily("Arial")
+            stack.Children.Add(label_trap_width)
+
+            self.textbox_trap_width = TextBox()
+            self.textbox_trap_width.Width = 200
+            self.textbox_trap_width.Height = 20
+            self.textbox_trap_width.FontSize = 12
+            self.textbox_trap_width.FontFamily = FontFamily("Arial")
+            self.textbox_trap_width.Text = "1.0"
+            self.textbox_trap_width.Margin = Thickness(0, 0, 0, 5)
+            self.textbox_trap_width.HorizontalAlignment = HorizontalAlignment.Left
+            stack.Children.Add(self.textbox_trap_width)
+
+        label_service = Label()
+        label_service.Content = "Choose Service to Draw Hanger on:"
+        label_service.FontSize = 12
+        label_service.FontFamily = FontFamily("Arial")
+        stack.Children.Add(label_service)
+
+        self.combobox_service = ComboBox()
+        self.combobox_service.Width = 300
+        self.combobox_service.Height = 20
+        self.combobox_service.FontSize = 12
+        self.combobox_service.FontFamily = FontFamily("Arial")
+        self.combobox_service.ItemsSource = Array[object](service_names)
+        if settings_lines[3] in service_names:
+            self.combobox_service.SelectedItem = settings_lines[3]
+        self.combobox_service.Margin = Thickness(0, 0, 0, 10)
+        self.combobox_service.HorizontalAlignment = HorizontalAlignment.Left
+        stack.Children.Add(self.combobox_service)
+
+        self.button_ok = Button()
+        self.button_ok.Content = "OK"
+        self.button_ok.FontSize = 12
+        self.button_ok.FontFamily = FontFamily("Arial")
+        self.button_ok.Width = 74
+        self.button_ok.Height = 25
+        self.button_ok.HorizontalAlignment = HorizontalAlignment.Center
+        self.button_ok.Click += self.ok_button_clicked
+        stack.Children.Add(self.button_ok)
+
+        self.Content = stack
+
+    def ok_button_clicked(self, sender, event):
+        self.DialogResult = True
+        self.Close()
+
+
+# ------------------------------------------------------------------------------------
+# MAIN
+
 try:
-    selected_element = uidoc.Selection.PickObject(ObjectType.Element, FabPipeDuctSelectionFilter(), 'Select OUTSIDE Pipe')
-    element = doc.GetElement(selected_element.ElementId)
-    pick_point = selected_element.GlobalPoint  # Capture cursor location for nearest end determination
- 
-    # Gets servicename of selection (used in both cases)
-    parameters = element.LookupParameter('Fabrication Service')
-    if parameters and parameters.HasValue:
-        service_name = parameters.AsValueString()
+    selected_reference = uidoc.Selection.PickObject(
+        ObjectType.Element,
+        FabPipeDuctSelectionFilter(),
+        'Select OUTSIDE Pipe'
+    )
+    element = doc.GetElement(selected_reference.ElementId)
+    pick_point = selected_reference.GlobalPoint
+
+    service_param = element.LookupParameter('Fabrication Service')
+    if service_param and service_param.HasValue:
+        selected_element_service_name = service_param.AsValueString()
     else:
         raise Exception("Fabrication Service parameter missing.")
-    servicenamelist = []
-    Config = FabricationConfiguration.GetFabricationConfiguration(doc)
-    LoadedServices = Config.GetAllLoadedServices()
-    for Item1 in LoadedServices:
-        try:
-            servicenamelist.append(Item1.Name)
-        except:
-            servicenamelist.append([])
-    # Gets matching index of selected element service
+
+    config = FabricationConfiguration.GetFabricationConfiguration(doc)
+    loaded_services = config.GetAllLoadedServices()
+    service_names = get_service_names(loaded_services)
+
     try:
-        Servicenum = servicenamelist.index(service_name)
+        service_names.index(selected_element_service_name)
     except ValueError:
         raise Exception("Selected service not found.")
-    # Find all hanger buttons
-    buttonnames = []
-    unique_hangers = set()
-    for service_idx, service in enumerate(LoadedServices):
-        palette_count = service.PaletteCount if RevitINT >= 2023 else service.GroupCount
-        for palette_idx in range(palette_count):
-            buttoncount = service.GetButtonCount(palette_idx)
-            for btn_idx in range(buttoncount):
-                bt = service.GetButton(palette_idx, btn_idx)
-                if bt.IsAHanger and bt.Name not in unique_hangers:
-                    unique_hangers.add(bt.Name)
-                    buttonnames.append(bt.Name)
-    folder_name = "c:\\Temp"
-    filepath = os.path.join(folder_name, 'Ribbon_PlaceTrapeze.txt')
-    if not os.path.exists(folder_name):
-        os.makedirs(folder_name)
-    if not os.path.exists(filepath):
-        with open(filepath, 'w') as the_file:
-            lines = ['1.625 Single Strut Trapeze\n', '1.0\n', '8.0\n', 'PLUMBING: DOMESTIC COLD WATER\n', 'True\n', 'True']
-            the_file.writelines(lines)
-    with open(filepath, 'r') as file:
-        lines = [line.rstrip() for line in file.readlines()]
-    if len(lines) < 6:
-        with open(filepath, 'w') as the_file:
-            lines = ['1.625 Single Strut Trapeze\n', '1.0\n', '8.0\n', 'PLUMBING: DOMESTIC COLD WATER\n', 'True\n', 'True']
-            the_file.writelines(lines)
-    with open(filepath, 'r') as file:
-        lines = [line.rstrip() for line in file.readlines()]
-    checkboxdef = lines[4] != 'False'
-    checkboxdefBOI = lines[5] != 'False'
-    # Define HangerSpacingDialog (already exists, reused for both cases)
-    class HangerSpacingDialog(Window):
-        def __init__(self, buttonnames, lines, checkboxdefBOI, checkboxdef, is_ptrap=False):
-            super(HangerSpacingDialog, self).__init__()
-            self.Title = "Hanger and Spacing" if not is_ptrap else "Hanger for P-Trap"
-            self.Width = 336
-            self.Height = 350 if not is_ptrap else 275
-            self.WindowStartupLocation = WindowStartupLocation.CenterScreen
-            self.ResizeMode = ResizeMode.NoResize
-            self.is_ptrap = is_ptrap
-            stack = StackPanel()
-            stack.Orientation = Orientation.Vertical
-            stack.Margin = Thickness(10)
-            # Choose Hanger Label
-            label_hanger = Label()
-            label_hanger.Content = "Choose Hanger:"
-            label_hanger.FontSize = 12
-            label_hanger.FontFamily = FontFamily("Arial")
-            label_hanger.Margin = Thickness(0, 0, 0, 0)
-            stack.Children.Add(label_hanger)
-            # Hanger ComboBox
-            self.combobox_hanger = ComboBox()
-            self.combobox_hanger.Width = 300
-            self.combobox_hanger.Height = 20
-            self.combobox_hanger.FontSize = 12
-            self.combobox_hanger.FontFamily = FontFamily("Arial")
-            self.combobox_hanger.ItemsSource = Array[object](buttonnames)
-            if lines[0] in buttonnames:
-                self.combobox_hanger.SelectedItem = lines[0]
-            self.combobox_hanger.Margin = Thickness(0, 0, 0, 10)
-            self.combobox_hanger.HorizontalAlignment = HorizontalAlignment.Left
-            stack.Children.Add(self.combobox_hanger)
-            if not is_ptrap:
-                # Distance from End Label
-                label_end_dist = Label()
-                label_end_dist.Content = "Distance from End (In):"
-                label_end_dist.FontSize = 12
-                label_end_dist.FontFamily = FontFamily("Arial")
-                label_end_dist.Margin = Thickness(0, 0, 0, 0)
-                stack.Children.Add(label_end_dist)
-                # Distance from End TextBox
-                self.textbox_end_dist = TextBox()
-                self.textbox_end_dist.Width = 200
-                self.textbox_end_dist.Height = 20
-                self.textbox_end_dist.FontSize = 12
-                self.textbox_end_dist.FontFamily = FontFamily("Arial")
-                self.textbox_end_dist.Text = str(round(float(lines[1]) * 12.0, 4))
-                self.textbox_end_dist.Margin = Thickness(0, 0, 0, 10)
-                self.textbox_end_dist.HorizontalAlignment = HorizontalAlignment.Left
-                stack.Children.Add(self.textbox_end_dist)
-                # Hanger Spacing Label
-                label_spacing = Label()
-                label_spacing.Content = "Hanger Spacing (Ft):"
-                label_spacing.FontSize = 12
-                label_spacing.FontFamily = FontFamily("Arial")
-                label_spacing.Margin = Thickness(0, 0, 0, 0)
-                stack.Children.Add(label_spacing)
-                # Hanger Spacing TextBox
-                self.textbox_spacing = TextBox()
-                self.textbox_spacing.Width = 200
-                self.textbox_spacing.Height = 20
-                self.textbox_spacing.FontSize = 12
-                self.textbox_spacing.FontFamily = FontFamily("Arial")
-                self.textbox_spacing.Text = lines[2]
-                self.textbox_spacing.Margin = Thickness(0, 0, 0, 10)
-                self.textbox_spacing.HorizontalAlignment = HorizontalAlignment.Left
-                stack.Children.Add(self.textbox_spacing)
-                # Align Trapeze to Bottom of Insulation CheckBox (only for regular trapeze)
-                self.checkbox_boi = CheckBox()
-                self.checkbox_boi.Content = "Align Trapeze to Bottom of Insulation"
-                self.checkbox_boi.FontSize = 12
-                self.checkbox_boi.FontFamily = FontFamily("Arial")
-                self.checkbox_boi.IsChecked = checkboxdefBOI
-                self.checkbox_boi.Margin = Thickness(0, 0, 0, 5)
-                stack.Children.Add(self.checkbox_boi)
-            # Attach to Structure CheckBox
-            self.checkbox_attach = CheckBox()
-            self.checkbox_attach.Content = "Attach to Structure"
-            self.checkbox_attach.FontSize = 12
-            self.checkbox_attach.FontFamily = FontFamily("Arial")
-            self.checkbox_attach.IsChecked = checkboxdef
-            self.checkbox_attach.Margin = Thickness(0, 0, 0, 5 if is_ptrap else 10)
-            stack.Children.Add(self.checkbox_attach)
-            # Trapeze width input for P-Trap only
-            if is_ptrap:
-                label_trap_width = Label()
-                label_trap_width.Content = "Trapeze Rod - Rod Width (Ft):"
-                label_trap_width.FontSize = 12
-                label_trap_width.FontFamily = FontFamily("Arial")
-                label_trap_width.Margin = Thickness(0, 0, 0, 0)
-                stack.Children.Add(label_trap_width)
-                self.textbox_trap_width = TextBox()
-                self.textbox_trap_width.Width = 200
-                self.textbox_trap_width.Height = 20
-                self.textbox_trap_width.FontSize = 12
-                self.textbox_trap_width.FontFamily = FontFamily("Arial")
-                self.textbox_trap_width.Text = "1.0"
-                self.textbox_trap_width.Margin = Thickness(0, 0, 0, 5)
-                self.textbox_trap_width.HorizontalAlignment = HorizontalAlignment.Left
-                stack.Children.Add(self.textbox_trap_width)
-            # Choose Service Label
-            label_service = Label()
-            label_service.Content = "Choose Service to Draw Hanger on:"
-            label_service.FontSize = 12
-            label_service.FontFamily = FontFamily("Arial")
-            label_service.Margin = Thickness(0, 0, 0, 0)
-            stack.Children.Add(label_service)
-            # Service ComboBox
-            self.combobox_service = ComboBox()
-            self.combobox_service.Width = 300
-            self.combobox_service.Height = 20
-            self.combobox_service.FontSize = 12
-            self.combobox_service.FontFamily = FontFamily("Arial")
-            self.combobox_service.ItemsSource = Array[object](servicenamelist)
-            if lines[3] in servicenamelist:
-                self.combobox_service.SelectedItem = lines[3]
-            self.combobox_service.Margin = Thickness(0, 0, 0, 10)
-            self.combobox_service.HorizontalAlignment = HorizontalAlignment.Left
-            stack.Children.Add(self.combobox_service)
-            # OK Button
-            self.button_ok = Button()
-            self.button_ok.Content = "OK"
-            self.button_ok.FontSize = 12
-            self.button_ok.FontFamily = FontFamily("Arial")
-            self.button_ok.Width = 74
-            self.button_ok.Height = 25
-            self.button_ok.HorizontalAlignment = HorizontalAlignment.Center
-            self.button_ok.Click += self.ok_button_clicked
-            stack.Children.Add(self.button_ok)
-            self.Content = stack
-        def ok_button_clicked(self, sender, event):
-            self.DialogResult = True
-            self.Close()
+
+    hanger_button_names = get_all_hanger_button_names(loaded_services)
+
+    settings_path = os.path.join("c:\\Temp", "Ribbon_PlaceTrapeze.txt")
+    settings_lines = ensure_settings_file(settings_path)
+
+    checkbox_attach_default = settings_lines[4] != 'False'
+    checkbox_boi_default = settings_lines[5] != 'False'
+
+    # --------------------------------------------------------------------------------
+    # REGULAR TRAPEZE
     if element.ItemCustomId != 916:
-        selected_element1 = uidoc.Selection.PickObject(ObjectType.Element, FabPipeDuctSelectionFilter(), 'Select OPPOSITE OUTSIDE Pipe')
-        element1 = doc.GetElement(selected_element1.ElementId)
-        selected_elements = [element, element1]
+        opposite_reference = uidoc.Selection.PickObject(
+            ObjectType.Element,
+            FabPipeDuctSelectionFilter(),
+            'Select OPPOSITE OUTSIDE Pipe'
+        )
+        opposite_element = doc.GetElement(opposite_reference.ElementId)
+        selected_elements = [element, opposite_element]
         level_id = element.LevelId
-        # FUNCTION TO GET PARAMETER VALUE
-        def get_parameter_value(element, parameterName):
-            param = element.LookupParameter(parameterName)
-            if param and param.HasValue:
-                return param.AsDouble()
-            else:
-                return 0.0
-        # Gets bottom elevation of selected pipe (no longer used after fixes)
-        if RevitINT >= 2023:
-            PRTElevation = get_parameter_value(element, 'Lower End Bottom Elevation')
-        else:
-            PRTElevation = get_parameter_value(element, 'Bottom')
-        # Instantiate and show the dialog
-        form = HangerSpacingDialog(buttonnames, lines, checkboxdefBOI, checkboxdef, is_ptrap=False)
-        if form.ShowDialog():
-            Selectedbutton = str(form.combobox_hanger.SelectedItem)
-            distancefromend = form.textbox_end_dist.Text
-            Spacing = form.textbox_spacing.Text
-            BOITrap = form.checkbox_boi.IsChecked
-            AtoS = form.checkbox_attach.IsChecked
-            SelectedServiceName = str(form.combobox_service.SelectedItem)
-         
-            # Validate numeric inputs
+
+        dialog = HangerSpacingDialog(
+            hanger_button_names,
+            service_names,
+            settings_lines,
+            checkbox_boi_default,
+            checkbox_attach_default,
+            is_ptrap=False
+        )
+
+        if dialog.ShowDialog():
+            selected_hanger_name = str(dialog.combobox_hanger.SelectedItem)
+            end_distance_text = dialog.textbox_end_dist.Text
+            spacing_text = dialog.textbox_spacing.Text
+            align_to_bottom_of_insulation = dialog.checkbox_boi.IsChecked
+            attach_to_structure = dialog.checkbox_attach.IsChecked
+            selected_service_name = str(dialog.combobox_service.SelectedItem)
+
             try:
-                distancefromend = float(distancefromend) / 12.0
-                Spacing = float(Spacing)
+                end_distance = float(end_distance_text) / 12.0
+                spacing = float(spacing_text)
             except ValueError:
-                print("Invalid input: Distance from End or Spacing must be numeric.")
-                raise Exception("Invalid numeric input.")
-         
-            # Gets matching index of selected service
-            try:
-                Servicenum = servicenamelist.index(SelectedServiceName)
-            except ValueError:
-                print("Selected service '{}' not found.".format(SelectedServiceName))
-                raise Exception("Selected service not found.")
-         
-            # Find the selected button
-            button_found = False
-            fab_btn = None
-            for servicenum, service in enumerate(LoadedServices):
-                if service.Name == SelectedServiceName:
-                    palette_count = service.PaletteCount if RevitINT >= 2023 else service.GroupCount
-                    for palette_idx in range(palette_count):
-                        button_count = service.GetButtonCount(palette_idx)
-                        for btn_idx in range(button_count):
-                            bt = service.GetButton(palette_idx, btn_idx)
-                            if bt.Name == Selectedbutton:
-                                fab_btn = bt
-                                button_found = True
-                                break
-                        if button_found:
-                            break
-                    if button_found:
-                        break
-         
-            if not button_found:
-                print("'{}' not found in '{}'".format(Selectedbutton, SelectedServiceName))
-                raise Exception("Hanger button not found.")
-         
-            # Write values to text file
-            with open(filepath, 'w') as the_file:
-                the_file.writelines([
-                    str(Selectedbutton) + '\n',
-                    str(distancefromend) + '\n',
-                    str(Spacing) + '\n',
-                    SelectedServiceName + '\n',
-                    str(AtoS) + '\n',
-                    str(BOITrap) + '\n'
-                ])
-         
-            # Helper functions
-            def GetCenterPoint(ele_id):
-                bBox = doc.GetElement(ele_id).get_BoundingBox(None)
-                if bBox:
-                    center = (bBox.Max + bBox.Min) / 2
-                    return center
-                else:
-                    print("No bounding box found for element {}".format(ele_id))
-                    return XYZ(0, 0, 0)
-         
-            def myround(x, multiple):
-                return multiple * math.ceil(x / multiple)
-         
-            def get_diameter(pipe):
-                param = pipe.LookupParameter("Outside Diameter")
-                if param and param.HasValue:
-                    return param.AsDouble()
-                print("Outside Diameter parameter not found for pipe {}. Assuming 0.".format(pipe.Id))
-                return 0.0
-         
-            def get_reference_level(hanger):
-                level_id = hanger.LevelId
-                level = doc.GetElement(level_id)
-                return level
-         
-            def get_level_elevation(level):
-                if not level:
-                    return 0.0
-                try:
-                    return level.ProjectElevation
-                except:
-                    return level.Elevation
-         
-            # Determine pipe direction from the first pipe's location curve
-            curve = element.Location.Curve
-            if not curve or not curve.IsBound:
-                print("Invalid location curve for element {}".format(element.Id))
-                raise Exception("Pipe must have a valid location curve.")
-         
-            # Get direction vector in XY plane (ignore Z for rotation on Z-axis)
-            dir_vec = (curve.GetEndPoint(1) - curve.GetEndPoint(0)).Normalize()
-            dir_vec = XYZ(dir_vec.X, dir_vec.Y, 0).Normalize() # Ensure Z is 0
-            perp_vec = XYZ(-dir_vec.Y, dir_vec.X, 0).Normalize() # Perpendicular vector in XY plane
-         
-            # Compute midpoints of both pipes
-            midpoints = []
-            for pipe in selected_elements:
-                c = pipe.Location.Curve
-                if c and c.IsBound:
-                    mid = (c.GetEndPoint(0) + c.GetEndPoint(1)) / 2
-                    midpoints.append(mid)
-                else:
-                    print("Invalid location curve for pipe {}".format(pipe.Id))
-                    raise Exception("Pipe must have a valid location curve.")
-         
-            # Compute center point between the two pipes in the perpendicular direction
-            perp_projs = [mid.DotProduct(perp_vec) for mid in midpoints]
-            min_perp = min(perp_projs)
-            max_perp = max(perp_projs)
-            center_perp = (min_perp + max_perp) / 2
-         
-            # Adjust for pipe diameter and insulation
-            widths = []
-            for pipe in selected_elements:
-                thick = pipe.InsulationThickness if pipe.HasInsulation else 0
-                half_size = get_diameter(pipe) / 2 + thick
-                widths.append(half_size)
-         
-            # Compute effective width (distance between outermost edges)
-            width = abs(max_perp - min_perp) + widths[0] + widths[1]
-         
-            # Compute projections along direction to find length
-            endpoints = []
-            for pipe in selected_elements:
-                c = pipe.Location.Curve
-                if c and c.IsBound:
-                    endpoints.append(c.GetEndPoint(0))
-                    endpoints.append(c.GetEndPoint(1))
-         
-            projs_along = [p.DotProduct(dir_vec) for p in endpoints]
-            min_along = min(projs_along)
-            max_along = max(projs_along)
-            length_along = max_along - min_along
-         
-            # Compute lowest bottom Z across both pipes using bounding box
+                raise Exception("Invalid numeric input: Distance from End or Spacing must be numeric.")
+
+            hanger_button = find_hanger_button(loaded_services, selected_service_name, selected_hanger_name)
+            if not hanger_button:
+                raise Exception("Hanger button '{}' not found in '{}'".format(selected_hanger_name, selected_service_name))
+
+            write_settings_file(
+                settings_path,
+                selected_hanger_name,
+                end_distance,
+                spacing,
+                selected_service_name,
+                attach_to_structure,
+                align_to_bottom_of_insulation
+            )
+
+            pipe_data = []
             combined_min_z = float('inf')
-            for pipe in selected_elements:
-                pipe_bb = pipe.get_BoundingBox(None)
-                if pipe_bb:
-                    bottom_z = pipe_bb.Min.Z
-                    thick = pipe.InsulationThickness if hasattr(pipe, 'InsulationThickness') and pipe.HasInsulation else 0.0
-                    if BOITrap:
-                        bottom_z -= thick # Adjust only when checkbox is checked
-                    combined_min_z = min(combined_min_z, bottom_z)
-            center_z = combined_min_z # Always use the lowest adjusted bottom
-         
-            # Calculate number of hangers
-            qtyofhgrs = int(math.ceil(length_along / Spacing))
-         
-            # Place hangers at default location (0,0,0)
-            hangers = []
-            t = Transaction(doc, 'Place Trapeze Hanger')
-            t.Start()
-            for hgr in range(qtyofhgrs):
-                try:
-                    hanger = FabricationPart.CreateHanger(doc, fab_btn, 0, level_id)
-                    if hanger:
-                        hangers.append(hanger)
-                    else:
-                        print("Failed to create hanger {}".format(hgr + 1))
-                except Exception as e:
-                    print("Error creating hanger {}: {}".format(hgr + 1, str(e)))
-            t.Commit()
-         
-            if not hangers:
-                print("No hangers were created. Check fabrication service and button compatibility.")
-                raise Exception("Hanger creation failed.")
-         
-            # Move and modify hangers
-            t = Transaction(doc, 'Modify Trapeze Hanger')
-            t.Start()
-            IncrementSpacing = distancefromend
-         
-            # Find the closest endpoint of the first selected pipe to the pick point (cursor location)
-            first_pipe = selected_elements[0]
-            curve = first_pipe.Location.Curve
-            if not curve or not curve.IsBound:
-                print("Invalid location curve for first pipe {}".format(first_pipe.Id))
-                raise Exception("First pipe must have a valid location curve.")
-            first_endpoints = [curve.GetEndPoint(0), curve.GetEndPoint(1)]
-            end0 = first_endpoints[0]
-            end1 = first_endpoints[1]
-            dist0 = end0.DistanceTo(pick_point)
-            dist1 = end1.DistanceTo(pick_point)
-            if dist0 <= dist1:
-                ref_point = end0
-                other_end = end1
+
+            for part in selected_elements:
+                curve = part.Location.Curve
+                if not curve or not curve.IsBound:
+                    raise Exception("Pipe {} must have a valid location curve.".format(part.Id))
+
+                point0 = curve.GetEndPoint(0)
+                point1 = curve.GetEndPoint(1)
+                midpoint = (point0 + point1) / 2
+                insulation_thickness = part.InsulationThickness if hasattr(part, 'InsulationThickness') and part.HasInsulation else 0.0
+                outside_diameter = get_outside_diameter(part)
+
+                bbox = part.get_BoundingBox(None)
+                if not bbox:
+                    raise Exception("No bounding box found for pipe {}".format(part.Id))
+
+                bottom_z = bbox.Min.Z
+                if align_to_bottom_of_insulation:
+                    bottom_z -= insulation_thickness
+
+                combined_min_z = min(combined_min_z, bottom_z)
+
+                pipe_data.append({
+                    "element": part,
+                    "point0": point0,
+                    "point1": point1,
+                    "midpoint": midpoint,
+                    "insulation_thickness": insulation_thickness,
+                    "outside_diameter": outside_diameter
+                })
+
+            placement_z = combined_min_z
+
+            first_pipe = pipe_data[0]
+            end0 = first_pipe["point0"]
+            end1 = first_pipe["point1"]
+
+            if end0.DistanceTo(pick_point) <= end1.DistanceTo(pick_point):
+                reference_point = end0
+                opposite_end = end1
             else:
-                ref_point = end1
-                other_end = end0
-            dir_vec_for_placement = (other_end - ref_point).Normalize()
-            dir_vec = XYZ(dir_vec_for_placement.X, dir_vec_for_placement.Y, 0).Normalize() # Ensure Z=0, directed away from ref_point
-            perp_vec = XYZ(-dir_vec.Y, dir_vec.X, 0).Normalize() # Perpendicular in XY plane
-         
-            # Compute midpoints, diameters, and insulation for both pipes
-            endpoints = []
-            midpoints = []
-            thicknesses = []
-            diameters = []
-            for pipe in selected_elements:
-                c = pipe.Location.Curve
-                if c and c.IsBound:
-                    endpoints.extend([c.GetEndPoint(0), c.GetEndPoint(1)])
-                    mid = (c.GetEndPoint(0) + c.GetEndPoint(1)) / 2
-                    midpoints.append(mid)
-                    thick = pipe.InsulationThickness if hasattr(pipe, 'InsulationThickness') and pipe.HasInsulation else 0.0
-                    thicknesses.append(thick)
-                    diam = get_diameter(pipe)
-                    diameters.append(diam)
-                else:
-                    print("Invalid location curve for pipe {}".format(pipe.Id))
-                    raise Exception("Pipe must have a valid location curve.")
-         
-            # Recalculate center_perp using projections onto perp_vec
-            perp_projs = []
-            for i, mid in enumerate(midpoints):
-                proj = (mid - ref_point).DotProduct(perp_vec)
-                half_size = diameters[i] / 2 + thicknesses[i]
-                perp_projs.append(proj - half_size) # Min edge
-                perp_projs.append(proj + half_size) # Max edge
-            center_perp = (min(perp_projs) + max(perp_projs)) / 2
-         
-            # Recalculate projections along the pipe direction for first pipe
-            projs_along = [(p - ref_point).DotProduct(dir_vec) for p in first_endpoints]
-            min_along = min(projs_along)
-         
-            for idx, hanger in enumerate(hangers):
-                # Set dimensions first
-                newwidth = myround(width * 12, 2) / 12
-                for dim in hanger.GetDimensions():
-                    dim_name = dim.Name
+                reference_point = end1
+                opposite_end = end0
+
+            direction_raw = (opposite_end - reference_point).Normalize()
+            direction = XYZ(direction_raw.X, direction_raw.Y, 0)
+            if direction.GetLength() == 0:
+                raise Exception("Pipe direction could not be determined in XY plane.")
+            direction = direction.Normalize()
+
+            perpendicular = XYZ(-direction.Y, direction.X, 0).Normalize()
+
+            edge_projections = []
+            for data in pipe_data:
+                proj = (data["midpoint"] - reference_point).DotProduct(perpendicular)
+                half_size = (data["outside_diameter"] / 2.0) + data["insulation_thickness"]
+                edge_projections.append(proj - half_size)
+                edge_projections.append(proj + half_size)
+
+            min_perp = min(edge_projections)
+            max_perp = max(edge_projections)
+            trapeze_center_offset = (min_perp + max_perp) / 2.0
+            trapeze_width = max_perp - min_perp
+
+            first_pipe_endpoints = [first_pipe["point0"], first_pipe["point1"]]
+            along_projections = [(pt - reference_point).DotProduct(direction) for pt in first_pipe_endpoints]
+            min_along = min(along_projections)
+            max_along = max(along_projections)
+            pipe_length_along = max_along - min_along
+
+            hanger_count = int(math.ceil(pipe_length_along / spacing))
+            if hanger_count <= 0:
+                raise Exception("Calculated hanger quantity is zero.")
+
+            width_to_set = round_up_to_multiple(trapeze_width * 12.0, 2) / 12.0
+            rotation_angle = math.atan2(direction.Y, direction.X)
+
+            transaction = Transaction(doc, 'Place and Modify Trapeze Hanger')
+            transaction.Start()
+
+            created_count = 0
+            current_spacing = end_distance
+
+            try:
+                for index in range(hanger_count):
+                    hanger = FabricationPart.CreateHanger(doc, hanger_button, 0, level_id)
+                    if not hanger:
+                        print("Failed to create hanger {}".format(index + 1))
+                        continue
+
+                    created_count += 1
+
+                    for dim in hanger.GetDimensions():
+                        dim_name = dim.Name
+                        try:
+                            if dim_name in ("Width", "Duct Width"):
+                                hanger.SetDimensionValue(dim, width_to_set)
+                            elif dim_name == "Bearer Extn":
+                                hanger.SetDimensionValue(dim, 0.25)
+                        except Exception as ex:
+                            print("Error setting dimension '{}' for hanger {}: {}".format(dim_name, hanger.Id, str(ex)))
+
+                    doc.Regenerate()
+
+                    center = get_center_point(hanger.Id)
+                    z_axis = Line.CreateBound(center, center + XYZ(0, 0, 1))
                     try:
-                        if dim_name in ("Width", "Duct Width"):
-                            hanger.SetDimensionValue(dim, newwidth)
-                        if dim_name == "Bearer Extn":
-                            hanger.SetDimensionValue(dim, 0.25)
-                    except Exception as e:
-                        print("Error setting dimension '{}' for hanger {}: {}".format(dim_name, hanger.Id, str(e)))
-             
-                # Rotate hanger to align with pipe direction
-                center = GetCenterPoint(hanger.Id)
-                z_axis = Line.CreateBound(center, center + XYZ(0, 0, 1))
-                angle_rad = math.atan2(dir_vec.Y, dir_vec.X)
-                try:
-                    ElementTransformUtils.RotateElement(doc, hanger.Id, z_axis, angle_rad)
-                except Exception as e:
-                    print("Error rotating hanger {}: {}".format(hanger.Id, str(e)))
-             
-                # Compute target position starting from nearest endpoint
-                along = min_along + IncrementSpacing
-                pos = ref_point + dir_vec * along + perp_vec * center_perp + XYZ(0, 0, center_z)
-                IncrementSpacing += Spacing
-             
-                # Move hanger
-                center = GetCenterPoint(hanger.Id)
-                translation = pos - center
-                try:
-                    ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
-                except Exception as e:
-                    print("Error moving hanger {}: {}".format(hanger.Id, str(e)))
-             
-                # Set offset
-                reference_level = get_reference_level(hanger)
-                elevation = get_level_elevation(reference_level)
-                try:
-                    offset_param = hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM)
-                    offset_value = center_z - elevation # Always relative, using bounding-box-derived bottom
-                    offset_param.Set(offset_value)
-                except Exception as e:
-                    print("Error setting offset for hanger {}: {}".format(hanger.Id, str(e)))
-             
-                if AtoS:
+                        ElementTransformUtils.RotateElement(doc, hanger.Id, z_axis, rotation_angle)
+                    except Exception as ex:
+                        print("Error rotating hanger {}: {}".format(hanger.Id, str(ex)))
+
+                    doc.Regenerate()
+
+                    along_distance = min_along + current_spacing
+                    target_position = reference_point + (direction * along_distance) + (perpendicular * trapeze_center_offset) + XYZ(0, 0, placement_z)
+                    current_spacing += spacing
+
+                    center = get_center_point(hanger.Id)
+                    translation = target_position - center
                     try:
-                        hanger.GetRodInfo().AttachToStructure()
-                    except Exception as e:
-                        TaskDialog.Show("Error", "Error attaching hanger {} to structure: {}".format(hanger.Id, str(e)))
-         
-            t.Commit()
-     
-        else:
-            pass
- 
+                        ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
+                    except Exception as ex:
+                        print("Error moving hanger {}: {}".format(hanger.Id, str(ex)))
+
+                    try:
+                        offset_param = hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM)
+                        if offset_param:
+                            level_elevation = get_level_elevation_from_element(hanger)
+                            offset_param.Set(placement_z - level_elevation)
+                    except Exception as ex:
+                        print("Error setting offset for hanger {}: {}".format(hanger.Id, str(ex)))
+
+                    if attach_to_structure:
+                        try:
+                            hanger.GetRodInfo().AttachToStructure()
+                        except Exception as ex:
+                            print("Error attaching hanger {} to structure: {}".format(hanger.Id, str(ex)))
+
+                if created_count == 0:
+                    transaction.RollBack()
+                    raise Exception("No hangers were created. Check fabrication service and button compatibility.")
+
+                transaction.Commit()
+
+            except Exception:
+                transaction.RollBack()
+                raise
+
+    # --------------------------------------------------------------------------------
+    # P-TRAP
     else:
-        # Handle CID 916 (P-Trap) case
         level_id = element.LevelId
-        if service_name in servicenamelist:
-            lines[3] = service_name
-        # Instantiate and show the dialog (reusing HangerSpacingDialog with is_ptrap=True)
-        form = HangerSpacingDialog(buttonnames, lines, checkboxdefBOI, checkboxdef, is_ptrap=True)
-        if form.ShowDialog():
-            Selectedbutton = str(form.combobox_hanger.SelectedItem)
-            AtoS = form.checkbox_attach.IsChecked
-            SelectedServiceName = str(form.combobox_service.SelectedItem)
-            # Get and validate user-defined trapeze width
-            trap_width_text = form.textbox_trap_width.Text
+
+        if selected_element_service_name in service_names:
+            settings_lines[3] = selected_element_service_name
+
+        dialog = HangerSpacingDialog(
+            hanger_button_names,
+            service_names,
+            settings_lines,
+            checkbox_boi_default,
+            checkbox_attach_default,
+            is_ptrap=True
+        )
+
+        if dialog.ShowDialog():
+            selected_hanger_name = str(dialog.combobox_hanger.SelectedItem)
+            attach_to_structure = dialog.checkbox_attach.IsChecked
+            selected_service_name = str(dialog.combobox_service.SelectedItem)
+
+            trap_width_text = dialog.textbox_trap_width.Text
             try:
                 trap_width = float(trap_width_text)
                 if trap_width <= 0:
@@ -563,166 +581,104 @@ try:
             except ValueError:
                 TaskDialog.Show("Invalid Input", "Trapeze Rod - Rod Width must be a positive number.")
                 raise
-            # Gets matching index of selected service
-            try:
-                Servicenum = servicenamelist.index(SelectedServiceName)
-            except ValueError:
-                print("Selected service '{}' not found.".format(SelectedServiceName))
-                raise Exception("Selected service not found.")
-         
-            # Find the selected button
-            button_found = False
-            fab_btn = None
-            for servicenum, service in enumerate(LoadedServices):
-                if service.Name == SelectedServiceName:
-                    palette_count = service.PaletteCount if RevitINT >= 2023 else service.GroupCount
-                    for palette_idx in range(palette_count):
-                        button_count = service.GetButtonCount(palette_idx)
-                        for btn_idx in range(button_count):
-                            bt = service.GetButton(palette_idx, btn_idx)
-                            if bt.Name == Selectedbutton:
-                                fab_btn = bt
-                                button_found = True
-                                break
-                        if button_found:
-                            break
-                    if button_found:
-                        break
-         
-            if not button_found:
-                print("'{}' not found in '{}'".format(Selectedbutton, SelectedServiceName))
-                raise Exception("Hanger button not found.")
-         
-            # Write values to text file (preserve distance/spacing/BOI from previous values)
-            with open(filepath, 'w') as the_file:
-                the_file.writelines([
-                    str(Selectedbutton) + '\n',
-                    lines[1] + '\n',
-                    lines[2] + '\n',
-                    SelectedServiceName + '\n',
-                    str(AtoS) + '\n',
-                    lines[5] + '\n' # Preserve previous BOI setting
-                ])
-         
-            # Helper functions (reused)
-            def GetCenterPoint(ele_id):
-                bBox = doc.GetElement(ele_id).get_BoundingBox(None)
-                if bBox:
-                    center = (bBox.Max + bBox.Min) / 2
-                    return center
-                else:
-                    return XYZ(0, 0, 0)
-         
-            def myround(x, multiple):
-                return multiple * math.ceil(x / multiple)
-         
-            def get_reference_level(hanger):
-                level_id = hanger.LevelId
-                level = doc.GetElement(level_id)
-                return level
-         
-            def get_level_elevation(level):
-                if level:
-                    return level.Elevation
-                return 0.0
-         
-            # Get bounding box of P-Trap
-            ptrap_bb = element.get_BoundingBox(curview)
-            if not ptrap_bb:
-                print("No bounding box found for P-Trap {}".format(element.Id))
+
+            hanger_button = find_hanger_button(loaded_services, selected_service_name, selected_hanger_name)
+            if not hanger_button:
+                raise Exception("Hanger button '{}' not found in '{}'".format(selected_hanger_name, selected_service_name))
+
+            write_settings_file(
+                settings_path,
+                selected_hanger_name,
+                settings_lines[1],
+                settings_lines[2],
+                selected_service_name,
+                attach_to_structure,
+                settings_lines[5]
+            )
+
+            ptrap_bbox = element.get_BoundingBox(curview)
+            if not ptrap_bbox:
                 raise Exception("P-Trap bounding box not found.")
-         
-            # Calculate bottom middle point (always align to bottom of insulation if present)
-            thick = element.InsulationThickness if hasattr(element, 'InsulationThickness') and element.HasInsulation else 0.0
-            center_xy = (ptrap_bb.Max + ptrap_bb.Min) / 2
-            bottom_z = ptrap_bb.Min.Z - thick if element.HasInsulation else ptrap_bb.Min.Z
-            target_pos = XYZ(center_xy.X, center_xy.Y, bottom_z)
-         
-            # Get connectors C2 and C3 to determine angle
+
+            insulation_thickness = element.InsulationThickness if hasattr(element, 'InsulationThickness') and element.HasInsulation else 0.0
+            center_xy = (ptrap_bbox.Max + ptrap_bbox.Min) / 2
+            bottom_z = ptrap_bbox.Min.Z - insulation_thickness if element.HasInsulation else ptrap_bbox.Min.Z
+            target_position = XYZ(center_xy.X, center_xy.Y, bottom_z)
+
             connector_manager = element.ConnectorManager
-            c2 = None
-            c3 = None
+            connector_2 = None
+            connector_3 = None
+
             for connector in connector_manager.Connectors:
                 if connector.Id == 1:
-                    c2 = connector
+                    connector_2 = connector
                 elif connector.Id == 2:
-                    c3 = connector
-            if not (c2 and c3):
-                print("Connectors C2 and/or C3 not found for P-Trap {}".format(element.Id))
+                    connector_3 = connector
+
+            if not (connector_2 and connector_3):
                 raise Exception("Required connectors not found.")
-         
-            # Calculate direction vector between C2 and C3 in XY plane
-            c2_pos = c2.Origin
-            c3_pos = c3.Origin
-            dir_vec = (c3_pos - c2_pos).Normalize()
-            dir_vec = XYZ(dir_vec.X, dir_vec.Y, 0).Normalize() # Project to XY plane
-            angle_rad = math.atan2(dir_vec.Y, dir_vec.X) + math.pi
-         
-            # Create hanger
-            t = Transaction(doc, 'Place Trapeze Hanger on P-Trap')
-            t.Start()
+
+            connector_2_pos = connector_2.Origin
+            connector_3_pos = connector_3.Origin
+            direction = (connector_3_pos - connector_2_pos).Normalize()
+            direction = XYZ(direction.X, direction.Y, 0).Normalize()
+            rotation_angle = math.atan2(direction.Y, direction.X) + math.pi
+
+            transaction = Transaction(doc, 'Place Trapeze Hanger on P-Trap')
+            transaction.Start()
+
             try:
-                hanger = FabricationPart.CreateHanger(doc, fab_btn, 0, level_id)
+                hanger = FabricationPart.CreateHanger(doc, hanger_button, 0, level_id)
                 if not hanger:
-                    print("Failed to create hanger for P-Trap")
-                    t.RollBack()
+                    transaction.RollBack()
                     raise Exception("Hanger creation failed.")
-            except Exception as e:
-                print("Error creating hanger: {}".format(str(e)))
-                t.RollBack()
-                raise Exception("Hanger creation failed.")
-         
-            # Set hanger dimensions using user-defined width
-            for dim in hanger.GetDimensions():
-                dim_name = dim.Name
+
+                for dim in hanger.GetDimensions():
+                    dim_name = dim.Name
+                    try:
+                        if dim_name == "Width":
+                            hanger.SetDimensionValue(dim, (trap_width - 0.166666))
+                        elif dim_name == "Bearer Extn":
+                            hanger.SetDimensionValue(dim, 0.25)
+                    except Exception as ex:
+                        print("Error setting dimension '{}' for hanger {}: {}".format(dim_name, hanger.Id, str(ex)))
+
+                center = get_center_point(hanger.Id)
+                z_axis = Line.CreateBound(center, center + XYZ(0, 0, 1))
                 try:
-                    if dim_name == "Width":
-                        hanger.SetDimensionValue(dim, (trap_width - 0.166666))
-                    if dim_name == "Bearer Extn":
-                        hanger.SetDimensionValue(dim, 0.25)
-                except Exception as e:
-                    print("Error setting dimension '{}' for hanger {}: {}".format(dim_name, hanger.Id, str(e)))
-         
-            # Rotate hanger
-            center = GetCenterPoint(hanger.Id)
-            z_axis = Line.CreateBound(center, center + XYZ(0, 0, 1))
-            try:
-                ElementTransformUtils.RotateElement(doc, hanger.Id, z_axis, angle_rad)
-            except Exception as e:
-                print("Error rotating hanger {}: {}".format(hanger.Id, str(e)))
-                t.RollBack()
-                raise Exception("Failed to rotate hanger.")
-         
-            # Move hanger to target position
-            center = GetCenterPoint(hanger.Id)
-            translation = target_pos - center
-            try:
-                ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
-            except Exception as e:
-                print("Error moving hanger {}: {}".format(hanger.Id, str(e)))
-                t.RollBack()
-                raise Exception("Failed to move hanger.")
-         
-            # Set offset
-            reference_level = get_reference_level(hanger)
-            elevation = get_level_elevation(reference_level)
-            try:
-                offset_param = hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM)
-                offset_value = bottom_z - elevation
-                offset_param.Set(offset_value)
-            except Exception as e:
-                print("Error setting offset for hanger {}: {}".format(hanger.Id, str(e)))
-         
-            # Attach to structure if selected
-            if AtoS:
+                    ElementTransformUtils.RotateElement(doc, hanger.Id, z_axis, rotation_angle)
+                except Exception as ex:
+                    transaction.RollBack()
+                    raise Exception("Failed to rotate hanger: {}".format(str(ex)))
+
+                center = get_center_point(hanger.Id)
+                translation = target_position - center
                 try:
-                    hanger.GetRodInfo().AttachToStructure()
-                except Exception as e:
-                    print("Error attaching hanger {} to structure: {}".format(hanger.Id, str(e)))
-         
-            t.Commit()
-     
-        else:
-            pass
-except Exception as e:
-    TaskDialog.Show("Error", "Script error: {}".format(str(e)))
+                    ElementTransformUtils.MoveElement(doc, hanger.Id, translation)
+                except Exception as ex:
+                    transaction.RollBack()
+                    raise Exception("Failed to move hanger: {}".format(str(ex)))
+
+                try:
+                    offset_param = hanger.get_Parameter(BuiltInParameter.FABRICATION_OFFSET_PARAM)
+                    if offset_param:
+                        level_elevation = get_level_elevation_from_element(hanger)
+                        offset_param.Set(bottom_z - level_elevation)
+                except Exception as ex:
+                    print("Error setting offset for hanger {}: {}".format(hanger.Id, str(ex)))
+
+                if attach_to_structure:
+                    try:
+                        hanger.GetRodInfo().AttachToStructure()
+                    except Exception as ex:
+                        print("Error attaching hanger {} to structure: {}".format(hanger.Id, str(ex)))
+
+                transaction.Commit()
+
+            except Exception:
+                if transaction.HasStarted():
+                    transaction.RollBack()
+                raise
+
+except Exception as ex:
+    TaskDialog.Show("Error", "Script error: {}".format(str(ex)))

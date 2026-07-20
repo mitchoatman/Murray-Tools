@@ -7,18 +7,23 @@ clr.AddReference('System.Collections')
 clr.AddReference('RevitAPI')
 clr.AddReference('RevitAPIUI')
 
+from System import TimeSpan, Action
 from System.Windows import (
     Window, WindowStartupLocation, WindowStyle, GridLength,
-    HorizontalAlignment, VerticalAlignment, GridUnitType, Thickness
+    HorizontalAlignment, VerticalAlignment, GridUnitType, Thickness,
+    Visibility, TextWrapping
 )
 from System.Windows.Controls import (
     Label, ComboBox, Button, ListBox, CheckBox, TextBox, Grid,
     RowDefinition, ColumnDefinition, SelectionMode, StackPanel,
-    Orientation, ListBoxItem
+    Orientation, ListBoxItem, Border, TextBlock
 )
+from System.Windows.Input import Cursors
 from System.Windows.Media import Brushes, SolidColorBrush, Color
 from System.Collections.Generic import List
-from System.Windows.Threading import DispatcherFrame, Dispatcher
+from System.Windows.Threading import (
+    DispatcherFrame, Dispatcher, DispatcherTimer, DispatcherPriority
+)
 
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import (
@@ -35,6 +40,338 @@ from Parameters.Get_Set_Params import (
     get_parameter_value_by_name_AsValueString,
     get_parameter_value_by_name_AsInteger
 )
+
+
+FAB_ONLY_SCAN_PROPS = [
+    'CID', 'ServiceType', 'Service Name', 'Service Abbreviation', 'Size',
+    'STRATUS Assembly', 'Line Number', 'STRATUS Status', 'Reference Level',
+    'Item Number', 'Bundle Number', 'REF BS Designation', 'REF Line Number',
+    'Specification', 'Insulation Specification', 'Hanger Rod Size',
+    'Valve Number', 'Beam Hanger', 'Product Entry', 'Alias', 'Cut Type'
+]
+
+ALL_SCAN_PROPS = [
+    'Name', 'Comments', 'Category', 'TS_Point_Number', 'TS_Point_Description'
+]
+
+
+def has_value(v):
+    return v not in (None, "")
+
+
+def safe_str(v):
+    return "" if v is None else str(v)
+
+
+_MISSING = object()
+
+_ELEMENT_TYPE_CACHE = {}
+_INSTANCE_PARAM_STRING_CACHE = {}
+_TYPE_PARAM_STRING_CACHE = {}
+_INSTANCE_PARAM_VALUESTRING_CACHE = {}
+_TYPE_PARAM_VALUESTRING_CACHE = {}
+_INSTANCE_PARAM_INT_CACHE = {}
+_TYPE_PARAM_INT_CACHE = {}
+
+_PROPERTY_VALUE_CACHE = {}
+_NAME_VALUE_CACHE = {}
+_WORKSET_NAME_CACHE = {}
+_SERVICE_TYPE_NAME_CACHE = {}
+_SPEC_NAME_CACHE = {}
+_INSUL_SPEC_CACHE = {}
+
+
+def clear_global_caches():
+    _ELEMENT_TYPE_CACHE.clear()
+    _INSTANCE_PARAM_STRING_CACHE.clear()
+    _TYPE_PARAM_STRING_CACHE.clear()
+    _INSTANCE_PARAM_VALUESTRING_CACHE.clear()
+    _TYPE_PARAM_VALUESTRING_CACHE.clear()
+    _INSTANCE_PARAM_INT_CACHE.clear()
+    _TYPE_PARAM_INT_CACHE.clear()
+    _PROPERTY_VALUE_CACHE.clear()
+    _NAME_VALUE_CACHE.clear()
+    _WORKSET_NAME_CACHE.clear()
+    _SERVICE_TYPE_NAME_CACHE.clear()
+    _SPEC_NAME_CACHE.clear()
+    _INSUL_SPEC_CACHE.clear()
+
+
+def get_elem_key(elem):
+    try:
+        if elem and elem.IsValidObject:
+            return elem.Id.IntegerValue
+    except:
+        pass
+    return None
+
+
+def get_cached_param_string(target, param_name, cache):
+    if target is None or not target.IsValidObject:
+        return None
+
+    try:
+        key = (target.Id.IntegerValue, param_name)
+    except:
+        return None
+
+    if key in cache:
+        v = cache[key]
+        return None if v is _MISSING else v
+
+    try:
+        v = get_parameter_value_by_name_AsString(target, param_name)
+        cache[key] = v if has_value(v) else _MISSING
+        return v if has_value(v) else None
+    except:
+        cache[key] = _MISSING
+        return None
+
+
+def get_cached_param_valuestring(target, param_name, cache):
+    if target is None or not target.IsValidObject:
+        return None
+
+    try:
+        key = (target.Id.IntegerValue, param_name)
+    except:
+        return None
+
+    if key in cache:
+        v = cache[key]
+        return None if v is _MISSING else v
+
+    try:
+        v = get_parameter_value_by_name_AsValueString(target, param_name)
+        cache[key] = v if has_value(v) else _MISSING
+        return v if has_value(v) else None
+    except:
+        cache[key] = _MISSING
+        return None
+
+
+def get_cached_param_int(target, param_name, cache):
+    if target is None or not target.IsValidObject:
+        return None
+
+    try:
+        key = (target.Id.IntegerValue, param_name)
+    except:
+        return None
+
+    if key in cache:
+        v = cache[key]
+        return None if v is _MISSING else v
+
+    try:
+        v = get_parameter_value_by_name_AsInteger(target, param_name)
+        cache[key] = v if v is not None else _MISSING
+        return v
+    except:
+        cache[key] = _MISSING
+        return None
+
+
+def get_cached_service_type_name(config, service_type_id):
+    key = safe_str(service_type_id)
+    if key in _SERVICE_TYPE_NAME_CACHE:
+        v = _SERVICE_TYPE_NAME_CACHE[key]
+        return None if v is _MISSING else v
+
+    try:
+        v = config.GetServiceTypeName(service_type_id)
+    except:
+        v = None
+
+    _SERVICE_TYPE_NAME_CACHE[key] = v if has_value(v) else _MISSING
+    return v
+
+
+def get_cached_spec_name(config, spec_id):
+    key = safe_str(spec_id)
+    if key in _SPEC_NAME_CACHE:
+        v = _SPEC_NAME_CACHE[key]
+        return None if v is _MISSING else v
+
+    try:
+        v = config.GetSpecificationName(spec_id)
+    except:
+        v = None
+
+    _SPEC_NAME_CACHE[key] = v if has_value(v) else _MISSING
+    return v
+
+
+def get_cached_insul_spec_abbrev(config, insul_spec_id):
+    key = safe_str(insul_spec_id)
+    if key in _INSUL_SPEC_CACHE:
+        v = _INSUL_SPEC_CACHE[key]
+        return None if v is _MISSING else v
+
+    try:
+        v = config.GetInsulationSpecificationAbbreviation(insul_spec_id)
+    except:
+        v = None
+
+    _INSUL_SPEC_CACHE[key] = v if has_value(v) else _MISSING
+    return v
+
+
+def get_element_type(elem):
+    if elem is None or not elem.IsValidObject:
+        return None
+
+    key = get_elem_key(elem)
+    if key is not None and key in _ELEMENT_TYPE_CACHE:
+        v = _ELEMENT_TYPE_CACHE[key]
+        return None if v is _MISSING else v
+
+    try:
+        type_id = elem.GetTypeId()
+        if type_id and type_id != DB.ElementId.InvalidElementId:
+            t = elem.Document.GetElement(type_id)
+            if key is not None:
+                _ELEMENT_TYPE_CACHE[key] = t if t else _MISSING
+            return t
+    except:
+        pass
+
+    if key is not None:
+        _ELEMENT_TYPE_CACHE[key] = _MISSING
+    return None
+
+
+def get_param_string_instance_or_type(elem, param_name):
+    if elem is None or not elem.IsValidObject:
+        return None
+
+    v = get_cached_param_string(elem, param_name, _INSTANCE_PARAM_STRING_CACHE)
+    if has_value(v):
+        return v
+
+    elem_type = get_element_type(elem)
+    if elem_type:
+        return get_cached_param_string(elem_type, param_name, _TYPE_PARAM_STRING_CACHE)
+
+    return None
+
+
+def get_param_value_string_instance_or_type(elem, param_name):
+    if elem is None or not elem.IsValidObject:
+        return None
+
+    v = get_cached_param_valuestring(elem, param_name, _INSTANCE_PARAM_VALUESTRING_CACHE)
+    if has_value(v):
+        return v
+
+    elem_type = get_element_type(elem)
+    if elem_type:
+        return get_cached_param_valuestring(elem_type, param_name, _TYPE_PARAM_VALUESTRING_CACHE)
+
+    return None
+
+
+def get_param_int_instance_or_type(elem, param_name):
+    if elem is None or not elem.IsValidObject:
+        return None
+
+    v = get_cached_param_int(elem, param_name, _INSTANCE_PARAM_INT_CACHE)
+    if v is not None:
+        return v
+
+    elem_type = get_element_type(elem)
+    if elem_type:
+        return get_cached_param_int(elem_type, param_name, _TYPE_PARAM_INT_CACHE)
+
+    return None
+
+
+def get_name_value(x):
+    key = get_elem_key(x)
+    if key is not None and key in _NAME_VALUE_CACHE:
+        v = _NAME_VALUE_CACHE[key]
+        return None if v is _MISSING else v
+
+    val = get_param_value_string_instance_or_type(x, 'Family')
+    if not val:
+        try:
+            p = x.get_Parameter(DB.BuiltInParameter.ELEM_FAMILY_PARAM)
+            if p:
+                val = p.AsValueString()
+        except:
+            pass
+
+    if not val:
+        elem_type = get_element_type(x)
+        if elem_type:
+            try:
+                p = elem_type.get_Parameter(DB.BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM)
+                if p:
+                    val = p.AsString() or p.AsValueString()
+            except:
+                pass
+
+    if key is not None:
+        _NAME_VALUE_CACHE[key] = val if has_value(val) else _MISSING
+
+    return val
+
+
+def get_user_workset_name(elem):
+    if elem is None or not elem.IsValidObject:
+        return None
+
+    key = get_elem_key(elem)
+    if key is not None and key in _WORKSET_NAME_CACHE:
+        v = _WORKSET_NAME_CACHE[key]
+        return None if v is _MISSING else v
+
+    val = None
+    try:
+        ws = elem.Document.GetWorksetTable().GetWorkset(elem.WorksetId)
+        if ws and ws.Kind == DB.WorksetKind.UserWorkset:
+            val = ws.Name
+    except:
+        pass
+
+    if key is not None:
+        _WORKSET_NAME_CACHE[key] = val if has_value(val) else _MISSING
+
+    return val
+
+
+PROPERTY_MAP = {
+    'CID': lambda x, c: str(x.ItemCustomId) if getattr(x, 'ItemCustomId', None) else None,
+    'ServiceType': lambda x, c: get_cached_service_type_name(c, x.ServiceType) if getattr(x, 'ServiceType', None) else None,
+    'Name': lambda x, c: get_name_value(x),
+    'Service Name': lambda x, c: get_param_string_instance_or_type(x, 'Fabrication Service Name'),
+    'Service Abbreviation': lambda x, c: get_param_string_instance_or_type(x, 'Fabrication Service Abbreviation'),
+    'Size': lambda x, c: get_param_string_instance_or_type(x, 'Size of Primary End'),
+    'STRATUS Assembly': lambda x, c: get_param_string_instance_or_type(x, 'STRATUS Assembly'),
+    'Line Number': lambda x, c: get_param_string_instance_or_type(x, 'FP_Line Number'),
+    'STRATUS Status': lambda x, c: get_param_string_instance_or_type(x, 'STRATUS Status'),
+    'Reference Level': lambda x, c: get_param_value_string_instance_or_type(x, 'Reference Level'),
+    'Item Number': lambda x, c: get_param_string_instance_or_type(x, 'Item Number'),
+    'Bundle Number': lambda x, c: get_param_string_instance_or_type(x, 'FP_Bundle'),
+    'REF BS Designation': lambda x, c: get_param_string_instance_or_type(x, 'FP_REF BS Designation'),
+    'REF Line Number': lambda x, c: get_param_string_instance_or_type(x, 'FP_REF Line Number'),
+    'Comments': lambda x, c: get_param_string_instance_or_type(x, 'Comments'),
+    'Specification': lambda x, c: get_cached_spec_name(c, x.Specification) if getattr(x, 'Specification', None) else None,
+    'Hanger Rod Size': lambda x, c: get_param_value_string_instance_or_type(x, 'FP_Rod Size'),
+    'Valve Number': lambda x, c: get_param_string_instance_or_type(x, 'FP_Valve Number'),
+    'Beam Hanger': lambda x, c: get_param_string_instance_or_type(x, 'FP_Beam Hanger'),
+    'Product Entry': lambda x, c: get_param_string_instance_or_type(x, 'Product Entry'),
+    'TS_Point_Number': lambda x, c: get_param_string_instance_or_type(x, 'TS_Point_Number'),
+    'TS_Point_Description': lambda x, c: get_param_string_instance_or_type(x, 'TS_Point_Description'),
+    'Alias': lambda x, c: get_param_string_instance_or_type(x, 'Alias'),
+    'Category': lambda x, c: x.Category.Name if x.Category else None,
+    'Workset': lambda x, c: get_user_workset_name(x),
+    'Cut Type': lambda x, c: get_param_value_string_instance_or_type(x, 'Cut Type'),
+    'Insulation Specification': lambda x, c:
+        get_param_value_string_instance_or_type(x, 'Insulation Specification') or
+        (get_cached_insul_spec_abbrev(c, x.InsulationSpecification)
+         if getattr(x, 'InsulationSpecification', 0) else None),
+}
 
 
 class ValueItem(object):
@@ -117,20 +454,35 @@ class RemoveFilterDialog(Window):
 
 
 class MultiPropertyFilterForm(Window):
-    def __init__(self, doc, uidoc, curview, config, property_options, fab_elements, all_elements):
+    def __init__(self, doc, uidoc, curview, config, property_names, fab_elements, all_elements):
         self.doc = doc
         self.uidoc = uidoc
         self.curview = curview
         self.config = config
-        self.property_options = property_options
         self.fab_elements = fab_elements
         self.all_elements = all_elements
         self.selected_filters = {}
 
+        self.property_names = sorted(property_names)
+        self.property_options = dict((p, None) for p in self.property_names)
+
+        self._property_string_cache = {}
+        self._valid_workset_cache = {}
+        self._search_loaded_all = False
+        self._search_delay_ms = 300
+
+        self.search_timer = DispatcherTimer()
+        self.search_timer.Interval = TimeSpan.FromMilliseconds(self._search_delay_ms)
+        self.search_timer.Tick += self.on_search_timer_tick
+
+        self.notice_timer = DispatcherTimer()
+        self.notice_timer.Interval = TimeSpan.FromMilliseconds(2200)
+        self.notice_timer.Tick += self.on_notice_timer_tick
+
         self.InitializeComponents()
 
-        if self.property_options:
-            self.property_combo.SelectedItem = list(self.property_options.keys())[0]
+        if self.property_names:
+            self.property_combo.SelectedItem = self.property_names[0]
             self.update_values_list(None, None)
 
         self.update_filter_display()
@@ -178,9 +530,9 @@ class MultiPropertyFilterForm(Window):
             Margin=Thickness(120, 0, 10, 0),
             HorizontalAlignment=HorizontalAlignment.Left
         )
-        for prop in sorted(self.property_options.keys()):
+        for prop in self.property_names:
             self.property_combo.Items.Add(prop)
-        self.property_combo.SelectionChanged += self.update_values_list
+        self.property_combo.SelectionChanged += self.on_property_changed
         Grid.SetRow(self.property_combo, 0)
         Grid.SetColumn(self.property_combo, 1)
         grid.Children.Add(self.property_combo)
@@ -200,7 +552,7 @@ class MultiPropertyFilterForm(Window):
             Margin=Thickness(75, 0, 10, 0),
             HorizontalAlignment=HorizontalAlignment.Left
         )
-        self.search_box.TextChanged += self.update_values_list
+        self.search_box.TextChanged += self.on_search_text_changed
         Grid.SetRow(self.search_box, 1)
         Grid.SetColumn(self.search_box, 1)
         grid.Children.Add(self.search_box)
@@ -208,7 +560,7 @@ class MultiPropertyFilterForm(Window):
 
         self.values_label = Label(
             Content="Select Values:",
-            Margin=Thickness(10, 25, 10, 0),
+            Margin=Thickness(10, 5, 10, 0),
             HorizontalAlignment=HorizontalAlignment.Left
         )
         Grid.SetRow(self.values_label, 2)
@@ -230,27 +582,13 @@ class MultiPropertyFilterForm(Window):
             Content="Add Filter",
             Width=80,
             Height=25,
-            Margin=Thickness(10, 20, 10, 0),
+            Margin=Thickness(10, 5, 10, 0),
             HorizontalAlignment=HorizontalAlignment.Right
         )
         self.add_button.Click += self.add_filter
         Grid.SetRow(self.add_button, 2)
         Grid.SetColumn(self.add_button, 1)
         grid.Children.Add(self.add_button)
-
-        self.filter_button = Button(
-            Width=500,
-            Height=130,
-            Margin=Thickness(10, 10, 10, 0),
-            HorizontalContentAlignment=HorizontalAlignment.Left,
-            VerticalContentAlignment=VerticalAlignment.Top,
-            HorizontalAlignment=HorizontalAlignment.Center
-        )
-        self.filter_button.ToolTip = "Click here to modify Filters"
-        self.filter_button.Click += self.remove_filter
-        Grid.SetRow(self.filter_button, 5)
-        Grid.SetColumn(self.filter_button, 1)
-        grid.Children.Add(self.filter_button)
 
         self.logic_check = CheckBox(
             Content="AND logic (unchecked = OR)",
@@ -262,6 +600,28 @@ class MultiPropertyFilterForm(Window):
         Grid.SetColumn(self.logic_check, 1)
         grid.Children.Add(self.logic_check)
 
+        self.filter_button = Button(
+            Width=500,
+            Height=130,
+            Margin=Thickness(10, 10, 10, 0),
+            HorizontalContentAlignment=HorizontalAlignment.Stretch,
+            VerticalContentAlignment=VerticalAlignment.Stretch,
+            HorizontalAlignment=HorizontalAlignment.Center
+        )
+        self.filter_button.ToolTip = "Click here to modify Filters"
+        self.filter_button.Click += self.remove_filter
+
+        self.filter_text = TextBlock()
+        self.filter_text.TextWrapping = TextWrapping.Wrap
+        self.filter_text.Margin = Thickness(6, 4, 6, 4)
+        self.filter_text.Width = 470
+
+        self.filter_button.Content = self.filter_text
+
+        Grid.SetRow(self.filter_button, 5)
+        Grid.SetColumn(self.filter_button, 1)
+        grid.Children.Add(self.filter_button)
+
         panel = StackPanel(
             Orientation=Orientation.Horizontal,
             HorizontalAlignment=HorizontalAlignment.Center,
@@ -272,7 +632,6 @@ class MultiPropertyFilterForm(Window):
         grid.Children.Add(panel)
 
         for txt, handler in [
-            ("Update Data", self.reset_filter_clicked),
             ("Reset View", self.reset_clicked),
             ("Isolate", self.isolate_clicked),
             ("Select", self.select_clicked),
@@ -280,9 +639,9 @@ class MultiPropertyFilterForm(Window):
         ]:
             btn = Button(
                 Content=txt,
-                Width=80,
+                Width=90 if txt == "Reset View" else 80,
                 Height=25,
-                Margin=Thickness(0 if txt == "Update Data" else 5, 0, 0 if txt == "Close" else 5, 0)
+                Margin=Thickness(5, 0, 5, 0)
             )
             if txt == "Reset View":
                 btn.Background = SolidColorBrush(Color.FromRgb(160, 82, 82))
@@ -290,102 +649,262 @@ class MultiPropertyFilterForm(Window):
             btn.Click += handler
             panel.Children.Add(btn)
 
+        self.loading_overlay = Grid()
+        self.loading_overlay.Background = SolidColorBrush(Color.FromArgb(125, 0, 0, 0))
+        self.loading_overlay.Visibility = Visibility.Collapsed
+        self.loading_overlay.Margin = Thickness(10, 8, 10, 0)
+
+        overlay_border = Border()
+        overlay_border.Width = 320
+        overlay_border.Height = 70
+        overlay_border.Background = SolidColorBrush(Color.FromRgb(245, 245, 245))
+        overlay_border.BorderBrush = SolidColorBrush(Color.FromRgb(160, 160, 160))
+        overlay_border.BorderThickness = Thickness(1)
+        overlay_border.HorizontalAlignment = HorizontalAlignment.Center
+        overlay_border.VerticalAlignment = VerticalAlignment.Center
+
+        self.loading_text = Label(
+            Content="Loading data...",
+            HorizontalAlignment=HorizontalAlignment.Center,
+            HorizontalContentAlignment=HorizontalAlignment.Center,
+            VerticalContentAlignment=VerticalAlignment.Center,
+            Foreground=Brushes.Black,
+            FontSize=14,
+            Margin=Thickness(10, 10, 10, 10)
+        )
+
+        overlay_border.Child = self.loading_text
+        self.loading_overlay.Children.Add(overlay_border)
+
+        Grid.SetRow(self.loading_overlay, 4)
+        Grid.SetRowSpan(self.loading_overlay, 3)
+        Grid.SetColumnSpan(self.loading_overlay, 3)
+        grid.Children.Add(self.loading_overlay)
+
+        self.notice_overlay = Grid()
+        self.notice_overlay.Visibility = Visibility.Collapsed
+        self.notice_overlay.Margin = Thickness(10, 8, 10, 0)
+
+        self.notice_border = Border()
+        self.notice_border.Width = 360
+        self.notice_border.Height = 70
+        self.notice_border.Background = SolidColorBrush(Color.FromRgb(255, 248, 225))
+        self.notice_border.BorderBrush = SolidColorBrush(Color.FromRgb(191, 144, 0))
+        self.notice_border.BorderThickness = Thickness(1)
+        self.notice_border.HorizontalAlignment = HorizontalAlignment.Center
+        self.notice_border.VerticalAlignment = VerticalAlignment.Center
+
+        self.notice_text = Label(
+            Content="",
+            HorizontalAlignment=HorizontalAlignment.Center,
+            HorizontalContentAlignment=HorizontalAlignment.Center,
+            VerticalContentAlignment=VerticalAlignment.Center,
+            Foreground=Brushes.Black,
+            FontSize=13,
+            Margin=Thickness(10, 10, 10, 10)
+        )
+
+        self.notice_border.Child = self.notice_text
+        self.notice_overlay.Children.Add(self.notice_border)
+
+        Grid.SetRow(self.notice_overlay, 4)
+        Grid.SetRowSpan(self.notice_overlay, 3)
+        Grid.SetColumnSpan(self.notice_overlay, 3)
+        grid.Children.Add(self.notice_overlay)
+
     def exit_frame(self, s, e):
         self.frame.Continue = False
 
-    def reset_filter_clicked(self, sender, args):
+    def pump_ui(self):
+        self.Dispatcher.Invoke(DispatcherPriority.Render, Action(lambda: None))
+
+    def show_loading(self, text="Loading data..."):
+        self.hide_notice()
+        self.loading_text.Content = text
+        self.loading_overlay.Visibility = Visibility.Visible
+        self.Cursor = Cursors.Wait
+        self.pump_ui()
+
+    def hide_loading(self):
+        self.loading_overlay.Visibility = Visibility.Collapsed
+        self.Cursor = Cursors.Arrow
+        self.pump_ui()
+
+    def show_notice(self, text, level="warning", auto_hide=True):
+        self.notice_timer.Stop()
+        self.notice_text.Content = text
+
+        if level == "warning":
+            self.notice_border.Background = SolidColorBrush(Color.FromRgb(255, 248, 225))
+            self.notice_border.BorderBrush = SolidColorBrush(Color.FromRgb(191, 144, 0))
+        elif level == "info":
+            self.notice_border.Background = SolidColorBrush(Color.FromRgb(232, 244, 253))
+            self.notice_border.BorderBrush = SolidColorBrush(Color.FromRgb(91, 155, 213))
+        else:
+            self.notice_border.Background = SolidColorBrush(Color.FromRgb(240, 240, 240))
+            self.notice_border.BorderBrush = SolidColorBrush(Color.FromRgb(160, 160, 160))
+
+        self.notice_overlay.Visibility = Visibility.Visible
+        self.pump_ui()
+
+        if auto_hide:
+            self.notice_timer.Start()
+
+    def hide_notice(self):
+        self.notice_timer.Stop()
+        self.notice_overlay.Visibility = Visibility.Collapsed
+
+    def on_notice_timer_tick(self, sender, args):
+        self.notice_timer.Stop()
+        self.hide_notice()
+
+    def set_busy(self, is_busy, text=None):
+        self.values_list.IsEnabled = not is_busy
+        self.property_combo.IsEnabled = not is_busy
+        self.add_button.IsEnabled = not is_busy
+        self.logic_check.IsEnabled = not is_busy
+        self.filter_button.IsEnabled = not is_busy
+        self.search_box.IsEnabled = not is_busy
+
+        if is_busy:
+            self.show_loading(text or "Loading data...")
+        else:
+            self.hide_loading()
+
+    def clear_runtime_caches(self):
+        self._property_string_cache = {}
+        self._valid_workset_cache = {}
+        self._search_loaded_all = False
+        clear_global_caches()
+
+    def refresh_dialog_data(self):
+        pre = [self.doc.GetElement(i) for i in self.uidoc.Selection.GetElementIds()]
+
+        self.fab_elements = pre or FilteredElementCollector(
+            self.doc, self.curview.Id
+        ).OfClass(DB.FabricationPart).WhereElementIsNotElementType().ToElements()
+
+        self.all_elements = pre or FilteredElementCollector(
+            self.doc, self.curview.Id
+        ).WhereElementIsNotElementType().ToElements()
+
+        self.property_names = build_relevant_property_names(
+            self.fab_elements,
+            self.all_elements,
+            self.config
+        )
+        self.property_options = dict((p, None) for p in self.property_names)
+        self.clear_runtime_caches()
+
+        current_sel = self.property_combo.SelectedItem
+        self.property_combo.Items.Clear()
+        for p in self.property_names:
+            self.property_combo.Items.Add(p)
+
+        self.values_list.Items.Clear()
+
+        if self.property_names:
+            if current_sel in self.property_names:
+                self.property_combo.SelectedItem = current_sel
+            else:
+                self.property_combo.SelectedItem = self.property_names[0]
+            self.update_values_list(None, None)
+
+    def on_search_text_changed(self, sender, args):
+        term = self.search_box.Text.strip()
+        self.search_timer.Stop()
+
+        if term:
+            self.show_loading("Preparing search...")
+            self.search_timer.Start()
+        else:
+            self.hide_loading()
+            self.update_values_list(None, None)
+
+    def on_property_changed(self, sender, args):
         try:
-            pre = [self.doc.GetElement(i) for i in self.uidoc.Selection.GetElementIds()]
-            self.fab_elements = pre or FilteredElementCollector(
-                self.doc, self.curview.Id
-            ).OfClass(DB.FabricationPart).WhereElementIsNotElementType().ToElements()
+            self.property_combo.IsDropDownOpen = False
+        except:
+            pass
 
-            self.all_elements = pre or FilteredElementCollector(
-                self.doc, self.curview.Id
-            ).WhereElementIsNotElementType().ToElements()
+        def do_update():
+            if self.search_box.Text.strip():
+                self.search_timer.Stop()
+                self.show_loading("Preparing search...")
+                self.search_timer.Start()
+            else:
+                self.update_values_list(None, None)
 
-            self.property_options = {}
+        self.Dispatcher.BeginInvoke(
+            DispatcherPriority.Background,
+            Action(do_update)
+        )
 
-            fab_props = [
-                'CID', 'ServiceType', 'Service Name', 'Service Abbreviation', 'Size',
-                'STRATUS Assembly', 'Line Number', 'STRATUS Status', 'Reference Level',
-                'Item Number', 'Bundle Number', 'REF BS Designation', 'REF Line Number',
-                'Specification', 'Insulation Specification', 'Hanger Rod Size',
-                'Valve Number', 'Beam Hanger', 'Product Entry',
-                'TS_Point_Number', 'TS_Point_Description', 'Alias'
-            ]
+    def on_search_timer_tick(self, sender, args):
+        self.search_timer.Stop()
+        self.update_values_list(None, None)
 
-            for prop in fab_props:
-                vals = set(filter(None, [get_property_value(e, prop, self.config, False) for e in self.fab_elements]))
-                if vals:
-                    self.property_options[prop] = sorted(vals)
+    def ensure_property_loaded(self, prop):
+        if prop not in self.property_options:
+            return
 
-            all_props = ['Name', 'Comments', 'Category', 'TS_Point_Number', 'TS_Point_Description']
-            for prop in all_props:
-                vals = set(filter(None, [get_property_value(e, prop, self.config, False) for e in self.all_elements]))
-                if vals:
-                    self.property_options[prop] = sorted(vals)
+        if self.property_options[prop] is not None:
+            return
 
-            workset_elements = [e for e in self.all_elements if is_valid_workset_element(e)]
-            if workset_elements:
-                vals = set(filter(None, [get_property_value(e, 'Workset', self.config, False) for e in workset_elements]))
-                if vals:
-                    self.property_options['Workset'] = sorted(vals)
+        vals = set()
 
-            self.property_combo.Items.Clear()
-            for p in sorted(self.property_options.keys()):
-                self.property_combo.Items.Add(p)
+        if prop in FAB_ONLY_SCAN_PROPS:
+            elems = self.fab_elements
+        else:
+            elems = self.all_elements
 
-            if self.property_options:
-                first = sorted(self.property_options.keys())[0]
-                self.property_combo.SelectedItem = first
-                self.search_box.Text = ""
-                self.values_list.Items.Clear()
-                for v in self.property_options[first]:
-                    item = ListBoxItem(Content=str(ValueItem(first, v)))
-                    item.Tag = ValueItem(first, v)
-                    self.values_list.Items.Add(item)
+        for e in elems:
+            if prop == 'Workset':
+                if not self.is_cached_valid_workset_element(e):
+                    continue
 
-        except Exception as e:
-            dlg = TaskDialog("Error")
-            dlg.MainInstruction = "Update Data Error: {0}".format(e)
-            dlg.CommonButtons = TaskDialogCommonButtons.Ok
-            dlg.Show()
+            v = get_property_value(e, prop, self.config, False)
+            if has_value(v):
+                vals.add(v)
+
+        self.property_options[prop] = sorted(vals, key=lambda x: safe_str(x).lower())
 
     def update_values_list(self, sender, args):
-        term = self.search_box.Text.lower()
+        term = self.search_box.Text.lower().strip()
         sel = self.property_combo.SelectedItem
         self.values_list.Items.Clear()
 
-        if term:
-            results = []
-            for prop, vals in self.property_options.items():
+        try:
+            if sel:
+                self.set_busy(True, "Loading {0} values...".format(sel))
+                self.ensure_property_loaded(sel)
+
+                vals = self.property_options.get(sel, [])
+
+                if term:
+                    vals = [v for v in vals if term in safe_str(v).lower()]
+
                 for v in vals:
-                    if term in str(v).lower():
-                        results.append(ValueItem(prop, v))
-            results.sort(key=lambda x: (x.Property, x.Value))
-            for vi in results:
-                item = ListBoxItem(Content=str(vi))
-                item.Tag = vi
-                self.values_list.Items.Add(item)
-        elif sel:
-            for v in self.property_options.get(sel, []):
-                vi = ValueItem(sel, v)
-                item = ListBoxItem(Content=str(vi))
-                item.Tag = vi
-                self.values_list.Items.Add(item)
+                    vi = ValueItem(sel, v)
+                    item = ListBoxItem(Content=str(vi))
+                    item.Tag = vi
+                    self.values_list.Items.Add(item)
+
+                if term and not vals:
+                    self.show_notice("No matching values found in {0}.".format(sel), "info")
+
+        finally:
+            self.set_busy(False)
 
     def add_filter(self, sender, args):
         sels = self.values_list.SelectedItems
         if not sels:
-            dlg = TaskDialog("Warning")
-            dlg.MainInstruction = "Please select at least one value."
-            dlg.CommonButtons = TaskDialogCommonButtons.Ok
-            dlg.Show()
+            self.show_notice("Please select at least one value.", "warning")
             return
 
         from collections import defaultdict
         m = defaultdict(list)
+
         for it in sels:
             vi = it.Tag
             m[vi.Property].append(vi.Value)
@@ -407,10 +926,7 @@ class MultiPropertyFilterForm(Window):
                 keys.append((prop, vals))
 
         if not opts:
-            dlg = TaskDialog("Information")
-            dlg.MainInstruction = "No filters to remove."
-            dlg.CommonButtons = TaskDialogCommonButtons.Ok
-            dlg.Show()
+            self.show_notice("No filters to remove.", "info")
             return
 
         dlg = RemoveFilterDialog(opts, keys)
@@ -430,73 +946,128 @@ class MultiPropertyFilterForm(Window):
 
     def update_filter_display(self, sender=None, args=None):
         if not self.selected_filters:
-            self.filter_button.Content = "No Filters Yet..."
+            self.filter_text.Text = "No Filters Yet..."
         else:
             txt = "Filters (Click here to modify):\n"
             for prop, fl in self.selected_filters.items():
-                txt += "{0}:\n ".format(prop)
+                txt += "{0}:\n".format(prop)
                 conds = []
                 for vals, andf in fl:
                     mode = "AND" if andf else "OR"
                     conds.append("[{0}: {1}]".format(mode, ", ".join(str(v) for v in vals)))
                 txt += " ".join(conds) + "\n"
-            self.filter_button.Content = txt.strip()
+            self.filter_text.Text = txt.strip()
 
     def reset_clicked(self, sender, args):
         try:
+            self.set_busy(True, "Resetting view...")
             t = Transaction(self.doc, "Reset Temporary Hide/Isolate")
             t.Start()
             self.curview.DisableTemporaryViewMode(TemporaryViewMode.TemporaryHideIsolate)
             t.Commit()
+            self.refresh_dialog_data()
         except Exception as e:
             dlg = TaskDialog("Error")
             dlg.MainInstruction = "Reset Error: {0}".format(e)
             dlg.CommonButtons = TaskDialogCommonButtons.Ok
             dlg.Show()
+        finally:
+            self.set_busy(False)
+
+    def is_cached_valid_workset_element(self, elem):
+        if elem is None or not elem.IsValidObject:
+            return False
+
+        try:
+            key = elem.Id.IntegerValue
+        except:
+            return False
+
+        if key in self._valid_workset_cache:
+            return self._valid_workset_cache[key]
+
+        val = is_valid_workset_element(elem)
+        self._valid_workset_cache[key] = val
+        return val
+
+    def get_cached_property_string(self, elem, prop):
+        if elem is None or not elem.IsValidObject:
+            return ""
+
+        try:
+            key = elem.Id.IntegerValue
+        except:
+            return ""
+
+        prop_cache = self._property_string_cache.get(prop)
+        if prop_cache is None:
+            prop_cache = {}
+            self._property_string_cache[prop] = prop_cache
+
+        if key in prop_cache:
+            return prop_cache[key]
+
+        val = safe_str(get_property_value(elem, prop, self.config, False))
+        prop_cache[key] = val
+        return val
+
+    def get_filtered_element_ids(self):
+        pre = [self.doc.GetElement(i) for i in self.uidoc.Selection.GetElementIds()]
+        use_all = any(
+            k in self.selected_filters
+            for k in ("Name", "Comments", "Category", "Workset", "TS_Point_Number", "TS_Point_Description")
+        )
+        elems = pre or (self.all_elements if use_all else self.fab_elements)
+
+        compiled_filters = {}
+        for p, fl in self.selected_filters.items():
+            compiled = []
+            for vals, andf in fl:
+                compiled.append((set(str(v) for v in vals), andf))
+            compiled_filters[p] = compiled
+
+        if "Workset" in compiled_filters:
+            elems = [e for e in elems if self.is_cached_valid_workset_element(e)]
+
+        ids = []
+        props = list(compiled_filters.keys())
+
+        for e in elems:
+            if not e or not e.IsValidObject:
+                continue
+
+            ok = True
+            for p in props:
+                current_val = self.get_cached_property_string(e, p)
+                fl = compiled_filters[p]
+
+                and_hits = []
+                or_hits = []
+
+                for valset, andf in fl:
+                    hit = current_val in valset
+                    if andf:
+                        and_hits.append(hit)
+                    else:
+                        or_hits.append(hit)
+
+                if (and_hits and not all(and_hits)) or (or_hits and not any(or_hits)):
+                    ok = False
+                    break
+
+            if ok:
+                ids.append(e.Id)
+
+        return ids
 
     def isolate_clicked(self, sender, args):
         if not self.selected_filters:
-            dlg = TaskDialog("Warning")
-            dlg.MainInstruction = "No filters selected to isolate."
-            dlg.CommonButtons = TaskDialogCommonButtons.Ok
-            dlg.Show()
+            self.show_notice("No filters selected to isolate.", "warning")
             return
 
         try:
-            pre = [self.doc.GetElement(i) for i in self.uidoc.Selection.GetElementIds()]
-            use_all = any(
-                k in self.selected_filters
-                for k in ("Name", "Comments", "Category", "Workset", "TS_Point_Number", "TS_Point_Description")
-            )
-            elems = pre or (self.all_elements if use_all else self.fab_elements)
-
-            if "Workset" in self.selected_filters:
-                elems = [e for e in elems if is_valid_workset_element(e)]
-
-            ids = []
-            for e in elems:
-                if not e or not e.IsValidObject:
-                    continue
-
-                ev = {p: get_property_value(e, p, self.config, False) for p in self.selected_filters}
-                ok = True
-
-                for p, fl in self.selected_filters.items():
-                    and_hits = []
-                    or_hits = []
-                    for vals, andf in fl:
-                        hit = (str(ev[p]) in [str(v) for v in vals])
-                        if andf:
-                            and_hits.append(hit)
-                        else:
-                            or_hits.append(hit)
-
-                    if (and_hits and not all(and_hits)) or (or_hits and not any(or_hits)):
-                        ok = False
-                        break
-
-                if ok:
-                    ids.append(e.Id)
+            self.set_busy(True, "Filtering elements...")
+            ids = self.get_filtered_element_ids()
 
             if ids:
                 lst = List[DB.ElementId](ids)
@@ -504,78 +1075,46 @@ class MultiPropertyFilterForm(Window):
                 t.Start()
                 self.curview.IsolateElementsTemporary(lst)
                 t.Commit()
+
+                self.set_busy(True, "Refreshing data...")
+                self.refresh_dialog_data()
             else:
-                dlg = TaskDialog("Warning")
-                dlg.MainInstruction = "No elements match the selected filters."
-                dlg.CommonButtons = TaskDialogCommonButtons.Ok
-                dlg.Show()
+                self.show_notice("No elements match the selected filters.", "warning")
 
         except Exception as e:
             dlg = TaskDialog("Error")
             dlg.MainInstruction = "Isolate Error: {0}".format(e)
             dlg.CommonButtons = TaskDialogCommonButtons.Ok
             dlg.Show()
+        finally:
+            self.set_busy(False)
 
     def select_clicked(self, sender, args):
         if not self.selected_filters:
-            dlg = TaskDialog("Warning")
-            dlg.MainInstruction = "No filters selected to select."
-            dlg.CommonButtons = TaskDialogCommonButtons.Ok
-            dlg.Show()
+            self.show_notice("No filters selected to select.", "warning")
             return
 
         try:
-            pre = [self.doc.GetElement(i) for i in self.uidoc.Selection.GetElementIds()]
-            use_all = any(
-                k in self.selected_filters
-                for k in ("Name", "Comments", "Category", "Workset", "TS_Point_Number", "TS_Point_Description")
-            )
-            elems = pre or (self.all_elements if use_all else self.fab_elements)
-
-            if "Workset" in self.selected_filters:
-                elems = [e for e in elems if is_valid_workset_element(e)]
-
-            ids = []
-            for e in elems:
-                if not e or not e.IsValidObject:
-                    continue
-
-                ev = {p: get_property_value(e, p, self.config, False) for p in self.selected_filters}
-                ok = True
-
-                for p, fl in self.selected_filters.items():
-                    and_hits = []
-                    or_hits = []
-                    for vals, andf in fl:
-                        hit = (str(ev[p]) in [str(v) for v in vals])
-                        if andf:
-                            and_hits.append(hit)
-                        else:
-                            or_hits.append(hit)
-
-                    if (and_hits and not all(and_hits)) or (or_hits and not any(or_hits)):
-                        ok = False
-                        break
-
-                if ok:
-                    ids.append(e.Id)
+            self.set_busy(True, "Filtering elements...")
+            ids = self.get_filtered_element_ids()
 
             if ids:
                 self.uidoc.Selection.SetElementIds(List[DB.ElementId](ids))
                 self.Close()
             else:
-                dlg = TaskDialog("Warning")
-                dlg.MainInstruction = "No elements match the selected filters."
-                dlg.CommonButtons = TaskDialogCommonButtons.Ok
-                dlg.Show()
+                self.show_notice("No elements match the selected filters.", "warning")
 
         except Exception as e:
             dlg = TaskDialog("Error")
             dlg.MainInstruction = "Select Error: {0}".format(e)
             dlg.CommonButtons = TaskDialogCommonButtons.Ok
             dlg.Show()
+        finally:
+            self.set_busy(False)
 
     def cancel_clicked(self, sender, args):
+        self.search_timer.Stop()
+        self.notice_timer.Stop()
         self.Close()
 
 
@@ -583,44 +1122,26 @@ def get_property_value(elem, property_name, config, debug=False):
     if elem is None or not elem.IsValidObject:
         return None
 
-    property_map = {
-        'CID': lambda x: str(x.ItemCustomId) if x.ItemCustomId else None,
-        'ServiceType': lambda x: config.GetServiceTypeName(x.ServiceType) if x.ServiceType else None,
-        'Name': lambda x: get_parameter_value_by_name_AsValueString(x, 'Family') or
-                          (x.get_Parameter(DB.BuiltInParameter.ELEM_FAMILY_PARAM).AsValueString()
-                           if x.get_Parameter(DB.BuiltInParameter.ELEM_FAMILY_PARAM) else None),
-        'Service Name': lambda x: get_parameter_value_by_name_AsString(x, 'Fabrication Service Name'),
-        'Service Abbreviation': lambda x: get_parameter_value_by_name_AsString(x, 'Fabrication Service Abbreviation'),
-        'Size': lambda x: get_parameter_value_by_name_AsString(x, 'Size of Primary End'),
-        'STRATUS Assembly': lambda x: get_parameter_value_by_name_AsString(x, 'STRATUS Assembly'),
-        'Line Number': lambda x: get_parameter_value_by_name_AsString(x, 'FP_Line Number'),
-        'STRATUS Status': lambda x: get_parameter_value_by_name_AsString(x, 'STRATUS Status'),
-        'Reference Level': lambda x: get_parameter_value_by_name_AsValueString(x, 'Reference Level'),
-        'Item Number': lambda x: get_parameter_value_by_name_AsString(x, 'Item Number'),
-        'Bundle Number': lambda x: get_parameter_value_by_name_AsString(x, 'FP_Bundle'),
-        'REF BS Designation': lambda x: get_parameter_value_by_name_AsString(x, 'FP_REF BS Designation'),
-        'REF Line Number': lambda x: get_parameter_value_by_name_AsString(x, 'FP_REF Line Number'),
-        'Comments': lambda x: get_parameter_value_by_name_AsString(x, 'Comments'),
-        'Specification': lambda x: config.GetSpecificationName(x.Specification) if x.Specification else None,
-        'Hanger Rod Size': lambda x: get_parameter_value_by_name_AsValueString(x, 'FP_Rod Size'),
-        'Valve Number': lambda x: get_parameter_value_by_name_AsString(x, 'FP_Valve Number'),
-        'Beam Hanger': lambda x: get_parameter_value_by_name_AsString(x, 'FP_Beam Hanger'),
-        'Product Entry': lambda x: get_parameter_value_by_name_AsString(x, 'Product Entry'),
-        'TS_Point_Number': lambda x: get_parameter_value_by_name_AsString(x, 'TS_Point_Number'),
-        'TS_Point_Description': lambda x: get_parameter_value_by_name_AsString(x, 'TS_Point_Description'),
-        'Alias': lambda x: get_parameter_value_by_name_AsString(x, 'Alias'),
-        'Category': lambda x: x.Category.Name if x.Category else None,
-        'Workset': lambda x: get_user_workset_name(x),
-        'Insulation Specification': lambda x:
-            get_parameter_value_by_name_AsValueString(x, 'Insulation Specification') or
-            (config.GetInsulationSpecificationAbbreviation(x.InsulationSpecification)
-             if getattr(x, 'InsulationSpecification', 0) else None),
-    }
+    elem_key = get_elem_key(elem)
+    cache_key = (elem_key, property_name)
+
+    if elem_key is not None and cache_key in _PROPERTY_VALUE_CACHE:
+        v = _PROPERTY_VALUE_CACHE[cache_key]
+        return None if v is _MISSING else v
+
+    fn = PROPERTY_MAP.get(property_name)
+    if not fn:
+        return None
 
     try:
-        return property_map.get(property_name, lambda x: None)(elem)
+        val = fn(elem, config)
     except:
-        return None
+        val = None
+
+    if elem_key is not None:
+        _PROPERTY_VALUE_CACHE[cache_key] = val if has_value(val) else _MISSING
+
+    return val
 
 
 def get_parameter_id(property_name):
@@ -694,20 +1215,6 @@ def has_3d_geometry(elem):
         return False
 
 
-def get_user_workset_name(elem):
-    if elem is None or not elem.IsValidObject:
-        return None
-
-    try:
-        ws = elem.Document.GetWorksetTable().GetWorkset(elem.WorksetId)
-        if ws and ws.Kind == DB.WorksetKind.UserWorkset:
-            return ws.Name
-    except:
-        pass
-
-    return None
-
-
 def is_valid_workset_element(elem):
     if elem is None or not elem.IsValidObject:
         return False
@@ -750,6 +1257,77 @@ def is_valid_workset_element(elem):
     return True
 
 
+def is_basic_workset_element(elem):
+    if elem is None or not elem.IsValidObject:
+        return False
+
+    try:
+        if isinstance(elem, DB.View):
+            return False
+    except:
+        pass
+
+    try:
+        if elem.ViewSpecific:
+            return False
+    except:
+        pass
+
+    cat = elem.Category
+    if cat is None:
+        return False
+
+    try:
+        if cat.CategoryType != DB.CategoryType.Model:
+            return False
+    except:
+        return False
+
+    return bool(get_user_workset_name(elem))
+
+
+def build_relevant_property_names(fab_elements, all_elements, config):
+    relevant = set()
+
+    remaining_fab = set(FAB_ONLY_SCAN_PROPS)
+    for e in fab_elements:
+        if not remaining_fab:
+            break
+
+        found_this_elem = []
+        for prop in remaining_fab:
+            v = get_property_value(e, prop, config, False)
+            if has_value(v):
+                relevant.add(prop)
+                found_this_elem.append(prop)
+
+        for prop in found_this_elem:
+            remaining_fab.remove(prop)
+
+    remaining_all = set(ALL_SCAN_PROPS)
+    workset_found = False
+
+    for e in all_elements:
+        if not remaining_all and workset_found:
+            break
+
+        found_this_elem = []
+        for prop in remaining_all:
+            v = get_property_value(e, prop, config, False)
+            if has_value(v):
+                relevant.add(prop)
+                found_this_elem.append(prop)
+
+        for prop in found_this_elem:
+            remaining_all.remove(prop)
+
+        if not workset_found and is_basic_workset_element(e):
+            relevant.add('Workset')
+            workset_found = True
+
+    return sorted(relevant)
+
+
 def run(uiapp):
     uidoc = uiapp.ActiveUIDocument
     if uidoc is None:
@@ -764,8 +1342,10 @@ def run(uiapp):
     config = FabricationConfiguration.GetFabricationConfiguration(doc)
 
     Shared_Params()
+    clear_global_caches()
 
     preselection = [doc.GetElement(i) for i in uidoc.Selection.GetElementIds()]
+
     fab_elements = preselection or FilteredElementCollector(
         doc, curview.Id
     ).OfClass(DB.FabricationPart).WhereElementIsNotElementType().ToElements()
@@ -774,43 +1354,17 @@ def run(uiapp):
         doc, curview.Id
     ).WhereElementIsNotElementType().ToElements()
 
-    property_options = {}
+    property_names = sorted(set(FAB_ONLY_SCAN_PROPS + ALL_SCAN_PROPS + ['Workset']))
 
-    fab_props = [
-        'CID', 'ServiceType', 'Service Name', 'Service Abbreviation', 'Size',
-        'STRATUS Assembly', 'Line Number', 'STRATUS Status', 'Reference Level',
-        'Item Number', 'Bundle Number', 'REF BS Designation', 'REF Line Number',
-        'Specification', 'Insulation Specification', 'Hanger Rod Size',
-        'Valve Number', 'Beam Hanger', 'Product Entry',
-        'TS_Point_Number', 'TS_Point_Description', 'Alias'
-    ]
-
-    for prop in fab_props:
-        vals = set(filter(None, [get_property_value(e, prop, config, False) for e in fab_elements]))
-        if vals:
-            property_options[prop] = sorted(vals)
-
-    all_props = ['Name', 'Comments', 'Category', 'TS_Point_Number', 'TS_Point_Description']
-    for prop in all_props:
-        if all_elements:
-            vals = set(filter(None, [get_property_value(e, prop, config, False) for e in all_elements]))
-            if vals:
-                property_options[prop] = sorted(vals)
-
-    workset_elements = [e for e in all_elements if is_valid_workset_element(e)]
-    if workset_elements:
-        vals = set(filter(None, [get_property_value(e, 'Workset', config, False) for e in workset_elements]))
-        if vals:
-            property_options['Workset'] = sorted(vals)
-
-    if not property_options:
-        dlg = TaskDialog("Error")
-        dlg.MainInstruction = "No properties found for the selected elements."
-        dlg.CommonButtons = TaskDialogCommonButtons.Ok
-        dlg.Show()
-        return
-
-    form = MultiPropertyFilterForm(doc, uidoc, curview, config, property_options, fab_elements, all_elements)
+    form = MultiPropertyFilterForm(
+        doc,
+        uidoc,
+        curview,
+        config,
+        property_names,
+        fab_elements,
+        all_elements
+    )
     form.frame = DispatcherFrame()
     form.Closed += form.exit_frame
     form.Show()
