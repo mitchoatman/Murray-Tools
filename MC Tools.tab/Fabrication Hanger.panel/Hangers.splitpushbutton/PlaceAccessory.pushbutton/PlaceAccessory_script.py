@@ -1,18 +1,33 @@
 import Autodesk
-from Autodesk.Revit.DB import Transaction, BuiltInParameter, FamilyInstance, FamilySymbol, XYZ, ElementTransformUtils, BoundingBoxXYZ, Line, FilteredElementCollector, BuiltInCategory
+from Autodesk.Revit.DB import (
+    Transaction,
+    BuiltInParameter,
+    FamilySymbol,
+    XYZ,
+    ElementTransformUtils,
+    Line,
+    FilteredElementCollector,
+    BuiltInCategory
+)
 from Autodesk.Revit.UI.Selection import ObjectType
-import math, os, re, clr
+import math
+import os
+import re
+import clr
 from fractions import Fraction
+
 clr.AddReference("PresentationCore")
 clr.AddReference("PresentationFramework")
 clr.AddReference("WindowsBase")
+
 from Autodesk.Revit.UI import TaskDialog
 from System.Windows import Window, Thickness, WindowStartupLocation, ResizeMode, HorizontalAlignment
 from System.Windows.Controls import StackPanel, Label, ComboBox, TextBox, CheckBox, Button, Orientation
 from System.Windows.Media import FontFamily
 from System import Array
 
-# Define some variables for easy use
+# ------------------------------------------------------------------------------------
+# REVIT CONTEXT
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
@@ -20,440 +35,506 @@ app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float(RevitVersion)
 
-# Function to convert fraction string to float
+# ------------------------------------------------------------------------------------
+# HELPERS
+
 def frac2string(s):
     i, f = s.groups(0)
     f = Fraction(f)
     return str(int(i) + float(f))
 
-try:
-    selected_element = uidoc.Selection.PickObject(ObjectType.Element, 'Select OUTSIDE Pipe')
-    if doc.GetElement(selected_element.ElementId).ItemCustomId != 916:
-        selected_element1 = uidoc.Selection.PickObject(ObjectType.Element, 'Select OPPOSITE OUTSIDE Pipe')
-        element = doc.GetElement(selected_element.ElementId)
-        element1 = doc.GetElement(selected_element1.ElementId)
-        selected_elements = [element, element1]
-
-        level_id = element.LevelId
-        level = doc.GetElement(level_id)
-        level_elevation = level.Elevation if level else 0
-
-        # Function to get parameter value
-        def get_parameter_value(element, parameterName):
-            param = element.LookupParameter(parameterName)
-            if param and param.HasValue:
-                return param.AsDouble()
-            return None
-
-        # Get bottom elevation of selected pipe
-        PRTElevation = None
-        if element and RevitINT > 2022:
-            PRTElevation = get_parameter_value(element, 'Lower End Bottom Elevation')
-        if element and RevitINT < 2023:
-            PRTElevation = get_parameter_value(element, 'Bottom')
-
-        # Fallback for PRTElevation using curve or connectors
-        if PRTElevation is None:
-            curve = element.get_Curve()
-            if curve:
-                PRTElevation = min(curve.GetEndPoint(0).Z, curve.GetEndPoint(1).Z)
-            else:
-                connectors = element.ConnectorManager.Connectors
-                connector_list = list(connectors)
-                if connector_list:
-                    PRTElevation = min([conn.Origin.Z for conn in connector_list])
-                else:
-                    raise Exception("Cannot determine pipe elevation.")
-
-        # Validate PRTElevation
-        if PRTElevation < level_elevation - 1.0:
-            bbox = element.get_BoundingBox(None)
-            if bbox:
-                PRTElevation = bbox.Min.Z
-
-        # Get Outside Diameter of the first selected pipe
-        outside_diameter = None
-        od_param = element.LookupParameter("Overall Size")
-        if od_param and od_param.HasValue:
-            outside_diameter = od_param.AsString()
-        else:
-            try:
-                outside_diameter = element.Diameter
-            except:
-                outside_diameter = None
-
-        # Calculate the angle of the first selected pipe
-        pipe_angle = 0.0
+def get_parameter_value(element, parameterName):
+    param = element.LookupParameter(parameterName)
+    if param and param.HasValue:
         try:
-            curve = element.get_Curve()
-            if curve:
-                direction = curve.Direction
-                pipe_angle = math.atan2(direction.Y, direction.X)
+            return param.AsDouble()
         except:
+            return None
+    return None
+
+def get_curve_from_element(ele):
+    try:
+        if ele.Location and hasattr(ele.Location, "Curve"):
+            return ele.Location.Curve
+    except:
+        pass
+    try:
+        return ele.get_Curve()
+    except:
+        return None
+
+def get_xy_direction_and_endpoints(ele):
+    curve = get_curve_from_element(ele)
+    if not curve:
+        raise Exception("No valid curve found for element {}".format(ele.Id))
+
+    p0 = curve.GetEndPoint(0)
+    p1 = curve.GetEndPoint(1)
+    vec_xy = XYZ(p1.X - p0.X, p1.Y - p0.Y, 0)
+
+    if vec_xy.GetLength() == 0:
+        raise Exception("Element {} has no valid XY direction.".format(ele.Id))
+
+    return curve, p0, p1, vec_xy.Normalize()
+
+def get_insulation_thickness(ele):
+    try:
+        if hasattr(ele, "HasInsulation") and ele.HasInsulation and hasattr(ele, "InsulationThickness"):
+            return ele.InsulationThickness
+    except:
+        pass
+    try:
+        if hasattr(ele, "InsulationThickness") and ele.InsulationThickness > 0:
+            return ele.InsulationThickness
+    except:
+        pass
+    return 0.0
+
+def get_numeric_outside_diameter(ele):
+    try:
+        d = ele.Diameter
+        if d and d > 0:
+            return float(d)
+    except:
+        pass
+
+    for pname in ["Outside Diameter", "Diameter"]:
+        p = ele.LookupParameter(pname)
+        if p and p.HasValue:
             try:
-                connectors = element.ConnectorManager.Connectors
-                connector_list = list(connectors)
-                if len(connector_list) >= 2:
-                    start_connector = connector_list[0]
-                    end_connector = connector_list[1]
-                    vector = end_connector.Origin - start_connector.Origin
-                    pipe_angle = math.atan2(vector.Y, vector.X)
+                return p.AsDouble()
             except:
                 pass
 
-        # Collect all pipe accessory families
-        pipe_accessory_symbols = FilteredElementCollector(doc).OfClass(FamilySymbol).OfCategory(BuiltInCategory.OST_PipeAccessory).ToElements()
-        family_names = []
-        family_symbol_dict = {}
+    try:
+        connectors = list(ele.ConnectorManager.Connectors)
+        for conn in connectors:
+            try:
+                if conn.Radius > 0:
+                    return conn.Radius * 2.0
+            except:
+                pass
+    except:
+        pass
 
-        for symbol in pipe_accessory_symbols:
-            family_name = symbol.Family.Name
-            type_name = symbol.LookupParameter("Type Name").AsString() if symbol.LookupParameter("Type Name") else symbol.Name
-            display_name = family_name + " - " + type_name
-            if display_name not in family_names:
-                family_names.append(display_name)
-                family_symbol_dict[display_name] = symbol
+    return 0.0
 
-        family_names.sort()
+def get_bottom_elevation(ele, include_insulation=False):
+    bottom = None
 
-        folder_name = "c:\\Temp"
-        filepath = os.path.join(folder_name, 'Ribbon_PlaceAccessory.txt')
-        if not os.path.exists(folder_name):
-            os.makedirs(folder_name)
-        if not os.path.exists(filepath):
-            with open(filepath, 'w') as the_file:
-                line1 = (family_names[0] + '\n') if family_names else ('Unknown Family - Unknown Type' + '\n')
-                line2 = ('1.0' + '\n')
-                line3 = ('8.0' + '\n')
-                line4 = ('True' + '\n')
-                line5 = ('True' + '\n')
-                the_file.writelines([line1, line2, line3, line4, line5])
+    if RevitINT > 2022:
+        bottom = get_parameter_value(ele, 'Lower End Bottom Elevation')
+    if bottom is None and RevitINT < 2023:
+        bottom = get_parameter_value(ele, 'Bottom')
 
-        with open(filepath, 'r') as file:
-            lines = file.readlines()
-            lines = [line.rstrip() for line in lines]
+    if bottom is None:
+        bbox = ele.get_BoundingBox(None)
+        if bbox:
+            bottom = bbox.Min.Z
 
-        if len(lines) < 5:
-            with open(filepath, 'w') as the_file:
-                line1 = (family_names[0] + '\n') if family_names else ('Unknown Family - Unknown Type' + '\n')
-                line2 = ('1.0' + '\n')
-                line3 = ('8.0' + '\n')
-                line4 = ('True' + '\n')
-                line5 = ('True' + '\n')
-                the_file.writelines([line1, line2, line3, line4, line5])
+    if bottom is None:
+        curve = get_curve_from_element(ele)
+        if curve:
+            bottom = min(curve.GetEndPoint(0).Z, curve.GetEndPoint(1).Z)
 
-        with open(filepath, 'r') as file:
-            lines = file.readlines()
-            lines = [line.rstrip() for line in lines]
+    if bottom is None:
+        raise Exception("Cannot determine bottom elevation for element {}".format(ele.Id))
 
-        if lines[3] == 'False':
-            checkboxdefBOI = False
+    if include_insulation:
+        bottom -= get_insulation_thickness(ele)
+
+    return bottom
+
+def GetCenterPoint(ele_id):
+    bBox = doc.GetElement(ele_id).get_BoundingBox(None)
+    if bBox is None:
+        return XYZ(0, 0, 0)
+    center = (bBox.Max + bBox.Min) / 2
+    return center
+
+def myround(x, multiple):
+    return multiple * math.ceil(x / multiple)
+
+def get_reference_level(hanger):
+    level_id = hanger.LevelId
+    return doc.GetElement(level_id)
+
+def get_level_elevation(level):
+    if level:
+        try:
+            return level.ProjectElevation
+        except:
+            return level.Elevation
+    return 0.0
+
+# ------------------------------------------------------------------------------------
+# DIALOG
+
+class HangerSpacingDialog(Window):
+    def __init__(self, family_names, lines, checkboxdefBOI, checkboxdefRotate):
+        super(HangerSpacingDialog, self).__init__()
+        self.Title = "Hanger and Spacing"
+        self.Width = 390
+        self.Height = 300
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
+        self.ResizeMode = ResizeMode.NoResize
+
+        stack = StackPanel()
+        stack.Orientation = Orientation.Vertical
+        stack.Margin = Thickness(10)
+
+        label_hanger = Label()
+        label_hanger.Content = "Choose Hanger Family:"
+        label_hanger.FontSize = 12
+        label_hanger.FontFamily = FontFamily("Arial")
+        stack.Children.Add(label_hanger)
+
+        self.combobox_hanger = ComboBox()
+        self.combobox_hanger.Width = 350
+        self.combobox_hanger.Height = 20
+        self.combobox_hanger.FontSize = 12
+        self.combobox_hanger.FontFamily = FontFamily("Arial")
+        self.combobox_hanger.ItemsSource = Array[object](family_names)
+        if lines[0] in family_names:
+            self.combobox_hanger.SelectedItem = lines[0]
         else:
-            checkboxdefBOI = True
+            self.combobox_hanger.SelectedItem = family_names[0] if family_names else None
+        self.combobox_hanger.Margin = Thickness(0, 0, 0, 10)
+        self.combobox_hanger.HorizontalAlignment = HorizontalAlignment.Left
+        stack.Children.Add(self.combobox_hanger)
 
-        if len(lines) > 4 and lines[4] == 'False':
-            checkboxdefRotate = False
+        label_end_dist = Label()
+        label_end_dist.Content = "Distance from End (Ft):"
+        label_end_dist.FontSize = 12
+        label_end_dist.FontFamily = FontFamily("Arial")
+        stack.Children.Add(label_end_dist)
+
+        self.textbox_end_dist = TextBox()
+        self.textbox_end_dist.Width = 200
+        self.textbox_end_dist.Height = 20
+        self.textbox_end_dist.FontSize = 12
+        self.textbox_end_dist.FontFamily = FontFamily("Arial")
+        self.textbox_end_dist.Text = lines[1]
+        self.textbox_end_dist.Margin = Thickness(0, 0, 0, 10)
+        self.textbox_end_dist.HorizontalAlignment = HorizontalAlignment.Left
+        stack.Children.Add(self.textbox_end_dist)
+
+        label_spacing = Label()
+        label_spacing.Content = "Hanger Spacing (Ft):"
+        label_spacing.FontSize = 12
+        label_spacing.FontFamily = FontFamily("Arial")
+        stack.Children.Add(label_spacing)
+
+        self.textbox_spacing = TextBox()
+        self.textbox_spacing.Width = 200
+        self.textbox_spacing.Height = 20
+        self.textbox_spacing.FontSize = 12
+        self.textbox_spacing.FontFamily = FontFamily("Arial")
+        self.textbox_spacing.Text = lines[2]
+        self.textbox_spacing.Margin = Thickness(0, 0, 0, 10)
+        self.textbox_spacing.HorizontalAlignment = HorizontalAlignment.Left
+        stack.Children.Add(self.textbox_spacing)
+
+        self.checkbox_boi = CheckBox()
+        self.checkbox_boi.Content = "Align Trapeze to Bottom of Insulation"
+        self.checkbox_boi.FontSize = 12
+        self.checkbox_boi.FontFamily = FontFamily("Arial")
+        self.checkbox_boi.IsChecked = checkboxdefBOI
+        self.checkbox_boi.Margin = Thickness(0, 0, 0, 5)
+        stack.Children.Add(self.checkbox_boi)
+
+        self.checkbox_rotate = CheckBox()
+        self.checkbox_rotate.Content = "Rotate Family"
+        self.checkbox_rotate.FontSize = 12
+        self.checkbox_rotate.FontFamily = FontFamily("Arial")
+        self.checkbox_rotate.IsChecked = checkboxdefRotate
+        self.checkbox_rotate.Margin = Thickness(0, 0, 0, 10)
+        stack.Children.Add(self.checkbox_rotate)
+
+        self.button_ok = Button()
+        self.button_ok.Content = "OK"
+        self.button_ok.FontSize = 12
+        self.button_ok.FontFamily = FontFamily("Arial")
+        self.button_ok.Width = 74
+        self.button_ok.Height = 25
+        self.button_ok.HorizontalAlignment = HorizontalAlignment.Center
+        self.button_ok.Click += self.ok_button_clicked
+        stack.Children.Add(self.button_ok)
+
+        self.Content = stack
+
+    def ok_button_clicked(self, sender, event):
+        self.DialogResult = True
+        self.Close()
+
+# ------------------------------------------------------------------------------------
+# MAIN
+
+try:
+    selected_reference = uidoc.Selection.PickObject(ObjectType.Element, 'Select OUTSIDE Pipe')
+    selected_element = selected_reference
+    pick_point = selected_reference.GlobalPoint
+
+    element = doc.GetElement(selected_element.ElementId)
+    selected_element1 = uidoc.Selection.PickObject(ObjectType.Element, 'Select OPPOSITE OUTSIDE Pipe')
+    element1 = doc.GetElement(selected_element1.ElementId)
+    selected_elements = [element, element1]
+
+    level_id = element.LevelId
+    level = doc.GetElement(level_id)
+    level_elevation = level.Elevation if level else 0
+
+    # Get bottom elevation of selected pipe
+    PRTElevation = None
+    if element and RevitINT > 2022:
+        PRTElevation = get_parameter_value(element, 'Lower End Bottom Elevation')
+    if element and RevitINT < 2023:
+        PRTElevation = get_parameter_value(element, 'Bottom')
+
+    if PRTElevation is None:
+        curve = get_curve_from_element(element)
+        if curve:
+            PRTElevation = min(curve.GetEndPoint(0).Z, curve.GetEndPoint(1).Z)
         else:
-            checkboxdefRotate = True
+            connectors = element.ConnectorManager.Connectors
+            connector_list = list(connectors)
+            if connector_list:
+                PRTElevation = min([conn.Origin.Z for conn in connector_list])
+            else:
+                raise Exception("Cannot determine pipe elevation.")
 
-        class HangerSpacingDialog(Window):
-            def __init__(self, family_names, lines, checkboxdefBOI, checkboxdefRotate):
-                super(HangerSpacingDialog, self).__init__()
-                self.Title = "Hanger and Spacing"
-                self.Width = 390
-                self.Height = 300
-                self.WindowStartupLocation = WindowStartupLocation.CenterScreen
-                self.ResizeMode = ResizeMode.NoResize
+    if PRTElevation < level_elevation - 1.0:
+        bbox = element.get_BoundingBox(None)
+        if bbox:
+            PRTElevation = bbox.Min.Z
 
-                stack = StackPanel()
-                stack.Orientation = Orientation.Vertical
-                stack.Margin = Thickness(10)
+    # Get Outside Diameter string of first selected pipe
+    outside_diameter = None
+    od_param = element.LookupParameter("Overall Size")
+    if od_param and od_param.HasValue:
+        outside_diameter = od_param.AsString()
+    else:
+        try:
+            outside_diameter = element.Diameter
+        except:
+            outside_diameter = None
 
-                label_hanger = Label()
-                label_hanger.Content = "Choose Hanger Family:"
-                label_hanger.FontSize = 12
-                label_hanger.FontFamily = FontFamily("Arial")
-                label_hanger.Margin = Thickness(0, 0, 0, 0)
-                stack.Children.Add(label_hanger)
+    # Collect all pipe accessory families
+    pipe_accessory_symbols = FilteredElementCollector(doc)\
+        .OfClass(FamilySymbol)\
+        .OfCategory(BuiltInCategory.OST_PipeAccessory)\
+        .ToElements()
 
-                self.combobox_hanger = ComboBox()
-                self.combobox_hanger.Width = 350
-                self.combobox_hanger.Height = 20
-                self.combobox_hanger.FontSize = 12
-                self.combobox_hanger.FontFamily = FontFamily("Arial")
-                self.combobox_hanger.ItemsSource = Array[object](family_names)
-                if lines[0] in family_names:
-                    self.combobox_hanger.SelectedItem = lines[0]
-                else:
-                    self.combobox_hanger.SelectedItem = family_names[0] if family_names else None
-                self.combobox_hanger.Margin = Thickness(0, 0, 0, 10)
-                self.combobox_hanger.HorizontalAlignment = HorizontalAlignment.Left
-                stack.Children.Add(self.combobox_hanger)
+    family_names = []
+    family_symbol_dict = {}
 
-                label_end_dist = Label()
-                label_end_dist.Content = "Distance from End (Ft):"
-                label_end_dist.FontSize = 12
-                label_end_dist.FontFamily = FontFamily("Arial")
-                label_end_dist.Margin = Thickness(0, 0, 0, 0)
-                stack.Children.Add(label_end_dist)
+    for symbol in pipe_accessory_symbols:
+        family_name = symbol.Family.Name
+        type_name = symbol.LookupParameter("Type Name").AsString() if symbol.LookupParameter("Type Name") else symbol.Name
+        display_name = family_name + " - " + type_name
+        if display_name not in family_names:
+            family_names.append(display_name)
+            family_symbol_dict[display_name] = symbol
 
-                self.textbox_end_dist = TextBox()
-                self.textbox_end_dist.Width = 200
-                self.textbox_end_dist.Height = 20
-                self.textbox_end_dist.FontSize = 12
-                self.textbox_end_dist.FontFamily = FontFamily("Arial")
-                self.textbox_end_dist.Text = lines[1]
-                self.textbox_end_dist.Margin = Thickness(0, 0, 0, 10)
-                self.textbox_end_dist.HorizontalAlignment = HorizontalAlignment.Left
-                stack.Children.Add(self.textbox_end_dist)
+    family_names.sort()
 
-                label_spacing = Label()
-                label_spacing.Content = "Hanger Spacing (Ft):"
-                label_spacing.FontSize = 12
-                label_spacing.FontFamily = FontFamily("Arial")
-                label_spacing.Margin = Thickness(0, 0, 0, 0)
-                stack.Children.Add(label_spacing)
+    folder_name = "c:\\Temp"
+    filepath = os.path.join(folder_name, 'Ribbon_PlaceAccessory.txt')
 
-                self.textbox_spacing = TextBox()
-                self.textbox_spacing.Width = 200
-                self.textbox_spacing.Height = 20
-                self.textbox_spacing.FontSize = 12
-                self.textbox_spacing.FontFamily = FontFamily("Arial")
-                self.textbox_spacing.Text = lines[2]
-                self.textbox_spacing.Margin = Thickness(0, 0, 0, 10)
-                self.textbox_spacing.HorizontalAlignment = HorizontalAlignment.Left
-                stack.Children.Add(self.textbox_spacing)
+    if not os.path.exists(folder_name):
+        os.makedirs(folder_name)
 
-                self.checkbox_boi = CheckBox()
-                self.checkbox_boi.Content = "Align Trapeze to Bottom of Insulation"
-                self.checkbox_boi.FontSize = 12
-                self.checkbox_boi.FontFamily = FontFamily("Arial")
-                self.checkbox_boi.IsChecked = checkboxdefBOI
-                self.checkbox_boi.Margin = Thickness(0, 0, 0, 5)
-                stack.Children.Add(self.checkbox_boi)
+    if not os.path.exists(filepath):
+        with open(filepath, 'w') as the_file:
+            line1 = (family_names[0] + '\n') if family_names else ('Unknown Family - Unknown Type' + '\n')
+            line2 = '1.0\n'
+            line3 = '8.0\n'
+            line4 = 'True\n'
+            line5 = 'True\n'
+            the_file.writelines([line1, line2, line3, line4, line5])
 
-                self.checkbox_rotate = CheckBox()
-                self.checkbox_rotate.Content = "Rotate Family"
-                self.checkbox_rotate.FontSize = 12
-                self.checkbox_rotate.FontFamily = FontFamily("Arial")
-                self.checkbox_rotate.IsChecked = checkboxdefRotate
-                self.checkbox_rotate.Margin = Thickness(0, 0, 0, 10)
-                stack.Children.Add(self.checkbox_rotate)
+    with open(filepath, 'r') as file:
+        lines = [line.rstrip() for line in file.readlines()]
 
-                self.button_ok = Button()
-                self.button_ok.Content = "OK"
-                self.button_ok.FontSize = 12
-                self.button_ok.FontFamily = FontFamily("Arial")
-                self.button_ok.Width = 74
-                self.button_ok.Height = 25
-                self.button_ok.HorizontalAlignment = HorizontalAlignment.Center
-                self.button_ok.Click += self.ok_button_clicked
-                stack.Children.Add(self.button_ok)
+    if len(lines) < 5:
+        with open(filepath, 'w') as the_file:
+            line1 = (family_names[0] + '\n') if family_names else ('Unknown Family - Unknown Type' + '\n')
+            line2 = '1.0\n'
+            line3 = '8.0\n'
+            line4 = 'True\n'
+            line5 = 'True\n'
+            the_file.writelines([line1, line2, line3, line4, line5])
 
-                self.Content = stack
+    with open(filepath, 'r') as file:
+        lines = [line.rstrip() for line in file.readlines()]
 
-            def ok_button_clicked(self, sender, event):
-                self.DialogResult = True
-                self.Close()
+    checkboxdefBOI = False if lines[3] == 'False' else True
+    checkboxdefRotate = False if (len(lines) > 4 and lines[4] == 'False') else True
 
-        form = HangerSpacingDialog(family_names, lines, checkboxdefBOI, checkboxdefRotate)
-        if form.ShowDialog():
-            SelectedFamily = str(form.combobox_hanger.SelectedItem)
-            distancefromend = form.textbox_end_dist.Text
-            Spacing = form.textbox_spacing.Text
-            BOITrap = form.checkbox_boi.IsChecked
-            RotateFamily = form.checkbox_rotate.IsChecked
+    form = HangerSpacingDialog(family_names, lines, checkboxdefBOI, checkboxdefRotate)
+    if form.ShowDialog():
+        SelectedFamily = str(form.combobox_hanger.SelectedItem)
+        distancefromend = form.textbox_end_dist.Text
+        Spacing = form.textbox_spacing.Text
+        BOITrap = form.checkbox_boi.IsChecked
+        RotateFamily = form.checkbox_rotate.IsChecked
 
-            selected_symbol = family_symbol_dict.get(SelectedFamily)
-            if not selected_symbol:
-                raise Exception("Selected family '" + SelectedFamily + "' not found.")
+        selected_symbol = family_symbol_dict.get(SelectedFamily)
+        if not selected_symbol:
+            raise Exception("Selected family '{}' not found.".format(SelectedFamily))
 
-            if not selected_symbol.IsActive:
-                t = Transaction(doc, 'Activate Family Symbol')
-                t.Start()
-                selected_symbol.Activate()
-                t.Commit()
-
-            with open(filepath, 'w') as the_file:
-                line1 = (str(SelectedFamily) + '\n')
-                line2 = (str(distancefromend) + '\n')
-                line3 = (str(Spacing) + '\n')
-                line4 = (str(BOITrap) + '\n')
-                line5 = (str(RotateFamily) + '\n')
-                the_file.writelines([line1, line2, line3, line4, line5])
-
-            def GetCenterPoint(ele):
-                bBox = doc.GetElement(ele).get_BoundingBox(None)
-                if bBox is None:
-                    return XYZ(0, 0, 0)
-                center = (bBox.Max + bBox.Min) / 2
-                return center
-
-            def myround(x, multiple):
-                return multiple * math.ceil(x/multiple)
-
-            first_pipe_bounding_box = element.get_BoundingBox(curview)
-
-            # Determine Rack Direction
-            delta_x = abs(first_pipe_bounding_box.Max.X - first_pipe_bounding_box.Min.X)
-            delta_y = abs(first_pipe_bounding_box.Max.Y - first_pipe_bounding_box.Min.Y)
-
-            # Calculate combined bounding box with insulation
-            combined_min = first_pipe_bounding_box.Min
-            combined_max = first_pipe_bounding_box.Max
-
-            if (delta_x) > (delta_y):
-                for pipe in selected_elements:
-                    pipe_bounding_box = pipe.get_BoundingBox(curview)
-                    if hasattr(pipe, 'InsulationThickness') and pipe.InsulationThickness > 0:
-                        pipe_bounding_box.Min = XYZ(pipe_bounding_box.Min.X,
-                                                    pipe_bounding_box.Min.Y - pipe.InsulationThickness,
-                                                    pipe_bounding_box.Min.Z)
-                        pipe_bounding_box.Max = XYZ(pipe_bounding_box.Max.X,
-                                                    pipe_bounding_box.Max.Y + pipe.InsulationThickness,
-                                                    pipe_bounding_box.Max.Z)
-                    combined_min = XYZ(min(combined_min.X, pipe_bounding_box.Min.X),
-                                       min(combined_min.Y, pipe_bounding_box.Min.Y),
-                                       min(combined_min.Z, pipe_bounding_box.Min.Z))
-                    combined_max = XYZ(max(combined_max.X, pipe_bounding_box.Max.X),
-                                       max(combined_max.Y, pipe_bounding_box.Max.Y),
-                                       max(combined_max.Z, pipe_bounding_box.Max.Z))
-
-            if (delta_y) > (delta_x):
-                for pipe in selected_elements:
-                    pipe_bounding_box = pipe.get_BoundingBox(curview)
-                    if hasattr(pipe, 'InsulationThickness') and pipe.InsulationThickness > 0:
-                        pipe_bounding_box.Min = XYZ(pipe_bounding_box.Min.X - pipe.InsulationThickness,
-                                                    pipe_bounding_box.Min.Y,
-                                                    pipe_bounding_box.Min.Z)
-                        pipe_bounding_box.Max = XYZ(pipe_bounding_box.Max.X + pipe.InsulationThickness,
-                                                    pipe_bounding_box.Max.Y,
-                                                    pipe_bounding_box.Max.Z)
-                    combined_min = XYZ(min(combined_min.X, pipe_bounding_box.Min.X),
-                                       min(combined_min.Y, pipe_bounding_box.Min.Y),
-                                       min(combined_min.Z, pipe_bounding_box.Min.Z))
-                    combined_max = XYZ(max(combined_max.X, pipe_bounding_box.Max.X),
-                                       max(combined_max.Y, pipe_bounding_box.Max.Y),
-                                       max(combined_max.Z, pipe_bounding_box.Max.Z))
-
-            def get_reference_level(hanger):
-                level_id = hanger.LevelId
-                level = doc.GetElement(level_id)
-                return level
-
-            def get_level_elevation(level):
-                if level:
-                    return level.Elevation
-                else:
-                    return 0
-
-            combined_bounding_box = BoundingBoxXYZ()
-            combined_bounding_box.Min = combined_min
-            combined_bounding_box.Max = combined_max
-            combined_bounding_box_Center = (combined_bounding_box.Max + combined_bounding_box.Min) / 2
-
-            X_side_xyz = XYZ(combined_bounding_box.Min.X + float(distancefromend), 
-                             combined_bounding_box_Center.Y, 
-                             PRTElevation)
-            Y_side_xyz = XYZ(combined_bounding_box_Center.X, 
-                             combined_bounding_box.Min.Y + float(distancefromend), 
-                             PRTElevation)
-
-            delta_x = abs(combined_bounding_box.Max.X - combined_bounding_box.Min.X)
-            delta_y = abs(combined_bounding_box.Max.Y - combined_bounding_box.Min.Y)
-
-            # Calculate how many hangers in the run
-            if (delta_x) > (delta_y):
-                qtyofhgrs = int(math.ceil(delta_x / float(Spacing)))
-            if (delta_y) > (delta_x):
-                qtyofhgrs = int(math.ceil(delta_y / float(Spacing)))
-                
-            IncrementSpacing = float(distancefromend)
-
-            # Place family instances
-            hangers = []
-            t = Transaction(doc, 'Place Pipe Accessory Hanger')
+        if not selected_symbol.IsActive:
+            t = Transaction(doc, 'Activate Family Symbol')
             t.Start()
-            
-            for hgr in range(qtyofhgrs):
-                if (delta_x) > (delta_y):
-                    location = XYZ(combined_bounding_box.Min.X + IncrementSpacing, 
-                                   combined_bounding_box_Center.Y, 
-                                   PRTElevation)
-                else:
-                    location = XYZ(combined_bounding_box_Center.X, 
-                                   combined_bounding_box.Min.Y + IncrementSpacing, 
-                                   PRTElevation)
-                
-                hanger = doc.Create.NewFamilyInstance(location, selected_symbol, doc.GetElement(level_id), Autodesk.Revit.DB.Structure.StructuralType.NonStructural)
-                hangers.append(hanger)
-                IncrementSpacing += float(Spacing)
-            
-            for hanger in hangers:
+            selected_symbol.Activate()
+            t.Commit()
+
+        with open(filepath, 'w') as the_file:
+            the_file.writelines([
+                str(SelectedFamily) + '\n',
+                str(distancefromend) + '\n',
+                str(Spacing) + '\n',
+                str(BOITrap) + '\n',
+                str(RotateFamily) + '\n'
+            ])
+
+        end_distance_val = float(distancefromend)
+        spacing_val = float(Spacing)
+
+        if spacing_val <= 0:
+            raise Exception("Spacing must be greater than zero.")
+        if end_distance_val < 0:
+            raise Exception("Distance from end cannot be negative.")
+
+        # -------------------------------------------------------------------------
+        # ANGLED RUN SUPPORT
+
+        first_curve, first_p0, first_p1, direction = get_xy_direction_and_endpoints(element)
+
+        if first_p0.DistanceTo(pick_point) <= first_p1.DistanceTo(pick_point):
+            reference_point = first_p0
+            opposite_end = first_p1
+        else:
+            reference_point = first_p1
+            opposite_end = first_p0
+
+        run_vec_xy = XYZ(
+            opposite_end.X - reference_point.X,
+            opposite_end.Y - reference_point.Y,
+            0
+        )
+
+        run_length = run_vec_xy.GetLength()
+        if run_length == 0:
+            raise Exception("Run length is zero.")
+
+        perpendicular = XYZ(-direction.Y, direction.X, 0).Normalize()
+        rotation_angle = math.atan2(direction.Y, direction.X)
+
+        edge_projections = []
+        placement_z = float('inf')
+
+        for pipe in selected_elements:
+            curve, p0, p1, pipe_dir = get_xy_direction_and_endpoints(pipe)
+            midpoint = (p0 + p1) / 2
+            insulation = get_insulation_thickness(pipe)
+            outside_dia_num = get_numeric_outside_diameter(pipe)
+
+            half_width = (outside_dia_num / 2.0) + insulation
+            perp_offset = (midpoint - reference_point).DotProduct(perpendicular)
+
+            edge_projections.append(perp_offset - half_width)
+            edge_projections.append(perp_offset + half_width)
+
+            bottom_z = get_bottom_elevation(pipe, include_insulation=BOITrap)
+            placement_z = min(placement_z, bottom_z)
+
+        if not edge_projections:
+            raise Exception("Could not determine trapeze width.")
+
+        min_perp = min(edge_projections)
+        max_perp = max(edge_projections)
+        trapeze_center_offset = (min_perp + max_perp) / 2.0
+        trapeze_width = max_perp - min_perp
+
+        if trapeze_width <= 0:
+            raise Exception("Calculated trapeze width is invalid.")
+
+        if end_distance_val > run_length:
+            raise Exception("Distance from end exceeds run length.")
+
+        qtyofhgrs = int(math.floor((run_length - end_distance_val) / spacing_val)) + 1
+        if qtyofhgrs <= 0:
+            raise Exception("Calculated hanger quantity is zero.")
+
+        base_width = myround((trapeze_width * 12.0), 2) / 12.0
+        is_figure_109 = SelectedFamily == "CEAS Stiffy Figure 109 - 109"
+        newwidth = base_width if is_figure_109 else base_width + (4.0 / 12.0)
+
+        TIER_1_CLEARANCE_FT = 0.0
+        first_pipe_od = get_numeric_outside_diameter(element)
+
+        hangers = []
+        t = Transaction(doc, 'Place Pipe Accessory Hanger')
+        t.Start()
+
+        for idx in range(qtyofhgrs):
+            along_distance = end_distance_val + (idx * spacing_val)
+
+            xy_point = reference_point + (direction * along_distance) + (perpendicular * trapeze_center_offset)
+            location = XYZ(xy_point.X, xy_point.Y, placement_z)
+
+            hanger = doc.Create.NewFamilyInstance(
+                location,
+                selected_symbol,
+                doc.GetElement(level_id),
+                Autodesk.Revit.DB.Structure.StructuralType.NonStructural
+            )
+            hangers.append(hanger)
+
+        doc.Regenerate()
+
+        for hanger in hangers:
+            # Set width parameters
+            dim_c_param = hanger.LookupParameter("DIM C")
+            if dim_c_param:
+                dim_c_param.Set(newwidth)
+
+            if is_figure_109:
+                dim_b_param = hanger.LookupParameter("DIM B")
+                if dim_b_param:
+                    dim_b_param.Set(newwidth)
+
+            # Rotate to pipe direction
+            center = GetCenterPoint(hanger.Id)
+            z_axis_line = Line.CreateBound(center, center + XYZ(0, 0, 1))
+            ElementTransformUtils.RotateElement(doc, hanger.Id, z_axis_line, rotation_angle)
+
+            if RotateFamily:
+                ElementTransformUtils.RotateElement(doc, hanger.Id, z_axis_line, (90.0 * math.pi / 180.0))
+
+            # Set restraint parameter if available
+            if first_pipe_od > 0:
+                tier_1_param = hanger.LookupParameter("Tier_1 Restraint")
+                if tier_1_param:
+                    tier_1_param.Set(first_pipe_od + TIER_1_CLEARANCE_FT)
+
+            # Set offset
+            offset_param = hanger.get_Parameter(BuiltInParameter.INSTANCE_FREE_HOST_OFFSET_PARAM)
+            if offset_param:
                 reference_level = get_reference_level(hanger)
-                level_elevation = get_level_elevation(reference_level)
-
-                # Set DIM C parameter for width
-                if (delta_x) > (delta_y):
-                    base_width = myround((delta_y * 12), 2) / 12
-                else:
-                    base_width = myround((delta_x * 12), 2) / 12
-
-                is_figure_109 = SelectedFamily == "CEAS Stiffy Figure 109 - 109"
-                newwidth = base_width if is_figure_109 else base_width + (4.0 / 12.0)
-
-                dim_c_param = hanger.LookupParameter("DIM C")
-                if dim_c_param:
-                    dim_c_param.Set(newwidth)
+                hanger_level_elevation = get_level_elevation(reference_level)
+                offset = placement_z - hanger_level_elevation
 
                 if is_figure_109:
-                    dim_b_param = hanger.LookupParameter("DIM B")
-                    if dim_b_param:
-                        dim_b_param.Set(newwidth)
+                    dim_a_param = hanger.LookupParameter("DIM A")
+                    if dim_a_param and dim_a_param.HasValue:
+                        dim_a_value = dim_a_param.AsDouble()
+                        offset += dim_a_value - (0.5 / 12.0)
 
-                z_axis_direction = XYZ(0, 0, 1)
-                center = GetCenterPoint(hanger.Id)
-                curve_points = [center, center + z_axis_direction * 2]
-                curve = Line.CreateBound(curve_points[0], curve_points[1])
-                ElementTransformUtils.RotateElement(doc, hanger.Id, curve, pipe_angle)
+                offset_param.Set(offset)
 
-                if RotateFamily:
-                    ElementTransformUtils.RotateElement(doc, hanger.Id, curve, (90.0 * (math.pi / 180.0)))
+        t.Commit()
 
-                if outside_diameter is not None:
-                    tier_1_param = hanger.LookupParameter("Tier_1 Restraint")
-                    if tier_1_param:
-                        if '/' in outside_diameter:
-                            tier_1_param.Set(float(re.sub(r'(?:(\d+)[-\s])?(\d+/\d+)[^\d.]', frac2string, outside_diameter)) / 12 + 0.02083333)
-                        else:
-                            tier_1_param.Set(float(re.sub(r'[^\d.]', '', outside_diameter)) / 12 + 0.02083333)
-
-                offset_param = hanger.get_Parameter(BuiltInParameter.INSTANCE_FREE_HOST_OFFSET_PARAM)
-                if offset_param:
-                    pipe_elevation = PRTElevation
-                    offset = pipe_elevation - level_elevation
-
-                    if is_figure_109:
-                        dim_a_param = hanger.LookupParameter("DIM A")
-                        if dim_a_param and dim_a_param.HasValue:
-                            dim_a_value = dim_a_param.AsDouble()
-                            offset += dim_a_value - (0.5 / 12.0)
-                        else:
-                            offset = pipe_elevation - level_elevation
-
-                    if not is_figure_109 and BOITrap:
-                        offset = pipe_elevation - level_elevation
-
-                    if offset < 0:
-                        bbox = element.get_BoundingBox(None)
-                        if bbox:
-                            pipe_elevation = bbox.Min.Z
-                            offset = pipe_elevation - level_elevation
-                        else:
-                            raise Exception("Cannot determine valid pipe elevation for offset.")
-
-                    offset_param.Set(offset)
-
-            t.Commit()
 except Exception as e:
     TaskDialog.Show("Error", str(e))

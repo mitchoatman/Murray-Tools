@@ -11,9 +11,6 @@ tooltip: |-
     3. Set family type and spacing rules.
     4. Click ok and accessory will be placed.
 
-  Known limitations:
-  Function only operates in the X and Y direction.  NO ANGLED RACKS.
-
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Selection
