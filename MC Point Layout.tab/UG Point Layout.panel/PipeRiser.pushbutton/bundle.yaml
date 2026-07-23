@@ -8,8 +8,8 @@ tooltip: |-
   will be added to the sleeves.  It will also assign the proper
   schedule level while not duplicating existing sleeves.
   
-  1.  Click the button.
-  2.  Pipe Risers are placed on pipes in the active view that cross a level line.
+  1. Click the button.
+  2. Pipe Risers are placed on pipes in the active view that cross a level line.
 
   Floorplan View - pipe risers are placed on level below.
   3D View - visible pipes crossing level lines are populated with pipe riser.
@@ -17,8 +17,14 @@ tooltip: |-
   Pre-Selected - Riser family is placed on the selected element(s) only.
 
   [Shift]+Click:
-  Place pipe riser manually. Pay attention to workplane setting
-  under ribbon.  Set to appropriate level you wish to pipe riser on.
+  Place pipe riser on selected risers.  Families are placed at the
+  associated level of the view rather than pipe/level intersection.
+
+  1. Click the button.
+  2. Select pipe riser locations.
+  3. Pipe riser family placed and sized appropriately on level
+     associated to active floorplan view.
+
 
 # context directives are listed under `context` key, the order does not matter
 #context:

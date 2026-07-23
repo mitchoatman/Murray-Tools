@@ -93,6 +93,7 @@ def load_export_settings(default_output_path):
         "use_rck_prefix": False,
         "update_sleeve_descriptions": True,
         "exclude_beam_hangers": True,
+        "fab_part_description_mode": "ROD_SIZE",
         "output_path": default_output_path
     }
 
@@ -124,6 +125,8 @@ def load_export_settings(default_output_path):
                         settings["update_sleeve_descriptions"] = to_bool(value)
                     elif key == "exclude_beam_hangers":
                         settings["exclude_beam_hangers"] = to_bool(value)
+                    elif key == "fab_part_description_mode":
+                        settings["fab_part_description_mode"] = value
                     elif key == "output_path":
                         settings["output_path"] = value
     except:
@@ -147,6 +150,7 @@ def save_export_settings(settings):
                 "use_rck_prefix={}\n".format(settings.get("use_rck_prefix", False)),
                 "update_sleeve_descriptions={}\n".format(settings.get("update_sleeve_descriptions", True)),
                 "exclude_beam_hangers={}\n".format(settings.get("exclude_beam_hangers", True)),
+                "fab_part_description_mode={}\n".format(settings.get("fab_part_description_mode", "ROD_SIZE")),
                 "output_path={}\n".format(settings.get("output_path", ""))
             ])
     except:
@@ -225,9 +229,9 @@ def is_fab_hanger(element):
 
 def normalize_service_abbreviation(value):
     if not value:
-        return "UNK"
+        return ""
     cleaned = "".join([c for c in value.strip().upper() if c.isalnum()])
-    return cleaned if cleaned else "UNK"
+    return cleaned if cleaned else ""
 
 
 def get_hanger_service_abbreviation(element):
@@ -265,7 +269,7 @@ def get_hanger_service_abbreviation(element):
     except:
         pass
 
-    return "UNK"
+    return ""
 
 
 def get_parameter_text(element, param_name):
@@ -559,6 +563,43 @@ def set_parameter_by_name(element, param_name, value):
     return False
 
 
+def get_fabrication_family_name(element):
+    if not element:
+        return ""
+
+    family_name = ""
+
+    try:
+        p = element.get_Parameter(DB.BuiltInParameter.ELEM_FAMILY_PARAM)
+        if p and p.HasValue:
+            family_name = p.AsValueString() or p.AsString() or ""
+            if family_name.strip():
+                return family_name.strip()
+    except:
+        pass
+
+    try:
+        type_id = element.GetTypeId()
+        if type_id != DB.ElementId.InvalidElementId:
+            elem_type = doc.GetElement(type_id)
+            if elem_type:
+                p = elem_type.get_Parameter(DB.BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM)
+                if p and p.HasValue:
+                    family_name = p.AsString() or p.AsValueString() or ""
+                    if family_name.strip():
+                        return family_name.strip()
+    except:
+        pass
+
+    try:
+        if hasattr(element, "Name") and element.Name:
+            return element.Name.strip()
+    except:
+        pass
+
+    return ""
+
+
 def feet_to_feet_inches_fraction(decimal_feet, precision=0.125):
     total_inches = decimal_feet * 12.0
     rounded_total_inches = round(total_inches / precision) * precision
@@ -651,9 +692,17 @@ def update_sleeve_descriptions_in_view():
         element for element in pipe_accessories
         if "Metal Sleeve" in element.Name or "Plastic Sleeve" in element.Name or "Cast Iron Sleeve" in element.Name
     ]
+
     for x in accessory_elements:
-        slvdiameter = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Pipe Nominal Diameter') * 12)
-        slvlength = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Sleeve Length') * 12)
+        d_param = x.LookupParameter('Pipe Nominal Diameter') or x.LookupParameter('Diameter')
+        l_param = x.LookupParameter('Sleeve Length') or x.LookupParameter('Length')
+
+        if not d_param or not l_param:
+            print("Missing sleeve params on element {}".format(x.Id))
+            continue
+
+        slvdiameter = "{0:.2f}".format(d_param.AsDouble() * 12)
+        slvlength = "{0:.2f}".format(l_param.AsDouble() * 12)
         result_string = 'SLV {0} x {1}'.format(slvdiameter, slvlength)
         set_parameter_by_name(x, 'TS_Point_Description', result_string)
 
@@ -664,7 +713,7 @@ def update_sleeve_descriptions_in_view():
         set_parameter_by_name(x, 'TS_Point_Description', result_string2)
 
     accessory_elements3 = [
-        element for element in pipe_accessories
+        element for element in pipe_accessories or duct_accessories
         if "Floor Sleeve" in element.Name or "Round Floor Sleeve" in element.Name
     ]
     for x in accessory_elements3:
@@ -673,7 +722,7 @@ def update_sleeve_descriptions_in_view():
         result_string = 'SLV {0} x {1}'.format(slvdiameter, slvlength)
         set_parameter_by_name(x, 'TS_Point_Description', result_string)
 
-    accessory_elements4 = [element for element in pipe_accessories if "Rectangular Sleeve" in element.Name]
+    accessory_elements4 = [element for element in pipe_accessories or duct_accessories if "Rectangular Sleeve" in element.Name]
     for x in accessory_elements4:
         slvlength = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Length') * 12)
         slvwidth = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Width') * 12)
@@ -717,7 +766,7 @@ class ExportHangerPointsDialog(Window):
     def __init__(self):
         self.Title = "Export Hanger Rod & GTP Points to CSV"
         self.Width = 500
-        self.Height = 610
+        self.Height = 710
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
         self.WindowStyle = WindowStyle.SingleBorderWindow
         self.ResizeMode = 0
@@ -737,6 +786,7 @@ class ExportHangerPointsDialog(Window):
         self.use_rck_prefix = settings["use_rck_prefix"]
         self.update_sleeve_descriptions = settings["update_sleeve_descriptions"]
         self.exclude_beam_hangers = settings["exclude_beam_hangers"]
+        self.fab_part_description_mode = settings.get("fab_part_description_mode", "ROD_SIZE")
         self.output_path = settings["output_path"]
 
         self.InitializeComponents()
@@ -900,8 +950,38 @@ class ExportHangerPointsDialog(Window):
         self.cb_update_sleeve_descriptions = CheckBox()
         self.cb_update_sleeve_descriptions.Content = "Update Sleeve Description"
         self.cb_update_sleeve_descriptions.IsChecked = self.update_sleeve_descriptions
-        self.cb_update_sleeve_descriptions.Margin = Thickness(0, 0, 0, 5)
+        self.cb_update_sleeve_descriptions.Margin = Thickness(0, 0, 0, 10)
         desc_panel.Children.Add(self.cb_update_sleeve_descriptions)
+
+        fab_desc_lbl = Label()
+        fab_desc_lbl.Content = "Fabrication Part Description Source"
+        fab_desc_lbl.FontWeight = FontWeights.Bold
+        fab_desc_lbl.Margin = Thickness(0, 0, 0, 5)
+        desc_panel.Children.Add(fab_desc_lbl)
+
+        self.rb_fab_desc_rod = RadioButton()
+        self.rb_fab_desc_rod.Content = "Auto-generate from rod size"
+        self.rb_fab_desc_rod.GroupName = "FabDescMode"
+        self.rb_fab_desc_rod.IsChecked = (self.fab_part_description_mode == "ROD_SIZE")
+        self.rb_fab_desc_rod.Margin = Thickness(0, 0, 0, 5)
+        self.rb_fab_desc_rod.Checked += lambda s, e: setattr(self, "fab_part_description_mode", "ROD_SIZE")
+        desc_panel.Children.Add(self.rb_fab_desc_rod)
+
+        self.rb_fab_desc_param = RadioButton()
+        self.rb_fab_desc_param.Content = "Use TS__Point__Description"
+        self.rb_fab_desc_param.GroupName = "FabDescMode"
+        self.rb_fab_desc_param.IsChecked = (self.fab_part_description_mode == "PARAM")
+        self.rb_fab_desc_param.Margin = Thickness(0, 0, 0, 5)
+        self.rb_fab_desc_param.Checked += lambda s, e: setattr(self, "fab_part_description_mode", "PARAM")
+        desc_panel.Children.Add(self.rb_fab_desc_param)
+
+        self.rb_fab_desc_family = RadioButton()
+        self.rb_fab_desc_family.Content = "Use family name"
+        self.rb_fab_desc_family.GroupName = "FabDescMode"
+        self.rb_fab_desc_family.IsChecked = (self.fab_part_description_mode == "FAMILY")
+        self.rb_fab_desc_family.Margin = Thickness(0, 0, 0, 5)
+        self.rb_fab_desc_family.Checked += lambda s, e: setattr(self, "fab_part_description_mode", "FAMILY")
+        desc_panel.Children.Add(self.rb_fab_desc_family)
 
         file_group = GroupBox()
         file_group.Header = "Output File"
@@ -1055,6 +1135,13 @@ class ExportHangerPointsDialog(Window):
         self.use_rck_prefix = True if self.cb_rck_prefix.IsChecked else False
         self.exclude_beam_hangers = True if self.cb_exclude_beam_hangers.IsChecked else False
 
+        if self.rb_fab_desc_rod.IsChecked:
+            self.fab_part_description_mode = "ROD_SIZE"
+        elif self.rb_fab_desc_param.IsChecked:
+            self.fab_part_description_mode = "PARAM"
+        elif self.rb_fab_desc_family.IsChecked:
+            self.fab_part_description_mode = "FAMILY"
+
         if not self.output_path:
             TaskDialog.Show("Error", "No file path selected.")
             return
@@ -1068,6 +1155,7 @@ class ExportHangerPointsDialog(Window):
             "use_rck_prefix": self.use_rck_prefix,
             "update_sleeve_descriptions": self.update_sleeve_descriptions,
             "exclude_beam_hangers": self.exclude_beam_hangers,
+            "fab_part_description_mode": self.fab_part_description_mode,
             "output_path": self.output_path
         }
         save_export_settings(settings)
@@ -1144,6 +1232,63 @@ class SuccessDialog(Window):
 
 
 def perform_export():
+    def collect_existing_ts_point_numbers(excluded_owner_ids=None):
+        excluded_owner_ids = excluded_owner_ids or set()
+        existing = set()
+
+        try:
+            all_elems = FilteredElementCollector(doc).WhereElementIsNotElementType().ToElements()
+        except:
+            all_elems = []
+
+        for el in all_elems:
+            try:
+                el_id = get_element_id_value(el)
+                if el_id in excluded_owner_ids:
+                    continue
+
+                p = el.LookupParameter("TS_Point_Number")
+                if p and p.HasValue:
+                    val = p.AsString() or p.AsValueString() or ""
+                    val = val.strip()
+                    if val:
+                        existing.add(val)
+            except:
+                pass
+
+        return existing
+
+    def get_next_available_number(prefix, used_numbers, width=3, start=1):
+        num = start
+        if prefix:
+            candidate = "{}{}".format(prefix, str(num).zfill(width))
+        else:
+            candidate = str(num).zfill(width)
+
+        while candidate in used_numbers:
+            num += 1
+            if prefix:
+                candidate = "{}{}".format(prefix, str(num).zfill(width))
+            else:
+                candidate = str(num).zfill(width)
+
+        return candidate
+
+    def get_next_available_like(current_val, used_numbers):
+        prefix, start_num, width = parse_point_number(current_val)
+
+        if start_num is None:
+            prefix = current_val.strip()
+            start_num = 1
+            width = max(width, 2)
+
+        candidate = make_point_number(prefix, start_num, width)
+        while candidate in used_numbers:
+            start_num += 1
+            candidate = make_point_number(prefix, start_num, width)
+
+        return candidate
+
     dlg = ExportHangerPointsDialog()
     if dlg.ShowDialog() != True:
         return
@@ -1264,6 +1409,7 @@ def perform_export():
         else:
             current_val = get_parameter_value_from_parent_first(owner, "TS_Point_Number") or ""
 
+        current_val = current_val.strip() if current_val else ""
         owner_current_values[owner_id] = current_val
         value_count[current_val] += 1
 
@@ -1315,8 +1461,10 @@ def perform_export():
             return "{}-{}".format(whole, frac_str)
         return frac_str
 
-    used_numbers = set()
-    duplicate_next = {}
+    selected_owner_ids = set(get_element_id_value(o) for o in owner_sequence)
+    existing_model_numbers = collect_existing_ts_point_numbers(selected_owner_ids)
+    used_numbers = set(existing_model_numbers)
+    renumber_log = []
 
     for owner in owner_sequence:
         owner_id = get_element_id_value(owner)
@@ -1325,44 +1473,15 @@ def perform_export():
         if not current_val:
             continue
 
-        if value_count[current_val] == 1:
+        if value_count[current_val] == 1 and current_val not in used_numbers:
             assigned_numbers[owner_id] = current_val
-            used_numbers.add(current_val)
-            continue
-
-        prefix, start_num, width = parse_point_number(current_val)
-
-        if start_num is None:
-            next_num = duplicate_next.get(current_val, 1)
-            candidate = make_point_number(prefix, next_num, width)
-
-            while candidate in used_numbers:
-                next_num += 1
-                candidate = make_point_number(prefix, next_num, width)
-
-            assigned_numbers[owner_id] = candidate
-            used_numbers.add(candidate)
-            duplicate_next[current_val] = next_num + 1
         else:
-            if current_val not in duplicate_next:
-                assigned_numbers[owner_id] = current_val
-                used_numbers.add(current_val)
-                duplicate_next[current_val] = start_num + 1
-            else:
-                next_num = duplicate_next[current_val]
-                candidate = make_point_number(prefix, next_num, width)
+            new_val = get_next_available_like(current_val, used_numbers)
+            assigned_numbers[owner_id] = new_val
+            if new_val != current_val:
+                renumber_log.append("{} -> {}".format(current_val, new_val))
 
-                while candidate in used_numbers:
-                    next_num += 1
-                    candidate = make_point_number(prefix, next_num, width)
-
-                assigned_numbers[owner_id] = candidate
-                used_numbers.add(candidate)
-                duplicate_next[current_val] = next_num + 1
-
-    blank_counter = 1
-    rck_counter = 1
-    service_counters = defaultdict(int)
+        used_numbers.add(assigned_numbers[owner_id])
 
     for owner in owner_sequence:
         owner_id = get_element_id_value(owner)
@@ -1371,39 +1490,28 @@ def perform_export():
 
         if is_fab_hanger(owner):
             if dlg.use_rck_prefix and qualifies_for_rck_prefix(owner):
-                candidate = "RCK{}".format(str(rck_counter).zfill(2))
-                while candidate in used_numbers:
-                    rck_counter += 1
-                    candidate = "RCK{}".format(str(rck_counter).zfill(2))
-                rck_counter += 1
+                candidate = get_next_available_number("RCK", used_numbers, width=2, start=1)
 
             elif dlg.use_service_prefix:
                 service_abbr = get_hanger_service_abbreviation(owner)
-                service_counters[service_abbr] += 1
-                candidate = "{}{}".format(service_abbr, str(service_counters[service_abbr]).zfill(3))
-                while candidate in used_numbers:
-                    service_counters[service_abbr] += 1
-                    candidate = "{}{}".format(service_abbr, str(service_counters[service_abbr]).zfill(3))
+                candidate = get_next_available_number(service_abbr, used_numbers, width=3, start=1)
 
             elif dlg.use_item_number:
-                candidate = str(blank_counter).zfill(3)
-                while candidate in used_numbers:
-                    blank_counter += 1
-                    candidate = str(blank_counter).zfill(3)
-                blank_counter += 1
+                item_val = get_hanger_item_number(owner)
+                if item_val:
+                    if item_val not in used_numbers:
+                        candidate = item_val
+                    else:
+                        candidate = get_next_available_like(item_val, used_numbers)
+                        if candidate != item_val:
+                            renumber_log.append("{} -> {}".format(item_val, candidate))
+                else:
+                    candidate = get_next_available_number("", used_numbers, width=3, start=1)
 
             else:
-                candidate = str(blank_counter).zfill(3)
-                while candidate in used_numbers:
-                    blank_counter += 1
-                    candidate = str(blank_counter).zfill(3)
-                blank_counter += 1
+                candidate = get_next_available_number("", used_numbers, width=3, start=1)
         else:
-            candidate = str(blank_counter).zfill(3)
-            while candidate in used_numbers:
-                blank_counter += 1
-                candidate = str(blank_counter).zfill(3)
-            blank_counter += 1
+            candidate = get_next_available_number("", used_numbers, width=3, start=1)
 
         assigned_numbers[owner_id] = candidate
         used_numbers.add(candidate)
@@ -1415,21 +1523,37 @@ def perform_export():
         is_hanger = is_fab_hanger(element)
 
         if is_hanger:
-            rod_diameter_inches = None
-            try:
-                ancillaries = element.GetPartAncillaryUsage()
-                for anc in ancillaries:
-                    if anc.AncillaryWidthOrDiameter > 0:
-                        rod_diameter_inches = anc.AncillaryWidthOrDiameter * 12.0
-                        break
-            except:
-                pass
-
             description = ""
-            if rod_diameter_inches is not None and rod_diameter_inches <= 2.0:
-                frac_dia = decimal_to_fraction_inches(rod_diameter_inches)
-                if frac_dia:
-                    description = "INSERT " + frac_dia
+
+            if dlg.fab_part_description_mode == "PARAM":
+                existing_desc = get_parameter_value(element, "TS_Point_Description")
+                if existing_desc:
+                    description = existing_desc
+
+            elif dlg.fab_part_description_mode == "FAMILY":
+                family_name = get_fabrication_family_name(element)
+                if family_name:
+                    description = family_name
+                else:
+                    existing_desc = get_parameter_value(element, "TS_Point_Description")
+                    if existing_desc:
+                        description = existing_desc
+
+            else:
+                rod_diameter_inches = None
+                try:
+                    ancillaries = element.GetPartAncillaryUsage()
+                    for anc in ancillaries:
+                        if anc.AncillaryWidthOrDiameter > 0:
+                            rod_diameter_inches = anc.AncillaryWidthOrDiameter * 12.0
+                            break
+                except:
+                    pass
+
+                if rod_diameter_inches is not None and rod_diameter_inches <= 2.0:
+                    frac_dia = decimal_to_fraction_inches(rod_diameter_inches)
+                    if frac_dia:
+                        description = "INSERT " + frac_dia
 
             assigned_descriptions[get_element_id_value(element)] = description
 
@@ -1469,7 +1593,7 @@ def perform_export():
                 except:
                     continue
         else:
-            description = "GTP"
+            description = ""
             try:
                 desc_value = get_parameter_value(element, "TS_Point_Description")
                 if isinstance(element, FamilyInstance) and element.SuperComponent:
@@ -1520,16 +1644,17 @@ def perform_export():
                 row_str = {k: str(v) for k, v in row.iteritems()}
                 writer.writerow(row_str)
 
-        check_dupes = defaultdict(list)
-        for elem_id_int, point_number in assigned_numbers.iteritems():
+        check_dupes = defaultdict(int)
+        for row in rod_data:
+            point_number = str(row.get('POINT NUMBER', '')).strip()
             if point_number:
-                check_dupes[point_number].append(elem_id_int)
+                check_dupes[point_number] += 1
 
-        dupes = [num for num, ids in check_dupes.iteritems() if len(ids) > 1]
+        dupes = sorted([num for num, count in check_dupes.iteritems() if count > 1])
         if dupes:
             TaskDialog.Show(
                 "Export Failed",
-                "Duplicate TS_Point_Number values were generated:\n{}".format(", ".join(sorted(dupes)))
+                "Duplicate exported point numbers were generated:\n{}".format(", ".join(dupes))
             )
             return
 
@@ -1564,6 +1689,9 @@ def perform_export():
         for element in element_list:
             try:
                 if is_fab_hanger(element):
+                    if dlg.fab_part_description_mode == "PARAM":
+                        continue
+
                     desc_param = element.LookupParameter("TS_Point_Description")
                     if desc_param and not desc_param.IsReadOnly:
                         desc = assigned_descriptions.get(get_element_id_value(element), "")
@@ -1572,6 +1700,19 @@ def perform_export():
                 pass
 
         t.Commit()
+
+        if renumber_log:
+            max_items = 50
+            shown = renumber_log[:max_items]
+            extra = len(renumber_log) - len(shown)
+
+            message = "The following point numbers were automatically adjusted to avoid duplicates:\n\n"
+            message += "\n".join(shown)
+
+            if extra > 0:
+                message += "\n\n...and {} more.".format(extra)
+
+            TaskDialog.Show("Auto-Resolved Duplicates", message)
 
         success = SuccessDialog(dlg.output_path, len(rod_data))
         success.ShowDialog()

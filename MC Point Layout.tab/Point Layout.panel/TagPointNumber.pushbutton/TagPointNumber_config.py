@@ -57,6 +57,8 @@ TARGET_CATEGORIES = [
     BuiltInCategory.OST_StructuralStiffener,
     BuiltInCategory.OST_GenericModel,
     BuiltInCategory.OST_FabricationHangers,
+    BuiltInCategory.OST_FabricationHangers,
+    BuiltInCategory.OST_DuctAccessory,
 ]
 
 

@@ -7,6 +7,8 @@ from math import atan2
 clr.AddReference('System')
 import System
 
+from Parameters.Add_SharedParameters import Shared_Params
+
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import (
     FilteredElementCollector, Family, LocationCurve, Transaction
@@ -18,6 +20,8 @@ from Autodesk.Revit.Exceptions import OperationCanceledException
 from Parameters.Get_Set_Params import (
     get_parameter_value_by_name_AsString
 )
+
+Shared_Params()
 
 # --------------------------------------------------
 # Basic environment

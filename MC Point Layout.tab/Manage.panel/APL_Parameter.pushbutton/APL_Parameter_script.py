@@ -266,8 +266,21 @@ try:
     # Prompt for selection only if description or prefix textboxes are enabled
     selection = []
     if desc_enabled or pre_enabled:
-        OBJselection = uidoc.Selection.PickObjects(ObjectType.Element, 'Select Elements or Finish Button')
-        selection = [doc.GetElement(elId) for elId in OBJselection]
+        selected_ids = list(uidoc.Selection.GetElementIds())
+
+        if selected_ids:
+            # Use already-selected elements
+            selection = [doc.GetElement(el_id) for el_id in selected_ids]
+        else:
+            # No preselection, prompt user
+            try:
+                picked_refs = uidoc.Selection.PickObjects(
+                    ObjectType.Element,
+                    'Select Elements or Finish Button'
+                )
+                selection = [doc.GetElement(picked_ref.ElementId) for picked_ref in picked_refs]
+            except:
+                sys.exit()  # Exit quietly if user cancels
 
     t = Transaction(doc, 'Modify Point Data')
     t.Start()

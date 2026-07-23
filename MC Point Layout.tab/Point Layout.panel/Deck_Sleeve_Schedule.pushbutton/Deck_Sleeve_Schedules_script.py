@@ -1,116 +1,224 @@
 import clr
 clr.AddReference('RevitAPI')
 clr.AddReference('RevitServices')
+clr.AddReference('RevitAPIUI')
 
-from System.Collections.Generic import List
-from Autodesk.Revit.DB import BuiltInCategory, Transaction, ElementId, ViewSchedule, FilteredElementCollector, ParameterElement, ScheduleFieldType, BuiltInParameter, ScheduleFilter, ScheduleFilterType
+from Autodesk.Revit.DB import (
+    BuiltInCategory,
+    Transaction,
+    ElementId,
+    View,
+    ViewSchedule,
+    FilteredElementCollector,
+    ParameterElement,
+    ScheduleFieldType,
+    BuiltInParameter,
+    ScheduleFilter,
+    ScheduleFilterType,
+    ScheduleSortGroupField,
+    ScheduleSortOrder
+)
+from Autodesk.Revit.UI import TaskDialog
 import System
 
-# Define the active Revit application and document
+# Active Revit document/UI document
 doc = __revit__.ActiveUIDocument.Document
+uidoc = __revit__.ActiveUIDocument
 app = __revit__.Application
+
 file_path = doc.PathName
 file_name = System.IO.Path.GetFileNameWithoutExtension(file_path)
 
-# Function to check if a schedule with a specific name and category exists
-def schedule_exists(schedule_name, category_id):
-    schedules_collector = FilteredElementCollector(doc).OfClass(ViewSchedule)
-    for schedule in schedules_collector:
-        if schedule.Name == schedule_name and schedule.Definition.CategoryId == category_id:
-            return True
-    return False
+if not file_name:
+    file_name = doc.Title
 
-# Define the fields for the schedule and their desired order
 fieldNames = [
     ("TS_Point_Number", "ITEM NO"),
-    ("Pipe Nominal Diameter", "SIZE"),
-    ("Sleeve Length", "LENGTH"),
+    ("Diameter", "SIZE"),
+    ("Length", "LENGTH"),
     ("Family", "NAME")
 ]
 
-# Get the category id for the elements you want in the schedule
 categoryId = ElementId(BuiltInCategory.OST_PipeAccessory)
-# Check if the schedule already exists
 schedule_name = "DECK SLEEVE SCHEDULE"
 
-# Check Revit version
 revit_version = int(app.VersionNumber)
 is_revit_2022_or_newer = revit_version >= 2022
+is_revit_2023_or_newer = revit_version >= 2023
+
+
+def get_id_value(eid):
+    try:
+        return eid.Value        # Revit 2024+
+    except:
+        return eid.IntegerValue # older Revit
+
+
+def get_existing_schedule(schedule_name, category_id):
+    schedules = FilteredElementCollector(doc).OfClass(ViewSchedule)
+    for schedule in schedules:
+        try:
+            if schedule.Name == schedule_name and schedule.Definition.CategoryId == category_id:
+                return schedule
+        except:
+            pass
+    return None
+
+
+def open_view(view):
+    if not view or not isinstance(view, View):
+        TaskDialog.Show("Open View", "View is not valid.")
+        return
+
+    if view.IsTemplate:
+        TaskDialog.Show("Open View", "Cannot open a view template.")
+        return
+
+    if isinstance(view, ViewSchedule):
+        if view.IsInternalKeynoteSchedule or view.IsTitleblockRevisionSchedule:
+            TaskDialog.Show("Open View", "Cannot open this internal schedule view.")
+            return
+
+    try:
+        uidoc.ActiveView = view
+    except Exception as ex:
+        TaskDialog.Show("Open View", "Could not open view '{}'\n{}".format(view.Name, ex))
+
+
+def get_parameter_element_by_name(param_name, parameters):
+    return next((p for p in parameters if p.Name == param_name), None)
+
+
+def get_schedule_field_by_parameter_id(definition, param_id):
+    for field_id in definition.GetFieldOrder():
+        field = definition.GetField(field_id)
+        try:
+            if get_id_value(field.ParameterId) == get_id_value(param_id):
+                return field
+        except:
+            pass
+    return None
+
+
+def add_field_by_name(definition, paramName, userColumnName, parameters):
+    field = None
+
+    if paramName == "Family":
+        paramId = ElementId(BuiltInParameter.ELEM_FAMILY_PARAM)
+        existing = get_schedule_field_by_parameter_id(definition, paramId)
+        if existing:
+            existing.ColumnHeading = userColumnName
+            return existing
+
+        field = definition.AddField(ScheduleFieldType.Instance, paramId)
+        field.ColumnHeading = userColumnName
+
+    elif paramName == "Elevation from Level":
+        paramId = ElementId(BuiltInParameter.INSTANCE_ELEVATION_PARAM)
+        existing = get_schedule_field_by_parameter_id(definition, paramId)
+        if existing:
+            existing.ColumnHeading = userColumnName
+            return existing
+
+        field = definition.AddField(ScheduleFieldType.Instance, paramId)
+        field.ColumnHeading = userColumnName
+
+    else:
+        parameter = get_parameter_element_by_name(paramName, parameters)
+        if parameter is not None:
+            paramId = parameter.Id
+            existing = get_schedule_field_by_parameter_id(definition, paramId)
+            if existing:
+                existing.ColumnHeading = userColumnName
+                return existing
+
+            field = definition.AddField(ScheduleFieldType.Instance, paramId)
+            field.ColumnHeading = userColumnName
+
+    return field
+
+
+def configure_schedule(schedule, parameters):
+    definition = schedule.Definition
+
+    # Sort by TS_Point_Number
+    ts_param = get_parameter_element_by_name("TS_Point_Number", parameters)
+    if ts_param is not None:
+        ts_field = get_schedule_field_by_parameter_id(definition, ts_param.Id)
+        if ts_field is not None:
+            definition.ClearSortGroupFields()
+            sort_field = ScheduleSortGroupField(ts_field.FieldId, ScheduleSortOrder.Ascending)
+            definition.AddSortGroupField(sort_field)
+
+    # Revit 2023+ : Filter by Sheet
+    if is_revit_2023_or_newer:
+        try:
+            if definition.IsValidCategoryForFilterBySheet():
+                definition.IsFilteredBySheet = True
+        except:
+            try:
+                definition.IsFilteredBySheet = True
+            except:
+                pass
+
 
 # Find the ElementId of the "Round Floor Sleeve" family type
 round_floor_sleeve_type_id = None
 if is_revit_2022_or_newer:
-    pipe_accessories = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeAccessory).WhereElementIsNotElementType().ToElements()
+    pipe_accessories = (
+        FilteredElementCollector(doc)
+        .OfCategory(BuiltInCategory.OST_PipeAccessory)
+        .WhereElementIsNotElementType()
+        .ToElements()
+    )
+
     for elem in pipe_accessories:
         fam_param = elem.get_Parameter(BuiltInParameter.ELEM_FAMILY_PARAM)
         if fam_param and fam_param.AsValueString() == "Round Floor Sleeve":
             round_floor_sleeve_type_id = elem.GetTypeId()
             break
 
-if not schedule_exists(schedule_name, categoryId):
-    # Start a new transaction
+parameters = FilteredElementCollector(doc).OfClass(ParameterElement).ToElements()
+existing_schedule = get_existing_schedule(schedule_name, categoryId)
+
+if existing_schedule:
+    t = Transaction(doc, "Update Deck Sleeve Schedule")
+    t.Start()
+
+    configure_schedule(existing_schedule, parameters)
+
+    t.Commit()
+    open_view(existing_schedule)
+
+else:
     t = Transaction(doc, "Create Schedule")
     t.Start()
 
-    # Create the schedule
     schedule = ViewSchedule.CreateSchedule(doc, categoryId)
-
-    # Set the schedule name
     schedule.Name = schedule_name
-
-    # Get the ScheduleDefinition from the ViewSchedule
     definition = schedule.Definition
 
-    # Get all parameters in the document
-    parameters = FilteredElementCollector(doc).OfClass(ParameterElement).ToElements()
-
-    # Function to add field by name
-    def add_field_by_name(definition, paramName, userColumnName, parameters):
-        if paramName == "Family":
-            # Handle the Family parameter separately using the built-in parameter
-            paramId = ElementId(BuiltInParameter.ELEM_FAMILY_PARAM)
-            field = definition.AddField(ScheduleFieldType.Instance, paramId)
-            field.ColumnHeading = userColumnName
-        elif paramName == "Elevation from Level":
-            paramId = ElementId(BuiltInParameter.INSTANCE_ELEVATION_PARAM)
-            field = definition.AddField(ScheduleFieldType.Instance, paramId)
-            field.ColumnHeading = userColumnName
-        else:
-            # Find the parameter with the matching name
-            parameter = next((p for p in parameters if p.Name == paramName), None)
-            # Check if the parameter was found
-            if parameter is not None:
-                # Get the id of the parameter
-                paramId = parameter.Id
-                # Create a new ScheduleField from the parameter id
-                field = definition.AddField(ScheduleFieldType.Instance, paramId)
-                # Set the field column header
-                field.ColumnHeading = userColumnName
-        return field
-
-    # Add fields to the schedule and store the family field
-    family_field = None
     for paramName, userColumnName in fieldNames:
-        field = add_field_by_name(definition, paramName, userColumnName, parameters)
-        if paramName == "Family":
-            family_field = field
+        add_field_by_name(definition, paramName, userColumnName, parameters)
 
     # Add filter for "Round Floor Sleeve" if Revit 2022 or newer
     if is_revit_2022_or_newer and round_floor_sleeve_type_id is not None:
-        # Add a field for Family and Type
-        type_field = definition.AddField(ScheduleFieldType.Instance, ElementId(BuiltInParameter.ELEM_FAMILY_AND_TYPE_PARAM))
-        type_field.ColumnHeading = "Family and Type"
-        type_field.IsHidden = True
-        
-        # Create a schedule filter using Equals on the Family and Type ID
+        type_param_id = ElementId(BuiltInParameter.ELEM_FAMILY_AND_TYPE_PARAM)
+        type_field = get_schedule_field_by_parameter_id(definition, type_param_id)
+
+        if type_field is None:
+            type_field = definition.AddField(ScheduleFieldType.Instance, type_param_id)
+            type_field.ColumnHeading = "Family and Type"
+            type_field.IsHidden = True
+
         schedule_filter = ScheduleFilter(
             type_field.FieldId,
             ScheduleFilterType.Equal,
             round_floor_sleeve_type_id
         )
         definition.AddFilter(schedule_filter)
-        # print("Added filter for 'Round Floor Sleeve' with TypeId: {}".format(round_floor_sleeve_type_id.IntegerValue))
+
+    configure_schedule(schedule, parameters)
 
     t.Commit()
-else:
-    print("'{}' already exists.".format(schedule_name))
+    open_view(schedule)
