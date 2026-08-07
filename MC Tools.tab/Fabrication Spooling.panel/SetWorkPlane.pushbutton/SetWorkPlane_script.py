@@ -116,12 +116,20 @@ def select_fabrication_pipe_and_create_plane():
                 task_dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Horizontal")
                 task_dialog.CommonButtons = TaskDialogCommonButtons.Cancel
                 result = task_dialog.Show()
-                if result == TaskDialogResult.CommandLink1:
-                    x_vector = XYZ.BasisX if abs(line_vector.X) > abs(line_vector.Y) else XYZ.BasisY
+
+                horizontal_dir = XYZ(line_vector.X, line_vector.Y, 0.0)
+                if horizontal_dir.GetLength() == 0:
+                    return
+                horizontal_dir = horizontal_dir.Normalize()
+
+                if result == TaskDialogResult.CommandLink1:   # Vertical
+                    x_vector = horizontal_dir
                     y_vector = XYZ.BasisZ
-                elif result == TaskDialogResult.CommandLink2:
-                    x_vector = XYZ.BasisX if abs(line_vector.X) > abs(line_vector.Y) else XYZ.BasisY
-                    y_vector = XYZ.BasisY if abs(line_vector.X) > abs(line_vector.Y) else XYZ.BasisX
+
+                elif result == TaskDialogResult.CommandLink2:  # Horizontal
+                    x_vector = horizontal_dir
+                    y_vector = XYZ.BasisZ.CrossProduct(horizontal_dir).Normalize()
+
                 else:
                     return  # Cancel
                 plane_origin = (connector_1 + connector_2) / 2

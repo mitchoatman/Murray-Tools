@@ -24,22 +24,23 @@ from Autodesk.Revit.DB import (
     ElementMulticategoryFilter,
     LocationPoint,
     LocationCurve,
-    XYZ
+    XYZ,
+    View3D
 )
 from Autodesk.Revit.DB import FamilyInstance
+import sys
 
 DB = Autodesk.Revit.DB
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 
+
 def is_parent_family_instance(element):
-    # Non-family-instance elements are allowed through
     if not isinstance(element, FamilyInstance):
         return True
-
-    # If SuperComponent exists, this is a nested instance
     return element.SuperComponent is None
+
 
 # --------------------------------------------------
 # CONFIG
@@ -56,7 +57,6 @@ TARGET_CATEGORIES = [
     BuiltInCategory.OST_PlumbingFixtures,
     BuiltInCategory.OST_StructuralStiffener,
     BuiltInCategory.OST_GenericModel,
-    BuiltInCategory.OST_FabricationHangers,
     BuiltInCategory.OST_FabricationHangers,
     BuiltInCategory.OST_DuctAccessory,
 ]
@@ -117,15 +117,28 @@ def get_tag_point(element, view):
     return None
 
 
-def is_already_tagged(element_id, tags):
+def get_all_tagged_element_ids(tags):
+    tagged_ids = set()
+
     for tag in tags:
+        # Revit versions that support multiple tagged local ids
         try:
-            tagged_ids = tag.GetTaggedLocalElementIds()
-            if element_id in tagged_ids:
-                return True
+            for eid in tag.GetTaggedLocalElementIds():
+                if eid and eid.IntegerValue != -1:
+                    tagged_ids.add(eid.IntegerValue)
+            continue
         except:
             pass
-    return False
+
+        # Fallback for older/single-tag behavior
+        try:
+            eid = tag.TaggedLocalElementId
+            if eid and eid.IntegerValue != -1:
+                tagged_ids.add(eid.IntegerValue)
+        except:
+            pass
+
+    return tagged_ids
 
 
 def build_multicategory_filter(categories):
@@ -139,6 +152,17 @@ def build_multicategory_filter(categories):
 # MAIN
 # --------------------------------------------------
 try:
+    # ----------------------------------------------
+    # Block all 3D views
+    # ----------------------------------------------
+    if isinstance(curview, View3D):
+        TaskDialog.Show(
+            "Unsupported View",
+            "This tool does not run in 3D views.\n\n"
+            "Please run it from a 2D view such as a plan, section, or elevation."
+        )
+        sys.exit()
+
     families = FilteredElementCollector(doc).OfClass(Family)
     family_in_project = any(f.Name == FAMILY_NAME for f in families)
 
@@ -169,12 +193,14 @@ try:
         raise Exception("Failed to load family: {}".format(str(e)))
 
     # ----------------------------------------------
-    # Get the tag symbol
+    # Get tag symbol
     # ----------------------------------------------
     tag_symbol = get_tag_symbol(doc, FAMILY_NAME, FAMILY_TYPE)
     if not tag_symbol:
         tg.RollBack()
-        raise Exception("Could not find tag type '{}' in family '{}'.".format(FAMILY_TYPE, FAMILY_NAME))
+        raise Exception(
+            "Could not find tag type '{}' in family '{}'.".format(FAMILY_TYPE, FAMILY_NAME)
+        )
 
     # ----------------------------------------------
     # Collect visible elements in active view
@@ -182,14 +208,20 @@ try:
     try:
         multi_cat_filter = build_multicategory_filter(TARGET_CATEGORIES)
 
-        elements_in_view = FilteredElementCollector(doc, curview.Id) \
-            .WherePasses(multi_cat_filter) \
-            .WhereElementIsNotElementType() \
+        elements_in_view = (
+            FilteredElementCollector(doc, curview.Id)
+            .WherePasses(multi_cat_filter)
+            .WhereElementIsNotElementType()
             .ToElements()
+        )
 
-        existing_tags = FilteredElementCollector(doc, curview.Id) \
-            .OfClass(IndependentTag) \
+        existing_tags = (
+            FilteredElementCollector(doc, curview.Id)
+            .OfClass(IndependentTag)
             .ToElements()
+        )
+
+        already_tagged_ids = get_all_tagged_element_ids(existing_tags)
 
     except Exception as e:
         tg.RollBack()
@@ -207,24 +239,17 @@ try:
             doc.Regenerate()
 
         tagged_count = 0
-        skipped_count = 0
-        error_count = 0
 
         for element in elements_in_view:
             try:
-                # Skip nested family instances
                 if not is_parent_family_instance(element):
-                    skipped_count += 1
                     continue
 
-                # Skip already-tagged elements
-                if is_already_tagged(element.Id, existing_tags):
-                    skipped_count += 1
+                if element.Id.IntegerValue in already_tagged_ids:
                     continue
 
                 tag_point = get_tag_point(element, curview)
                 if not tag_point:
-                    skipped_count += 1
                     continue
 
                 ref = Reference(element)
@@ -239,23 +264,17 @@ try:
                     tag_point
                 )
 
+                # Prevent duplicates in the same run
+                already_tagged_ids.add(element.Id.IntegerValue)
                 tagged_count += 1
 
             except:
-                error_count += 1
                 continue
 
         t2.Commit()
         tg.Assimilate()
 
-        TaskDialog.Show(
-            "Tag Visible Elements",
-            "Completed.\n\nTagged: {}\nSkipped: {}\nErrors: {}".format(
-                tagged_count,
-                skipped_count,
-                error_count
-            )
-        )
+        TaskDialog.Show("Tag Visible Elements", "Tagged: {}".format(tagged_count))
 
     except Exception as e:
         if t2.HasStarted():

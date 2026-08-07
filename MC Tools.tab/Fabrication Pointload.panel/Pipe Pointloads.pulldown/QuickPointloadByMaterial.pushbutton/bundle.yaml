@@ -23,6 +23,9 @@ tooltip: |-
 
   Hangers NOT attached to pipe will not have loads written to them.
 
+  [Shift]+Click:
+  Execute point load command that populates real weights.
+
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Selection

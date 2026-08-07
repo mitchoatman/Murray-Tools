@@ -6,12 +6,13 @@ title:
 
 # bundle tooltip
 tooltip: |-
-  Opens the view list stored with the "Save Views" button.
-  Can be used as a way to continue where you left off in a previous session.
+  Saves a list of open views to be used with Restore function.
   
 
   [Shift]+Click:
-  Saves a list of open views to be used with Restore function.
+  Opens the view list stored with the "Save Views" button.
+  Can be used as a way to continue where you left off in a previous session.
+
 
 # bundle help url
 help_url: "https://youtu.be/AvDcEcJ7OFk"

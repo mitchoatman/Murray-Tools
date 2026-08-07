@@ -256,7 +256,7 @@ def get_metal_diameter_from_duct(duct, connector=None):
     except:
         pass
 
-    overall_size = get_parameter_value_by_name_AsString(duct, 'Overall Size')
+    overall_size = get_parameter_value_by_name_AsString(duct, 'Size')
     if not overall_size:
         raise Exception("Could not read duct size.")
 
@@ -305,8 +305,20 @@ def place_and_modify_family(duct, famsymb):
         if distance2 < distance1:
             connector1, connector2 = connector2, connector1
 
-        raw_diameter = get_metal_diameter_from_duct(duct, connector1) + (AnnularSpace / 12.0)
+        # --- UPDATED SIZING LOGIC ---
+        primary_diameter_param = duct.LookupParameter('Main Primary Diameter')
+        if not primary_diameter_param:
+            raise Exception("Parameter 'Main Primary Diameter' not found on selected duct.")
+            
+        primary_diameter_str = primary_diameter_param.AsValueString()
+        if not primary_diameter_str:
+            raise Exception("Could not read value string from 'Main Primary Diameter'.")
+
+        raw_inches = float(re.sub(r'[^\d.]', '', primary_diameter_str))
+        raw_diameter = (raw_inches / 12.0) + (AnnularSpace / 12.0)
         diameter = round_up_to_quarter_inch(raw_diameter)
+        # ----------------------------
+
         set_parameter_by_name(new_family_instance, 'Diameter', diameter)
 
         vec_x = connector2.Origin.X - connector1.Origin.X
@@ -320,6 +332,7 @@ def place_and_modify_family(duct, famsymb):
 
         DB.ElementTransformUtils.RotateElement(doc, new_family_instance.Id, axis, angle)
 
+        set_parameter_by_name(new_family_instance, 'FP_Product Entry', primary_diameter_str)
         set_parameter_by_name(
             new_family_instance,
             'FP_Service Name',
@@ -334,6 +347,14 @@ def place_and_modify_family(duct, famsymb):
 
     except Exception as e:
         raise Exception("Family placement error: {}".format(e))
+
+
+# --------------------------------------------------
+# View Check
+# --------------------------------------------------
+if active_view.ViewType == DB.ViewType.CeilingPlan:
+    TaskDialog.Show("Unsupported View", "This tool cannot be used in Reflected Ceiling Plans. Please switch to a Floor Plan or 3D view.")
+    sys.exit(0)
 
 
 # --------------------------------------------------

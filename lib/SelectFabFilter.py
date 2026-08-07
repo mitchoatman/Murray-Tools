@@ -47,7 +47,8 @@ FAB_ONLY_SCAN_PROPS = [
     'STRATUS Assembly', 'Line Number', 'STRATUS Status', 'Reference Level',
     'Item Number', 'Bundle Number', 'REF BS Designation', 'REF Line Number',
     'Specification', 'Insulation Specification', 'Hanger Rod Size',
-    'Valve Number', 'Beam Hanger', 'Product Entry', 'Alias', 'Cut Type'
+    'Valve Number', 'Beam Hanger', 'Product Entry', 'Alias', 'Cut Type',
+    'Part Material'
 ]
 
 ALL_SCAN_PROPS = [
@@ -357,6 +358,7 @@ PROPERTY_MAP = {
     'REF Line Number': lambda x, c: get_param_string_instance_or_type(x, 'FP_REF Line Number'),
     'Comments': lambda x, c: get_param_string_instance_or_type(x, 'Comments'),
     'Specification': lambda x, c: get_cached_spec_name(c, x.Specification) if getattr(x, 'Specification', None) else None,
+    'Part Material': lambda x, c: c.GetMaterialName(x.Material) if getattr(x, 'Material', None) is not None and c else None,
     'Hanger Rod Size': lambda x, c: get_param_value_string_instance_or_type(x, 'FP_Rod Size'),
     'Valve Number': lambda x, c: get_param_string_instance_or_type(x, 'FP_Valve Number'),
     'Beam Hanger': lambda x, c: get_param_string_instance_or_type(x, 'FP_Beam Hanger'),
@@ -1014,48 +1016,45 @@ class MultiPropertyFilterForm(Window):
     def get_filtered_element_ids(self):
         pre = [self.doc.GetElement(i) for i in self.uidoc.Selection.GetElementIds()]
         use_all = any(
-            k in self.selected_filters
-            for k in ("Name", "Comments", "Category", "Workset", "TS_Point_Number", "TS_Point_Description")
+            p in ("Name", "Comments", "Category", "Workset", "TS_Point_Number", "TS_Point_Description")
+            for p in self.selected_filters
         )
         elems = pre or (self.all_elements if use_all else self.fab_elements)
 
-        compiled_filters = {}
-        for p, fl in self.selected_filters.items():
-            compiled = []
-            for vals, andf in fl:
-                compiled.append((set(str(v) for v in vals), andf))
-            compiled_filters[p] = compiled
+        and_filters = []
+        or_filters = []
 
-        if "Workset" in compiled_filters:
+        for prop, flist in self.selected_filters.items():
+            for vals, andf in flist:
+                entry = (prop, set(str(v) for v in vals))
+                if andf:
+                    and_filters.append(entry)
+                else:
+                    or_filters.append(entry)
+
+        if any(p == "Workset" for p, _ in and_filters + or_filters):
             elems = [e for e in elems if self.is_cached_valid_workset_element(e)]
 
+        needed_props = set(p for p, _ in and_filters + or_filters)
         ids = []
-        props = list(compiled_filters.keys())
 
         for e in elems:
             if not e or not e.IsValidObject:
                 continue
 
-            ok = True
-            for p in props:
-                current_val = self.get_cached_property_string(e, p)
-                fl = compiled_filters[p]
+            prop_vals = {}
+            for p in needed_props:
+                prop_vals[p] = self.get_cached_property_string(e, p)
 
-                and_hits = []
-                or_hits = []
+            # every AND filter must pass
+            and_ok = all(prop_vals[p] in valset for p, valset in and_filters)
 
-                for valset, andf in fl:
-                    hit = current_val in valset
-                    if andf:
-                        and_hits.append(hit)
-                    else:
-                        or_hits.append(hit)
+            # if any OR filters exist, at least one must pass
+            or_ok = True if not or_filters else any(
+                prop_vals[p] in valset for p, valset in or_filters
+            )
 
-                if (and_hits and not all(and_hits)) or (or_hits and not any(or_hits)):
-                    ok = False
-                    break
-
-            if ok:
+            if and_ok and or_ok:
                 ids.append(e.Id)
 
         return ids
@@ -1158,6 +1157,7 @@ def get_parameter_id(property_name):
         'REF BS Designation': 'FP_REF BS Designation',
         'REF Line Number': 'FP_REF Line Number',
         'Comments': 'Comments',
+        'Part Material': 'Material',
         'Hanger Rod Size': 'FP_Rod Size',
         'Valve Number': 'FP_Valve Number',
         'Beam Hanger': 'FP_Beam Hanger',
@@ -1239,7 +1239,7 @@ def is_valid_workset_element(elem):
         if cat.CategoryType != DB.CategoryType.Model:
             return False
     except:
-        return False
+        pass
 
     if isinstance(elem, DB.Level):
         return False
@@ -1281,7 +1281,7 @@ def is_basic_workset_element(elem):
         if cat.CategoryType != DB.CategoryType.Model:
             return False
     except:
-        return False
+        pass
 
     return bool(get_user_workset_name(elem))
 

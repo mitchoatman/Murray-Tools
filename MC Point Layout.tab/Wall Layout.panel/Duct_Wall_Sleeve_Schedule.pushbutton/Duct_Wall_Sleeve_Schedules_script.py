@@ -11,6 +11,17 @@ from Autodesk.Revit.DB import (
 )
 from Autodesk.Revit.UI import TaskDialog
 import System
+import os
+
+# Import WPF libraries for custom image display
+import clr
+clr.AddReference('PresentationFramework')
+clr.AddReference('PresentationCore')
+clr.AddReference('WindowsBase')
+from System.Windows import Window, Thickness, HorizontalAlignment, VerticalAlignment
+from System.Windows.Controls import StackPanel, Image, Button, TextBlock, ScrollViewer
+from System.Windows.Media.Imaging import BitmapImage
+from System.IO import Path
 
 doc = __revit__.ActiveUIDocument.Document
 app = __revit__.Application
@@ -122,3 +133,81 @@ for schedule_info in schedules:
         TaskDialog.Show("Schedule Exists", "'{}' already exists.".format(schedule_name))
 
 t.Commit()
+
+# --- WPF Dialog with Multiple Images Support ---
+class MultiImageDialog(Window):
+    def __init__(self, img0_path, img1_path, message):
+        super(MultiImageDialog, self).__init__()
+        self.Title = "Schedules Created"
+        self.Width = 500
+        self.Height = 650
+        self.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen
+        
+        # Outer container with scrolling enabled in case images are tall
+        scroll = ScrollViewer()
+        scroll.VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto
+        
+        panel = StackPanel()
+        panel.Margin = Thickness(15)
+        
+        # Text Message
+        text_block = TextBlock()
+        text_block.Text = message
+        text_block.FontSize = 14
+        text_block.Margin = Thickness(0, 0, 0, 15)
+        text_block.TextWrapping = System.Windows.TextWrapping.Wrap
+        panel.Children.Add(text_block)
+        
+        # Helper function to add images safely
+        def add_image(path):
+            if os.path.exists(path):
+                img = Image()
+                bitmap = BitmapImage()
+                bitmap.BeginInit()
+                bitmap.UriSource = System.Uri(path)
+                bitmap.EndInit()
+                img.Source = bitmap
+                img.MaxHeight = 220
+                img.Margin = Thickness(0, 0, 0, 10)
+                img.HorizontalAlignment = HorizontalAlignment.Center
+                panel.Children.Add(img)
+            else:
+                err_block = TextBlock()
+                err_block.Text = "[Missing: {}]".format(os.path.basename(path))
+                err_block.Foreground = System.Windows.Media.Brushes.Red
+                err_block.Margin = Thickness(0, 0, 0, 10)
+                panel.Children.Add(err_block)
+
+        # Add both images
+        add_image(img0_path)
+        add_image(img1_path)
+            
+        # Close Button
+        btn = Button()
+        btn.Content = "OK"
+        btn.Width = 100
+        btn.Height = 30
+        btn.Margin = Thickness(0, 10, 0, 0)
+        btn.HorizontalAlignment = HorizontalAlignment.Center
+        btn.Click += self.close_click
+        panel.Children.Add(btn)
+        
+        scroll.Content = panel
+        self.Content = scroll
+
+    def close_click(self, sender, e):
+        self.Close()
+
+# Determine script folder dynamically
+try:
+    script_dir = os.path.dirname(__file__)
+except NameError:
+    script_dir = os.getcwd()
+
+img0_file = os.path.join(script_dir, "image0.png")
+img1_file = os.path.join(script_dir, "image1.png")
+
+# Launch the WPF window with multiple images
+msg = "Schedules created. Reference stickers below for necessary fields."
+dialog = MultiImageDialog(img0_file, img1_file, msg)
+dialog.ShowDialog()

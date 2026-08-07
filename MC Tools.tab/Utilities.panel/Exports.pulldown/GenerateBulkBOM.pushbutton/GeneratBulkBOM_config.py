@@ -18,9 +18,6 @@ uidoc = __revit__.ActiveUIDocument
 from Parameters.FabPart_Params import Sync_FP_Params_Entire_Model
 Sync_FP_Params_Entire_Model(doc, uidoc)
 
-# Define the active Revit application and document
-doc = __revit__.ActiveUIDocument.Document
-
 # Function to check if a schedule with a specific name and category exists
 def schedule_exists(schedule_name, category_id):
     schedules_collector = FilteredElementCollector(doc).OfClass(ViewSchedule)

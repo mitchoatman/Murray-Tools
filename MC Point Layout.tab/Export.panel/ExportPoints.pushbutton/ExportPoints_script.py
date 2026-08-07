@@ -6,6 +6,8 @@ clr.AddReference('WindowsBase')
 clr.AddReference('System.Windows.Forms')
 clr.AddReference('System')
 
+import System
+
 from System.Windows import (
     Window, WindowStartupLocation, WindowStyle, GridLength, HorizontalAlignment,
     VerticalAlignment, Thickness, GridUnitType, TextWrapping, FontWeights,
@@ -753,6 +755,13 @@ def update_sleeve_descriptions_in_view():
         result_string = 'RWS W{0} x H{1} x L{2}'.format(slvwidth, slvheight, slvlength)
         set_parameter_by_name(x, 'TS_Point_Description', result_string)
 
+    accessory_elements8 = [element for element in duct_accessories if "RDS" in element.Name]
+    for x in accessory_elements8:
+        slvdiameter = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Diameter') * 12)
+        slvelevation = feet_to_feet_inches_fraction(get_parameter_value_by_name_AsDouble(x, 'Elevation from Level'))
+        result_string = "RDS DIA {0} CL {1}".format(slvdiameter, slvelevation)
+        set_parameter_by_name(x, 'TS_Point_Description', result_string)
+
 
 class AllElementSelectionFilter(Autodesk.Revit.UI.Selection.ISelectionFilter):
     def AllowElement(self, element):
@@ -1169,8 +1178,8 @@ class SuccessDialog(Window):
         self.filepath = filepath
         self.count = count
         self.Title = "Export Successful"
-        self.Width = 420
-        self.Height = 200
+        self.Width = 550
+        self.Height = 225
         self.ResizeMode = 0
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
         self.Topmost = True
@@ -1178,35 +1187,41 @@ class SuccessDialog(Window):
 
     def InitializeComponents(self):
         grid = Grid()
-        grid.Margin = Thickness(20)
+        grid.Margin = Thickness(20, 15, 20, 10)
         self.Content = grid
+        
+        # Row 0: Success label
         grid.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
-        grid.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
+        # Row 1: File path text block (star-sized to fill available space)
+        grid.RowDefinitions.Add(RowDefinition(Height=GridLength(1, GridUnitType.Star)))
+        # Row 2: Buttons panel anchored near bottom
         grid.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
 
         lbl = Label()
         lbl.Content = "Exported " + str(self.count) + " points successfully."
         lbl.FontSize = 14
-        lbl.Margin = Thickness(0, 0, 0, 10)
+        lbl.Margin = Thickness(0, 0, 0, 6)
         Grid.SetRow(lbl, 0)
         grid.Children.Add(lbl)
 
         path_text = TextBlock()
         path_text.Text = self.filepath
         path_text.FontSize = 12
-        path_text.Margin = Thickness(0, 0, 0, 20)
         path_text.TextWrapping = TextWrapping.Wrap
+        path_text.TextAlignment = System.Windows.TextAlignment.Left
+        path_text.VerticalAlignment = VerticalAlignment.Top
         Grid.SetRow(path_text, 1)
         grid.Children.Add(path_text)
 
         btn_panel = StackPanel()
         btn_panel.Orientation = Orientation.Horizontal
         btn_panel.HorizontalAlignment = HorizontalAlignment.Center
+        btn_panel.Margin = Thickness(0, 10, 0, 0)
 
         open_btn = Button()
         open_btn.Content = "Open File"
         open_btn.Width = 120
-        open_btn.Height = 36
+        open_btn.Height = 34
         open_btn.Margin = Thickness(0, 0, 20, 0)
         open_btn.Click += self.on_open_clicked
         btn_panel.Children.Add(open_btn)
@@ -1214,7 +1229,7 @@ class SuccessDialog(Window):
         close_btn = Button()
         close_btn.Content = "Close"
         close_btn.Width = 120
-        close_btn.Height = 36
+        close_btn.Height = 34
         close_btn.Click += lambda s, e: self.Close()
         btn_panel.Children.Add(close_btn)
 
@@ -1232,32 +1247,6 @@ class SuccessDialog(Window):
 
 
 def perform_export():
-    def collect_existing_ts_point_numbers(excluded_owner_ids=None):
-        excluded_owner_ids = excluded_owner_ids or set()
-        existing = set()
-
-        try:
-            all_elems = FilteredElementCollector(doc).WhereElementIsNotElementType().ToElements()
-        except:
-            all_elems = []
-
-        for el in all_elems:
-            try:
-                el_id = get_element_id_value(el)
-                if el_id in excluded_owner_ids:
-                    continue
-
-                p = el.LookupParameter("TS_Point_Number")
-                if p and p.HasValue:
-                    val = p.AsString() or p.AsValueString() or ""
-                    val = val.strip()
-                    if val:
-                        existing.add(val)
-            except:
-                pass
-
-        return existing
-
     def get_next_available_number(prefix, used_numbers, width=3, start=1):
         num = start
         if prefix:
@@ -1461,9 +1450,7 @@ def perform_export():
             return "{}-{}".format(whole, frac_str)
         return frac_str
 
-    selected_owner_ids = set(get_element_id_value(o) for o in owner_sequence)
-    existing_model_numbers = collect_existing_ts_point_numbers(selected_owner_ids)
-    used_numbers = set(existing_model_numbers)
+    used_numbers = set()
     renumber_log = []
 
     for owner in owner_sequence:

@@ -72,7 +72,7 @@ def vertical_fab(element):
     return False
 
 def is_pipe(element):
-    return element.LookupParameter('Part Pattern Number').AsInteger() in (2041, 866, 40)
+    return element.LookupParameter('Part Pattern Number').AsInteger() == 2041
 
 def get_pipe_direction(entry_xyz, exit_xyz):
     v = exit_xyz.Subtract(entry_xyz)

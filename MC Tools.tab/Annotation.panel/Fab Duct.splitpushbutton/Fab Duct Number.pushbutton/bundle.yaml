@@ -5,8 +5,11 @@ title:
   "Fab Duct Number"
 
 # bundle tooltip
-tooltip: >-
+tooltip: |-
   This will Insert the Fabrication Duct Number Tag Family into the Active View.(If the Family is already loaded into the project)
+
+  [Shift]+Click:    
+  Auto tags all ducts in view and places number tag at center / top of duct.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

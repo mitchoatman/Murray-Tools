@@ -74,7 +74,11 @@ class FabDuctFittingSelectionFilter(ISelectionFilter):
         if cat is None:
             return False
 
-        return cat.Id.IntegerValue == int(BuiltInCategory.OST_FabricationDuctwork)
+        if cat.Id.IntegerValue != int(BuiltInCategory.OST_FabricationDuctwork):
+            return False
+
+        # allow everything except straights
+        return not elem.IsAStraight()
 
     def AllowReference(self, reference, point):
         return False
@@ -167,14 +171,21 @@ if view.IsTemplate:
     raise Exception("Active view cannot be a template view.")
 
 try:
-    picked_ref = uidoc.Selection.PickObject(
+    picked_refs = uidoc.Selection.PickObjects(
         ObjectType.Element,
         FabDuctFittingSelectionFilter(),
-        "Select fabrication duct fitting"
+        "Select fabrication duct fittings"
     )
 except OperationCanceledException:
-    TaskDialog.Show(TITLE, "No fabrication duct fitting was selected.")
+    TaskDialog.Show(TITLE, "No fabrication duct fittings were selected.")
     raise SystemExit
+
+if not picked_refs:
+    TaskDialog.Show(TITLE, "No fabrication duct fittings were selected.")
+    raise SystemExit
+
+placed_count = 0
+skipped = []
 
 t = Transaction(doc, "Place Fab Top/Bottom Extension Tags")
 t.Start()
@@ -186,11 +197,13 @@ try:
     activate_symbol(doc, top_symbol)
     activate_symbol(doc, bot_symbol)
 
-    part = doc.GetElement(picked_ref.ElementId)
-    
-    if part is None:
-        skipped.append("Selected element could not be read.")
-    else:
+    for picked_ref in picked_refs:
+        part = doc.GetElement(picked_ref.ElementId)
+
+        if part is None:
+            skipped.append("Selected element could not be read.")
+            continue
+
         try:
             TOPE = None
             BOTE = None
@@ -214,16 +227,17 @@ try:
 
         if len(connectors) < 2:
             skipped.append("Element {}: fewer than 2 end connectors".format(part.Id.IntegerValue))
-        else:
-            c1 = connectors[0]
-            c2 = connectors[1]
+            continue
 
-            try:
-                place_tag(doc, view, top_symbol, part, c1.Origin)
-                place_tag(doc, view, bot_symbol, part, c2.Origin)
-                placed_count = 1
-            except Exception as ex:
-                skipped.append("Element {}: {}".format(part.Id.IntegerValue, str(ex)))
+        c1 = connectors[0]
+        c2 = connectors[1]
+
+        try:
+            place_tag(doc, view, top_symbol, part, c1.Origin)
+            place_tag(doc, view, bot_symbol, part, c2.Origin)
+            placed_count += 1
+        except Exception as ex:
+            skipped.append("Element {}: {}".format(part.Id.IntegerValue, str(ex)))
 
     t.Commit()
 
@@ -231,7 +245,7 @@ except Exception:
     t.RollBack()
     raise
 
-# msg = "Processed fittings: 1\nPlaced tag pairs: {}".format(placed_count)
+# msg = "Processed fittings: {}\nPlaced tag pairs: {}".format(len(picked_refs), placed_count)
 
 # if skipped:
     # msg += "\n\nSkipped:\n- " + "\n- ".join(skipped[:20])

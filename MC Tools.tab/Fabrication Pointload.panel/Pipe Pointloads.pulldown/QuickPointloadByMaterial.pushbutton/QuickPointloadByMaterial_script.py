@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 import Autodesk
 import sys
 
@@ -14,11 +15,13 @@ from Autodesk.Revit.UI import TaskDialog
 from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString
 
-# WPF Imports
+# WPF & Windows Forms Imports
 import clr
 clr.AddReference('PresentationFramework')
 clr.AddReference('PresentationCore')
 clr.AddReference('WindowsBase')
+clr.AddReference("System.Windows.Forms")
+clr.AddReference("System.Drawing")
 
 from System.Windows import (
     Window,
@@ -34,6 +37,8 @@ import System
 from System import Action
 import System.Windows.Threading
 from System.Collections.Generic import List
+from System.Windows.Forms import NotifyIcon, ToolTipIcon
+from System.Drawing import SystemIcons
 
 
 Shared_Params()
@@ -45,6 +50,17 @@ app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float(RevitVersion)
 Config = FabricationConfiguration.GetFabricationConfiguration(doc)
+
+
+def show_balloon_notification(title, message, timeout=5000):
+    """Displays a native Windows balloon notification in the system tray area."""
+    notify_icon = NotifyIcon()
+    try:
+        notify_icon.Icon = SystemIcons.Information
+        notify_icon.Visible = True
+        notify_icon.ShowBalloonTip(timeout, title, message, ToolTipIcon.Info)
+    except Exception:
+        pass
 
 
 def set_customdata_by_custid(fabpart, custid, value):
@@ -311,4 +327,4 @@ if error_data:
             Action(lambda: None)
         )
 else:
-    TaskDialog.Show("Success", "Pointload completed on single hangers without error.")
+    show_balloon_notification("Success", "Pointload completed on single hangers without error.")

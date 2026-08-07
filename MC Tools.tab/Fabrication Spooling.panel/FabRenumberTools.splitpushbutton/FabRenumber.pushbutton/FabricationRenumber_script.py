@@ -3,6 +3,7 @@ from System.Collections.Generic import List
 from Autodesk.Revit.DB import Transaction
 from Autodesk.Revit.DB.Fabrication import FabricationPartCompareType
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+from Autodesk.Revit.UI import TaskDialog
 import clr
 clr.AddReference('PresentationFramework')
 clr.AddReference('PresentationCore')
@@ -31,9 +32,13 @@ class CustomISelectionFilter(ISelectionFilter):
         self.hanger_type = hanger_type
 
     def AllowElement(self, e):
-        if e.Category.Name not in self.categories:
+        # Fallback check if Category is None or Category.Name is missing
+        if not e.Category:
             return False
-        if self.hanger_type and e.Category.Name == "MEP Fabrication Hangers":
+        cat_name = e.Category.Name
+        if cat_name not in self.categories:
+            return False
+        if self.hanger_type and cat_name == "MEP Fabrication Hangers":
             rod_info = e.GetRodInfo()
             if rod_info:
                 rod_count = rod_info.RodCount
@@ -89,11 +94,14 @@ Bool_List = [
     'Zone', 'ETag', 'Alt', 'Spool', 'Alias', 'PCFKey', 'CustomData', 'ButtonAlias'
 ]
 
-# Initialize IgnFld based on saved ignore fields
 folder_name = "c:\\Temp"
 ignore_filepath = os.path.join(folder_name, 'Ribbon_FabRenumberOPS.txt')
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
+
+if not os.path.exists(ignore_filepath):
+    with open(ignore_filepath, 'w') as f:
+        f.write("[]")
 
 if os.path.exists(ignore_filepath):
     with open(ignore_filepath, 'r') as f:
@@ -131,12 +139,11 @@ class IgnoreFieldsForm(Window):
 
         grid = Grid()
         grid.Margin = Thickness(5)
-        for i in range(4):  # rows for: label, search box, scroll, buttons
+        for i in range(4):
             row = GridLength(1, GridUnitType.Star) if i == 2 else GridLength.Auto
             grid.RowDefinitions.Add(System.Windows.Controls.RowDefinition(Height=row))
         grid.ColumnDefinitions.Add(System.Windows.Controls.ColumnDefinition())
 
-        # Row 0 - Label
         self.label = Label(Content="Search and select fields to ignore:")
         self.label.FontFamily = FontFamily("Arial")
         self.label.FontSize = 16
@@ -144,13 +151,11 @@ class IgnoreFieldsForm(Window):
         Grid.SetRow(self.label, 0)
         grid.Children.Add(self.label)
 
-        # Row 1 - Search Box
         self.search_box = TextBox(Height=20, FontFamily=FontFamily("Arial"), FontSize=12)
         self.search_box.TextChanged += self.search_changed
         Grid.SetRow(self.search_box, 1)
         grid.Children.Add(self.search_box)
 
-        # Row 2 - Scrollable Checkbox Panel
         self.checkbox_panel = StackPanel(Orientation=System.Windows.Controls.Orientation.Vertical)
         scroll_viewer = ScrollViewer(Content=self.checkbox_panel, VerticalScrollBarVisibility=System.Windows.Controls.ScrollBarVisibility.Auto)
         scroll_viewer.Margin = Thickness(0, 1, 0, 1)
@@ -159,7 +164,6 @@ class IgnoreFieldsForm(Window):
 
         self.update_checkboxes(self.field_list)
 
-        # Row 3 - Button Panel
         button_panel = StackPanel(Orientation=System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment=HorizontalAlignment.Center, Margin=Thickness(0, 10, 0, 10))
 
         self.select_button = Button(Content="Select", FontFamily=FontFamily("Arial"), FontSize=12, Margin=Thickness(0, 0, 20, 0))
@@ -174,12 +178,8 @@ class IgnoreFieldsForm(Window):
         grid.Children.Add(button_panel)
 
         self.Content = grid
-
-        # Set focus and highlight search box
         self.search_box.Focus()
         self.search_box.SelectAll()
-
-        # Subscribe to Closed event to save selected_fields
         self.Closed += self.on_closed
 
     def update_checkboxes(self, fields):
@@ -223,25 +223,23 @@ class IgnoreFieldsForm(Window):
             f.write(str(self.selected_fields))
 
 class RenumberForm(Window):
-    def __init__(self, prefix, start_num, checkboxdef):
+    def __init__(self, prefix, start_num, checkboxdef, startloc_def):
         self.Title = 'Renumber Fabrication Parts'
         self.Width = 400
         self.Height = 460
         self.ResizeMode = ResizeMode.NoResize
         self.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen
-        self.InitializeComponents(prefix, start_num, checkboxdef)
+        self.InitializeComponents(prefix, start_num, checkboxdef, startloc_def)
 
-    def InitializeComponents(self, prefix, start_num, checkboxdef):
+    def InitializeComponents(self, prefix, start_num, checkboxdef, startloc_def):
         grid = Grid()
         grid.Margin = Thickness(10)
 
-        # Define rows
         for i in range(11):
             row = RowDefinition()
             row.Height = GridLength.Auto
             grid.RowDefinitions.Add(row)
 
-        # Label for Prefix
         self.label_prefix = Label()
         self.label_prefix.Content = 'Prefix and Separator:'
         self.label_prefix.Foreground = Brushes.Black
@@ -249,7 +247,6 @@ class RenumberForm(Window):
         Grid.SetRow(self.label_prefix, 0)
         grid.Children.Add(self.label_prefix)
 
-        # TextBox for Prefix
         self.textbox_prefix = TextBox()
         self.textbox_prefix.Text = prefix
         self.textbox_prefix.Width = 150
@@ -259,7 +256,6 @@ class RenumberForm(Window):
         Grid.SetRow(self.textbox_prefix, 0)
         grid.Children.Add(self.textbox_prefix)
 
-        # Label for Start Number
         self.label_startnum = Label()
         self.label_startnum.Content = 'Enter Start Number:'
         self.label_startnum.Foreground = Brushes.Black
@@ -267,7 +263,6 @@ class RenumberForm(Window):
         Grid.SetRow(self.label_startnum, 1)
         grid.Children.Add(self.label_startnum)
 
-        # TextBox for Start Number
         self.textbox_startnum = TextBox()
         self.textbox_startnum.Text = start_num
         self.textbox_startnum.Width = 150
@@ -277,7 +272,6 @@ class RenumberForm(Window):
         Grid.SetRow(self.textbox_startnum, 1)
         grid.Children.Add(self.textbox_startnum)
 
-        # Checkbox for Same Number
         self.checkbox_same = CheckBox()
         self.checkbox_same.Content = 'Same Number for Identical Parts'
         self.checkbox_same.IsChecked = checkboxdef
@@ -286,16 +280,14 @@ class RenumberForm(Window):
         Grid.SetRow(self.checkbox_same, 2)
         grid.Children.Add(self.checkbox_same)
 
-        # Checkbox for Start Location
         self.checkbox_startloc = CheckBox()
         self.checkbox_startloc.Content = 'Set Numbering Start Location'
-        self.checkbox_startloc.IsChecked = False
+        self.checkbox_startloc.IsChecked = startloc_def
         self.checkbox_startloc.Foreground = Brushes.Black
         self.checkbox_startloc.Margin = Thickness(0, 0, 0, 10)
         Grid.SetRow(self.checkbox_startloc, 3)
         grid.Children.Add(self.checkbox_startloc)
 
-        # Button for Ignore Fields
         self.button_ignore = Button()
         self.button_ignore.Content = 'Ignore Fields'
         self.button_ignore.Background = Brushes.Red
@@ -307,7 +299,6 @@ class RenumberForm(Window):
         Grid.SetRow(self.button_ignore, 4)
         grid.Children.Add(self.button_ignore)
 
-        # Button for All Selected
         self.button_all = Button()
         self.button_all.Content = 'No Filter / Select All'
         self.button_all.Background = Brushes.PaleGoldenrod
@@ -319,7 +310,6 @@ class RenumberForm(Window):
         Grid.SetRow(self.button_all, 5)
         grid.Children.Add(self.button_all)
 
-        # Label for Filters
         self.label_filters = Label()
         self.label_filters.Content = unichr(8595) + ' Filter Selection ' + unichr(8595)
         self.label_filters.Foreground = Brushes.Black
@@ -328,7 +318,6 @@ class RenumberForm(Window):
         Grid.SetRow(self.label_filters, 6)
         grid.Children.Add(self.label_filters)
 
-        # Button for Single Hangers
         self.button_single_hangers = Button()
         self.button_single_hangers.Content = 'Single Hangers'
         self.button_single_hangers.Foreground = Brushes.Black
@@ -339,7 +328,6 @@ class RenumberForm(Window):
         Grid.SetRow(self.button_single_hangers, 7)
         grid.Children.Add(self.button_single_hangers)
 
-        # Button for Trapeze Hangers
         self.button_trapeze_hangers = Button()
         self.button_trapeze_hangers.Content = 'Trapeze Hangers'
         self.button_trapeze_hangers.Foreground = Brushes.Black
@@ -350,7 +338,6 @@ class RenumberForm(Window):
         Grid.SetRow(self.button_trapeze_hangers, 8)
         grid.Children.Add(self.button_trapeze_hangers)
 
-        # Button for Pipework
         self.button_pipework = Button()
         self.button_pipework.Content = 'Pipework'
         self.button_pipework.Foreground = Brushes.Black
@@ -361,7 +348,6 @@ class RenumberForm(Window):
         Grid.SetRow(self.button_pipework, 9)
         grid.Children.Add(self.button_pipework)
 
-        # Button for Ductwork
         self.button_ductwork = Button()
         self.button_ductwork.Content = 'Ductwork'
         self.button_ductwork.Foreground = Brushes.Black
@@ -378,10 +364,8 @@ class RenumberForm(Window):
     def on_ignore_click(self, sender, args):
         folder_name = "c:\\Temp"
         filepath = os.path.join(folder_name, 'Ribbon_FabRenumberOPS.txt')
-
         if not os.path.exists(folder_name):
             os.makedirs(folder_name)
-
         if os.path.exists(filepath):
             with open(filepath, 'r') as f:
                 try:
@@ -392,7 +376,6 @@ class RenumberForm(Window):
                     ignorebools = []
         else:
             ignorebools = []
-
         form = IgnoreFieldsForm(ignorebools)
         form.ShowDialog()
 
@@ -416,64 +399,27 @@ class RenumberForm(Window):
         return IgnFld
 
     def on_single_hangers_click(self, sender, args):
-        self.values = {
-            'prefix': self.textbox_prefix.Text,
-            'StrtNum': self.textbox_startnum.Text,
-            'checkboxvalue': self.checkbox_same.IsChecked,
-            'SetStartcheckboxvalue': self.checkbox_startloc.IsChecked,
-            'category': 'MEP Fabrication Hangers',
-            'hanger_type': 'single',
-            'ignore_fields': self.read_ignore_fields()
-        }
+        self.values = {'prefix': self.textbox_prefix.Text, 'StrtNum': self.textbox_startnum.Text, 'checkboxvalue': self.checkbox_same.IsChecked, 'SetStartcheckboxvalue': self.checkbox_startloc.IsChecked, 'category': 'MEP Fabrication Hangers', 'hanger_type': 'single', 'ignore_fields': self.read_ignore_fields()}
         self.DialogResult = True
         self.Close()
 
     def on_trapeze_hangers_click(self, sender, args):
-        self.values = {
-            'prefix': self.textbox_prefix.Text,
-            'StrtNum': self.textbox_startnum.Text,
-            'checkboxvalue': self.checkbox_same.IsChecked,
-            'SetStartcheckboxvalue': self.checkbox_startloc.IsChecked,
-            'category': 'MEP Fabrication Hangers',
-            'hanger_type': 'trapeze',
-            'ignore_fields': self.read_ignore_fields()
-        }
+        self.values = {'prefix': self.textbox_prefix.Text, 'StrtNum': self.textbox_startnum.Text, 'checkboxvalue': self.checkbox_same.IsChecked, 'SetStartcheckboxvalue': self.checkbox_startloc.IsChecked, 'category': 'MEP Fabrication Hangers', 'hanger_type': 'trapeze', 'ignore_fields': self.read_ignore_fields()}
         self.DialogResult = True
         self.Close()
 
     def on_pipework_click(self, sender, args):
-        self.values = {
-            'prefix': self.textbox_prefix.Text,
-            'StrtNum': self.textbox_startnum.Text,
-            'checkboxvalue': self.checkbox_same.IsChecked,
-            'SetStartcheckboxvalue': self.checkbox_startloc.IsChecked,
-            'category': 'MEP Fabrication Pipework',
-            'ignore_fields': self.read_ignore_fields()
-        }
+        self.values = {'prefix': self.textbox_prefix.Text, 'StrtNum': self.textbox_startnum.Text, 'checkboxvalue': self.checkbox_same.IsChecked, 'SetStartcheckboxvalue': self.checkbox_startloc.IsChecked, 'category': 'MEP Fabrication Pipework', 'hanger_type': None, 'ignore_fields': self.read_ignore_fields()}
         self.DialogResult = True
         self.Close()
 
     def on_ductwork_click(self, sender, args):
-        self.values = {
-            'prefix': self.textbox_prefix.Text,
-            'StrtNum': self.textbox_startnum.Text,
-            'checkboxvalue': self.checkbox_same.IsChecked,
-            'SetStartcheckboxvalue': self.checkbox_startloc.IsChecked,
-            'category': 'MEP Fabrication Ductwork',
-            'ignore_fields': self.read_ignore_fields()
-        }
+        self.values = {'prefix': self.textbox_prefix.Text, 'StrtNum': self.textbox_startnum.Text, 'checkboxvalue': self.checkbox_same.IsChecked, 'SetStartcheckboxvalue': self.checkbox_startloc.IsChecked, 'category': 'MEP Fabrication Ductwork', 'hanger_type': None, 'ignore_fields': self.read_ignore_fields()}
         self.DialogResult = True
         self.Close()
 
     def on_all_click(self, sender, args):
-        self.values = {
-            'prefix': self.textbox_prefix.Text,
-            'StrtNum': self.textbox_startnum.Text,
-            'checkboxvalue': self.checkbox_same.IsChecked,
-            'SetStartcheckboxvalue': self.checkbox_startloc.IsChecked,
-            'category': None,
-            'ignore_fields': self.read_ignore_fields()
-        }
+        self.values = {'prefix': self.textbox_prefix.Text, 'StrtNum': self.textbox_startnum.Text, 'checkboxvalue': self.checkbox_same.IsChecked, 'SetStartcheckboxvalue': self.checkbox_startloc.IsChecked, 'category': None, 'hanger_type': None, 'ignore_fields': self.read_ignore_fields()}
         self.DialogResult = True
         self.Close()
 
@@ -484,37 +430,34 @@ if not os.path.exists(folder_name):
 
 if not os.path.exists(filepath):
     with open(filepath, 'w') as the_file:
-        line1 = ('pre' + '\n')
-        line2 = ('num' + '\n')
-        line3 = 'False'
-        the_file.writelines([line1, line2, line3])
+        the_file.writelines(['pre\n', '01\n', 'False\n', 'False'])
 
 with open(filepath, 'r') as file:
-    lines = file.readlines()
-    lines = [line.rstrip() for line in lines]
+    lines = [line.rstrip() for line in file.readlines()]
 
-if len(lines) < 3:
+if len(lines) < 4:
     with open(filepath, 'w') as the_file:
-        line1 = ('pre' + '\n')
-        line2 = ('num' + '\n')
-        line3 = 'False'
-        the_file.writelines([line1, line2, line3])
+        the_file.writelines([
+            (lines[0] if len(lines) > 0 else 'pre') + '\n',
+            (lines[1] if len(lines) > 1 else '01') + '\n',
+            (lines[2] if len(lines) > 2 else 'False') + '\n',
+            'False'
+        ])
 
 with open(filepath, 'r') as file:
-    lines = file.readlines()
-    lines = [line.rstrip() for line in lines]
+    lines = [line.rstrip() for line in file.readlines()]
 
 checkboxdef = lines[2] == 'True'
+startloc_def = lines[3] == 'True'
 
-form = RenumberForm(lines[0], lines[1], checkboxdef)
+form = RenumberForm(lines[0], lines[1], checkboxdef, startloc_def)
 if form.ShowDialog() != True:
-    import sys
     sys.exit()
 
 valuepre = form.values.get('prefix', lines[0])
 value = form.values.get('StrtNum', lines[1])
 snfip = form.values.get('checkboxvalue', checkboxdef)
-sslfn = form.values.get('SetStartcheckboxvalue', False)
+sslfn = form.values.get('SetStartcheckboxvalue', startloc_def)
 category = form.values.get('category', None)
 hanger_type = form.values.get('hanger_type', None)
 ignore_fields = form.values.get('ignore_fields', IgnFld)
@@ -525,18 +468,22 @@ try:
 except OperationCanceledException:
     sys.exit()
 
-Fhangers1 = [doc.GetElement(elId) for elId in pipesel]
+Fhangers1 = [doc.GetElement(elId) for elId in pipesel if doc.GetElement(elId) is not None]
 Fhangers2 = Fhangers1[:]
 
+# PROMPT 1: Check if selection returned valid elements
+if not Fhangers1:
+    TaskDialog.Show("Selection Error", "No valid fabrication parts found in selection. Ensure you are selecting elements matching the active filter category.")
+    sys.exit()
+
+# TaskDialog.Show("Debug Selection", "Successfully captured {} elements for renumbering.".format(len(Fhangers1)))
+
 def distance_between_parts(part1, part2):
-    point1 = part1.Origin
-    point2 = part2.Origin
-    return point1.DistanceTo(point2)
+    return part1.Origin.DistanceTo(part2.Origin)
 
 def renumber_by_proximity(selected_part, parts_to_renumber, prefix, start_num, fill_length, identical_parts=False, ignore_fields=None):
     unique_elements = {}
     parts_sorted = sorted(parts_to_renumber, key=lambda x: distance_between_parts(selected_part, x))
-    
     current_number = start_num
     
     if not identical_parts:
@@ -547,8 +494,20 @@ def renumber_by_proximity(selected_part, parts_to_renumber, prefix, start_num, f
             current_number += 1
     else:
         for part in parts_sorted:
-            identical_elements = [n for n in parts_to_renumber if part.IsSameAs(n, ignore_fields)]
-            key = tuple(element.Id.IntegerValue for element in identical_elements)
+            try:
+                identical_elements = [n for n in parts_to_renumber if part.IsSameAs(n, ignore_fields)]
+            except Exception as ex:
+                TaskDialog.Show("IsSameAs Proximity Exception", str(ex))
+                identical_elements = [part]
+
+            if not identical_elements:
+                identical_elements = [part]
+
+            if RevitINT > 2025:
+                key = tuple(element.Id.Value for element in identical_elements)
+            else:
+                key = tuple(element.Id.IntegerValue for element in identical_elements)
+
             if key in unique_elements:
                 num_to_assign = unique_elements[key]
             else:
@@ -561,61 +520,84 @@ def renumber_by_proximity(selected_part, parts_to_renumber, prefix, start_num, f
     
     return current_number
 
-start_number = int(value)
+try:
+    start_number = int(value)
+except ValueError:
+    TaskDialog.Show("Error", "Start Number must be a valid integer number.")
+    sys.exit()
+
 Fill_length = len(value)
 
 if category == 'MEP Fabrication Hangers' and hanger_type:
     if hanger_type == 'single':
-        Fhangers1 = [e for e in Fhangers1 if e.GetRodInfo().RodCount < 2]
-        Fhangers2 = [e for e in Fhangers2 if e.GetRodInfo().RodCount < 2]
+        Fhangers1 = [e for e in Fhangers1 if e.GetRodInfo() and e.GetRodInfo().RodCount < 2]
+        Fhangers2 = [e for e in Fhangers2 if e.GetRodInfo() and e.GetRodInfo().RodCount < 2]
     elif hanger_type == 'trapeze':
-        Fhangers1 = [e for e in Fhangers1 if e.GetRodInfo().RodCount > 1]
-        Fhangers2 = [e for e in Fhangers2 if e.GetRodInfo().RodCount > 1]
+        Fhangers1 = [e for e in Fhangers1 if e.GetRodInfo() and e.GetRodInfo().RodCount > 1]
+        Fhangers2 = [e for e in Fhangers2 if e.GetRodInfo() and e.GetRodInfo().RodCount > 1]
 
 if not Fhangers1:
-    import sys
+    TaskDialog.Show("Filter Error", "After applying hanger criteria, no elements remained.")
     sys.exit()
 
-t = Transaction(doc, 'Re-Number Fabrication Parts')
-t.Start()
+try:
+    t = Transaction(doc, 'Re-Number Fabrication Parts')
+    t.Start()
 
-unique_elements = {}
+    unique_elements = {}
 
-if sslfn:
-    selected_categories = [category] if category else fabrication_categories
-    selected_part_ref = uidoc.Selection.PickObject(ObjectType.Element, CustomISelectionFilter(selected_categories, hanger_type), "Select Fabrication Part to start numbering from")
-    selected_part = doc.GetElement(selected_part_ref.ElementId)
-    
-    start_number = renumber_by_proximity(selected_part, Fhangers1, valuepre, start_number, Fill_length, snfip, ignore_fields)
-else:
-    if not snfip:
-        for ue in Fhangers1:
-            num_to_assign = valuepre + str(start_number).zfill(Fill_length)
-            set_parameter_by_name(ue, 'Item Number', str(num_to_assign))
-            set_parameter_by_name(ue, 'STRATUS Item Number', str(num_to_assign))
-            start_number += 1
+    if sslfn:
+        selected_categories = [category] if category else fabrication_categories
+        selected_part_ref = uidoc.Selection.PickObject(ObjectType.Element, CustomISelectionFilter(selected_categories, hanger_type), "Select Fabrication Part to start numbering from")
+        selected_part = doc.GetElement(selected_part_ref.ElementId)
+        start_number = renumber_by_proximity(selected_part, Fhangers1, valuepre, start_number, Fill_length, snfip, ignore_fields)
     else:
-        for e in Fhangers1:
-            identical_elements = [n for n in Fhangers2 if e.IsSameAs(n, ignore_fields)]
-            if RevitINT > 2025:
-                key = tuple(element.Id.Value for element in identical_elements)
-            else:
-                key = tuple(element.Id.IntegerValue for element in identical_elements)
-            if key in unique_elements:
-                num_to_assign = unique_elements[key]
-            else:
+        if not snfip:
+            for ue in Fhangers1:
                 num_to_assign = valuepre + str(start_number).zfill(Fill_length)
-                unique_elements[key] = num_to_assign
+                set_parameter_by_name(ue, 'Item Number', str(num_to_assign))
+                set_parameter_by_name(ue, 'STRATUS Item Number', str(num_to_assign))
                 start_number += 1
+        else:
+            for e in Fhangers1:
+                try:
+                    identical_elements = [n for n in Fhangers2 if e.IsSameAs(n, ignore_fields)]
+                except Exception as ex:
+                    TaskDialog.Show("IsSameAs Loop Exception", str(ex))
+                    identical_elements = [e]
 
-            for element in identical_elements:
-                set_parameter_by_name(element, 'Item Number', num_to_assign)
-                set_parameter_by_name(element, 'STRATUS Item Number', num_to_assign)
+                if not identical_elements:
+                    identical_elements = [e]
 
-t.Commit()
+                if RevitINT > 2025:
+                    key = tuple(element.Id.Value for element in identical_elements)
+                else:
+                    key = tuple(element.Id.IntegerValue for element in identical_elements)
+                
+                if key in unique_elements:
+                    num_to_assign = unique_elements[key]
+                else:
+                    num_to_assign = valuepre + str(start_number).zfill(Fill_length)
+                    unique_elements[key] = num_to_assign
+                    start_number += 1
+
+                for element in identical_elements:
+                    set_parameter_by_name(element, 'Item Number', num_to_assign)
+                    set_parameter_by_name(element, 'STRATUS Item Number', num_to_assign)
+
+    t.Commit()
+    # TaskDialog.Show("Success", "Successfully renumbered elements.")
+
+except Exception as main_ex:
+    if 't' in locals() and t.HasStarted() and not t.HasEnded():
+        t.RollBack()
+    TaskDialog.Show("Critical Script Error", str(main_ex))
+    sys.exit()
 
 with open(filepath, 'w') as the_file:
-    line1 = (valuepre + '\n')
-    line2 = (str(start_number).zfill(Fill_length) + '\n')
-    line3 = str(snfip)
-    the_file.writelines([line1, line2, line3])
+    the_file.writelines([
+        valuepre + '\n',
+        str(start_number).zfill(Fill_length) + '\n',
+        str(snfip) + '\n',
+        str(sslfn)
+    ])

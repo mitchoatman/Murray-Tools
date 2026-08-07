@@ -31,10 +31,10 @@ if view.ViewType == ViewType.ThreeD:
     sys.exit()
 
 path, filename = os.path.split(__file__)
-family_path = os.path.join(path, 'Round Floor Sleeve.rfa')
+family_path = os.path.join(path, 'Rectangular Floor Sleeve.rfa')
 
-FAMILY_NAME = 'Round Floor Sleeve'
-FAMILY_TYPE = 'Round Floor Sleeve'
+FAMILY_NAME = 'Rectangular Floor Sleeve'
+FAMILY_TYPE = 'Rectangular Sleeve'
 
 
 def show_message(title, message):

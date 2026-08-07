@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from pyrevit import forms, revit, DB, script
+from pyrevit import forms, revit, DB, script, coreutils
 import clr
 import os.path as op
 import csv
@@ -266,47 +266,40 @@ if RevitINT < 2025:
         main()
 
 else:
-    from pyrevit import forms
-    from pyrevit import coreutils
-    from pyrevit import revit, DB
-    from pyrevit import script
-
-    # Select schedules
-    schedules_to_export = forms.select_schedules()
-
+    schedules_to_export = forms.select_schedules(title="Select Schedules for BOM (Revit 2025+)")
     if schedules_to_export:
-        # Set up export options
         vseop = DB.ViewScheduleExportOptions()
         vseop.ColumnHeaders = coreutils.get_enum_value(DB.ExportColumnHeaders, "OneRow")
         vseop.FieldDelimiter = ','
         vseop.Title = False
         vseop.HeadersFootersBlanks = True
 
-        # Define export directory
         export_dir = r'C:\temp'
         if not os.path.exists(export_dir):
             os.makedirs(export_dir)
 
-        # Export each schedule
         for sched in schedules_to_export:
-            # Generate clean filename
-            fname = coreutils.cleanup_filename(revit.query.get_name(sched)) + '.csv'
-            export_path = op.join(export_dir, fname)
-            
-            # Export schedule
             try:
+                fname = coreutils.cleanup_filename(revit.query.get_name(sched)) + '.csv'
+                export_path = op.join(export_dir, fname)
+                
+                # Export the schedule
                 sched.Export(export_dir, fname, vseop)
-                # Correct text encoding if needed
-                revit.files.correct_text_encoding(export_path)
-            except Exception, e:
-                print("Error exporting schedule %s: %s" % (revit.query.get_name(sched), str(e)))
+                
+                # FIX: Clean and re-encode the CSV file to standard UTF-8 to strip out BOM / weird dash characters
+                with codecs.open(export_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                with codecs.open(export_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
 
-    path, filename = os.path.split(__file__)
-    NewFilename = '\MR-BOM.xlsm'
+            except Exception as e:
+                print("Error exporting schedule: {}".format(str(e)))
 
-    # Open the BOM template
-    bom_template = path + NewFilename
-    if op.exists(bom_template):
-        os.startfile(bom_template)
-    else:
-        print("BOM template file not found at: %s" % bom_template)
+        # Open the macro-enabled template
+        script_dir, _ = os.path.split(__file__)
+        bom_template = op.join(script_dir, 'MR-BOM.xlsm')
+        
+        if op.exists(bom_template):
+            os.startfile(bom_template)
+        else:
+            forms.alert("BOM template file not found at:\n{}".format(bom_template), title="Template Missing")

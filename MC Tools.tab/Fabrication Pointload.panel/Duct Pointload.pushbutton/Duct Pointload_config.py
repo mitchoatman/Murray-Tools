@@ -81,7 +81,7 @@ if len(Fpipework) > 0:
 
     if len(Fhangers) > 0:
         Hanger_Count = float(len(Fhangers))
-        pointload = ((Total_Weight / Hanger_Count) / 10)
+        pointload = (Total_Weight / Hanger_Count)
 
         t = Transaction(doc, 'Write Pointload Info')
         t.Start()

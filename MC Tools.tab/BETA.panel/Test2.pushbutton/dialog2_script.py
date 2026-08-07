@@ -6,14 +6,18 @@ import sys
 clr.AddReference("PresentationFramework")
 clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
+clr.AddReference("System.Windows.Forms")
+clr.AddReference("System.Drawing")
 
 from Autodesk.Revit.DB import *
 from Autodesk.Revit.UI import TaskDialog
 from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
 from Autodesk.Revit.Exceptions import OperationCanceledException
-from System.Windows import Window, Thickness, WindowStartupLocation, ResizeMode
-from System.Windows.Controls import StackPanel, TextBox, ListBox, Label, ComboBox
+from System.Windows import Window, Thickness, WindowStartupLocation, ResizeMode, HorizontalAlignment
+from System.Windows.Controls import StackPanel, TextBox, ListBox, Label, ComboBox, Button, DockPanel, Dock
 from System.Windows.Input import Keyboard
+from System.Windows.Forms import NotifyIcon, ToolTipIcon
+from System.Drawing import SystemIcons
 
 # Revit
 doc = __revit__.ActiveUIDocument.Document
@@ -142,6 +146,18 @@ def try_match_product_entry_by_size(new_part, host_part):
                 pass
 
     return False, "no compatible matching product entry found"
+
+
+def show_balloon_notification(title, message, timeout=5000):
+    """Displays a native Windows balloon notification."""
+    notify_icon = NotifyIcon()
+    try:
+        notify_icon.Icon = SystemIcons.Information
+        notify_icon.Visible = True
+        notify_icon.ShowBalloonTip(timeout, title, message, ToolTipIcon.Info)
+    except Exception:
+        pass
+
 
 # -----------------------------
 # SELECTION FILTER
@@ -336,56 +352,110 @@ class PartPicker(Window):
         self.all_records = list(records)
         self.filtered_records = list(records)
         self.selected_record = None
+
         self.Title = "Select Fabrication Part"
-        self.Width = 400
-        self.Height = 620
+        self.Width = 450
+        self.Height = 635
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
         self.ResizeMode = ResizeMode.CanResize
-        stack = StackPanel()
-        stack.Margin = Thickness(10)
 
-        lbl_palette = Label(); lbl_palette.Content = "Palette:"; stack.Children.Add(lbl_palette)
-        self.palette_combo = ComboBox(); self.palette_combo.Margin = Thickness(0,0,0,10)
+        root_panel = DockPanel()
+        root_panel.Margin = Thickness(10)
+
+        # OK Button docked to bottom so it stays pinned at the bottom right
+        self.ok_button = Button()
+        self.ok_button.Content = "OK"
+        self.ok_button.Height = 30
+        self.ok_button.Width = 100
+        self.ok_button.HorizontalAlignment = HorizontalAlignment.Right
+        self.ok_button.Margin = Thickness(0, 10, 0, 0)
+        self.ok_button.Click += self.on_ok_click
+        DockPanel.SetDock(self.ok_button, Dock.Bottom)
+        root_panel.Children.Add(self.ok_button)
+
+        # Top controls container
+        top_stack = StackPanel()
+        DockPanel.SetDock(top_stack, Dock.Top)
+
+        lbl_palette = Label()
+        lbl_palette.Content = "Palette:"
+        top_stack.Children.Add(lbl_palette)
+
+        self.palette_combo = ComboBox()
+        self.palette_combo.Margin = Thickness(0, 0, 0, 10)
         self.palette_combo.Items.Add("All Palettes")
-        for p in palettes: self.palette_combo.Items.Add(p)
+        for p in palettes:
+            self.palette_combo.Items.Add(p)
         self.palette_combo.SelectedIndex = 0
         self.palette_combo.SelectionChanged += self.apply_filters
-        stack.Children.Add(self.palette_combo)
+        top_stack.Children.Add(self.palette_combo)
 
-        lbl_search = Label(); lbl_search.Content = "Search Part:"; stack.Children.Add(lbl_search)
-        self.search_box = TextBox(); self.search_box.Margin = Thickness(0,0,0,10)
-        self.search_box.TextChanged += self.apply_filters; stack.Children.Add(self.search_box)
+        lbl_search = Label()
+        lbl_search.Content = "Search Part:"
+        top_stack.Children.Add(lbl_search)
 
-        lbl_instr = Label(); lbl_instr.Content = "Double Click Item to Insert"; lbl_instr.Margin = Thickness(0,0,0,5); stack.Children.Add(lbl_instr)
-        self.list_box = ListBox(); self.list_box.Height = 430; self.list_box.Margin = Thickness(0,0,0,10)
+        self.search_box = TextBox()
+        self.search_box.Margin = Thickness(0, 0, 0, 10)
+        self.search_box.TextChanged += self.apply_filters
+        top_stack.Children.Add(self.search_box)
+
+        lbl_instr = Label()
+        lbl_instr.Content = "Double click to insert or click OK button"
+        lbl_instr.Margin = Thickness(0, 0, 0, 5)
+        top_stack.Children.Add(lbl_instr)
+
+        root_panel.Children.Add(top_stack)
+
+        # ListBox fills the remaining space dynamically
+        self.list_box = ListBox()
+        self.list_box.Margin = Thickness(0, 0, 0, 0)
         self.list_box.MouseDoubleClick += self.on_double_click
-        stack.Children.Add(self.list_box)
+        root_panel.Children.Add(root_panel.Children.Add if False else self.list_box)
 
-        self.Content = stack
+        self.Content = root_panel
         self.refresh_list()
-        self.search_box.Focus(); Keyboard.Focus(self.search_box)
+        self.search_box.Focus()
+        Keyboard.Focus(self.search_box)
 
     def refresh_list(self):
         self.list_box.ItemsSource = [r["display"] for r in self.filtered_records]
+
     def apply_filters(self, sender, args):
         sel_palette = self.palette_combo.SelectedItem
         search_text = self.search_box.Text.lower().strip()
         records = self.all_records
-        if sel_palette and sel_palette != "All Palettes": records = [r for r in records if r["palette_name"] == sel_palette]
-        if search_text: records = [r for r in records if search_text in r["display"].lower()]
+        if sel_palette and sel_palette != "All Palettes":
+            records = [r for r in records if r["palette_name"] == sel_palette]
+        if search_text:
+            records = [r for r in records if search_text in r["display"].lower()]
         self.filtered_records = records
         self.refresh_list()
-    def on_double_click(self, sender, args):
+
+    def confirm_selection(self):
         idx = self.list_box.SelectedIndex
         if idx < 0 or idx >= len(self.filtered_records):
-            TaskDialog.Show("Error","Please select a part."); return
-        self.selected_record = self.filtered_records[idx]; self.DialogResult = True; self.Close()
+            TaskDialog.Show("Error", "Please select a part.")
+            return False
+        self.selected_record = self.filtered_records[idx]
+        return True
+
+    def on_double_click(self, sender, args):
+        if self.confirm_selection():
+            self.DialogResult = True
+            self.Close()
+
+    def on_ok_click(self, sender, args):
+        if self.confirm_selection():
+            self.DialogResult = True
+            self.Close()
 
 # -----------------------------
 # SHOW DIALOG
 # -----------------------------
 dlg = PartPicker(button_records, palette_names)
-if not dlg.ShowDialog(): sys.exit()
+if not dlg.ShowDialog():
+    sys.exit()
+
 selected_record = dlg.selected_record
 fab_btn = selected_record["button"]
 condition_index = selected_record["condition_index"]
@@ -415,6 +485,8 @@ try:
         ensure_facing_user(doc, new_part, insert_point)
 
     t.Commit()
+
+    show_balloon_notification("Fabrication Part Placed", "The fabrication part has been successfully placed and aligned.")
 
 except Exception as ex:
     if t and t.HasStarted() and not t.HasEnded():

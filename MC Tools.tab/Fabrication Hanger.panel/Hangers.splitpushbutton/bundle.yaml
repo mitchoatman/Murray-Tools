@@ -1,4 +1,5 @@
 layout:
-  - PlaceHangers
-  - PlaceTrapeze
+  - PlacePipeHangers
+  - PlacePipeTrapeze
+  - PlaceDuctHangers
   - PlaceAccessory

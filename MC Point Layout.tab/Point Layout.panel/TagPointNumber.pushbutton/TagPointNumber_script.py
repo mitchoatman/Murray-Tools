@@ -1,6 +1,7 @@
 import Autodesk
 import os
 import clr
+import sys
 
 clr.AddReference('RevitAPI')
 clr.AddReference('RevitAPIUI')
@@ -24,22 +25,22 @@ from Autodesk.Revit.DB import (
     ElementMulticategoryFilter,
     LocationPoint,
     LocationCurve,
-    XYZ
+    XYZ,
+    View3D,
+    FamilyInstance
 )
-from Autodesk.Revit.DB import FamilyInstance
 
 DB = Autodesk.Revit.DB
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 
+
 def is_parent_family_instance(element):
-    # Non-family-instance elements are allowed through
     if not isinstance(element, FamilyInstance):
         return True
-
-    # If SuperComponent exists, this is a nested instance
     return element.SuperComponent is None
+
 
 # --------------------------------------------------
 # CONFIG
@@ -59,6 +60,40 @@ TARGET_CATEGORIES = [
     BuiltInCategory.OST_FabricationHangers,
     BuiltInCategory.OST_DuctAccessory,
 ]
+
+# Candidate offsets from Revit's default tag head location
+# Stronger vertical spreading first
+CANDIDATE_OFFSETS = [
+    XYZ(0.0, 0.0, 0.0),
+    XYZ(0.0, 0.75, 0.0),
+    XYZ(0.0, -0.75, 0.0),
+    XYZ(0.0, 1.50, 0.0),
+    XYZ(0.0, -1.50, 0.0),
+    XYZ(0.0, 2.25, 0.0),
+    XYZ(0.0, -2.25, 0.0),
+    XYZ(0.0, 3.00, 0.0),
+    XYZ(0.0, -3.00, 0.0),
+    XYZ(0.0, 3.75, 0.0),
+    XYZ(0.0, -3.75, 0.0),
+    XYZ(0.75, 0.75, 0.0),
+    XYZ(-0.75, 0.75, 0.0),
+    XYZ(0.75, -0.75, 0.0),
+    XYZ(-0.75, -0.75, 0.0),
+    XYZ(1.50, 0.0, 0.0),
+    XYZ(-1.50, 0.0, 0.0),
+    XYZ(1.50, 1.50, 0.0),
+    XYZ(-1.50, 1.50, 0.0),
+    XYZ(1.50, -1.50, 0.0),
+    XYZ(-1.50, -1.50, 0.0),
+]
+
+# Estimated tag label size in model units (feet)
+# Tune these if needed for your tag family/view scale.
+BASE_LABEL_WIDTH = 0.55
+PER_CHAR_WIDTH = 0.18
+LABEL_HEIGHT = 0.45
+LABEL_PADDING_X = 0.20
+LABEL_PADDING_Y = 0.12
 
 
 # --------------------------------------------------
@@ -116,15 +151,26 @@ def get_tag_point(element, view):
     return None
 
 
-def is_already_tagged(element_id, tags):
+def get_all_tagged_element_ids(tags):
+    tagged_ids = set()
+
     for tag in tags:
         try:
-            tagged_ids = tag.GetTaggedLocalElementIds()
-            if element_id in tagged_ids:
-                return True
+            for eid in tag.GetTaggedLocalElementIds():
+                if eid and eid.IntegerValue != -1:
+                    tagged_ids.add(eid.IntegerValue)
+            continue
         except:
             pass
-    return False
+
+        try:
+            eid = tag.TaggedLocalElementId
+            if eid and eid.IntegerValue != -1:
+                tagged_ids.add(eid.IntegerValue)
+        except:
+            pass
+
+    return tagged_ids
 
 
 def build_multicategory_filter(categories):
@@ -134,10 +180,103 @@ def build_multicategory_filter(categories):
     return ElementMulticategoryFilter(cat_list)
 
 
+def add_xyz(a, b):
+    return XYZ(a.X + b.X, a.Y + b.Y, a.Z + b.Z)
+
+
+def get_tag_text(tag):
+    try:
+        txt = tag.TagText
+        if txt:
+            return txt.strip()
+    except:
+        pass
+    return "TAG"
+
+
+def estimate_label_box_from_head(head_point, tag_text):
+    """
+    Approximate label rectangle centered on TagHeadPosition.
+    """
+    char_count = max(len(tag_text), 1)
+    width = BASE_LABEL_WIDTH + (char_count * PER_CHAR_WIDTH) + LABEL_PADDING_X
+    height = LABEL_HEIGHT + LABEL_PADDING_Y
+
+    half_w = width / 2.0
+    half_h = height / 2.0
+
+    return (
+        head_point.X - half_w,
+        head_point.Y - half_h,
+        head_point.X + half_w,
+        head_point.Y + half_h
+    )
+
+
+def boxes_overlap_2d(b1, b2):
+    return not (
+        b1[2] < b2[0] or
+        b1[0] > b2[2] or
+        b1[3] < b2[1] or
+        b1[1] > b2[3]
+    )
+
+
+def collect_existing_tag_boxes(tags):
+    boxes = []
+
+    for tag in tags:
+        try:
+            head = tag.TagHeadPosition
+            txt = get_tag_text(tag)
+            box = estimate_label_box_from_head(head, txt)
+            boxes.append(box)
+        except:
+            pass
+
+    return boxes
+
+
+def choose_tag_head_position(tag, occupied_boxes):
+    base_head = tag.TagHeadPosition
+    tag_text = get_tag_text(tag)
+
+    fallback_head = base_head
+    fallback_box = estimate_label_box_from_head(base_head, tag_text)
+
+    for offset in CANDIDATE_OFFSETS:
+        candidate = XYZ(
+            base_head.X + offset.X,
+            base_head.Y + offset.Y,
+            base_head.Z + offset.Z
+        )
+
+        candidate_box = estimate_label_box_from_head(candidate, tag_text)
+
+        overlap = False
+        for existing_box in occupied_boxes:
+            if boxes_overlap_2d(candidate_box, existing_box):
+                overlap = True
+                break
+
+        if not overlap:
+            return candidate, candidate_box
+
+    return fallback_head, fallback_box
+
+
 # --------------------------------------------------
 # MAIN
 # --------------------------------------------------
 try:
+    if isinstance(curview, View3D):
+        TaskDialog.Show(
+            "Unsupported View",
+            "This tool does not run in 3D views.\n\n"
+            "Please run it from a 2D view such as a plan, section, or elevation."
+        )
+        sys.exit()
+
     families = FilteredElementCollector(doc).OfClass(Family)
     family_in_project = any(f.Name == FAMILY_NAME for f in families)
 
@@ -168,27 +307,44 @@ try:
         raise Exception("Failed to load family: {}".format(str(e)))
 
     # ----------------------------------------------
-    # Get the tag symbol
+    # Get tag symbol
     # ----------------------------------------------
     tag_symbol = get_tag_symbol(doc, FAMILY_NAME, FAMILY_TYPE)
     if not tag_symbol:
         tg.RollBack()
-        raise Exception("Could not find tag type '{}' in family '{}'.".format(FAMILY_TYPE, FAMILY_NAME))
+        raise Exception(
+            "Could not find tag type '{}' in family '{}'.".format(FAMILY_TYPE, FAMILY_NAME)
+        )
 
     # ----------------------------------------------
-    # Collect visible elements in active view
+    # Collect visible elements and existing tags
     # ----------------------------------------------
     try:
         multi_cat_filter = build_multicategory_filter(TARGET_CATEGORIES)
 
-        elements_in_view = FilteredElementCollector(doc, curview.Id) \
-            .WherePasses(multi_cat_filter) \
-            .WhereElementIsNotElementType() \
+        elements_in_view = list(
+            FilteredElementCollector(doc, curview.Id)
+            .WherePasses(multi_cat_filter)
+            .WhereElementIsNotElementType()
             .ToElements()
+        )
 
-        existing_tags = FilteredElementCollector(doc, curview.Id) \
-            .OfClass(IndependentTag) \
+        def sort_key(elem):
+            pt = get_tag_point(elem, curview)
+            if pt:
+                return (round(pt.X, 4), round(pt.Y, 4))
+            return (0, 0)
+
+        elements_in_view.sort(key=sort_key)
+
+        existing_tags = (
+            FilteredElementCollector(doc, curview.Id)
+            .OfClass(IndependentTag)
             .ToElements()
+        )
+
+        already_tagged_ids = get_all_tagged_element_ids(existing_tags)
+        occupied_tag_boxes = collect_existing_tag_boxes(existing_tags)
 
     except Exception as e:
         tg.RollBack()
@@ -206,55 +362,56 @@ try:
             doc.Regenerate()
 
         tagged_count = 0
-        skipped_count = 0
-        error_count = 0
 
         for element in elements_in_view:
             try:
-                # Skip nested family instances
                 if not is_parent_family_instance(element):
-                    skipped_count += 1
                     continue
 
-                # Skip already-tagged elements
-                if is_already_tagged(element.Id, existing_tags):
-                    skipped_count += 1
+                if element.Id.IntegerValue in already_tagged_ids:
                     continue
 
-                tag_point = get_tag_point(element, curview)
-                if not tag_point:
-                    skipped_count += 1
+                host_point = get_tag_point(element, curview)
+                if not host_point:
                     continue
 
                 ref = Reference(element)
 
-                IndependentTag.Create(
+                # Attached leader, preserve Revit default leader length
+                new_tag = IndependentTag.Create(
                     doc,
                     tag_symbol.Id,
                     curview.Id,
                     ref,
                     True,
                     TagOrientation.Horizontal,
-                    tag_point
+                    host_point
                 )
 
+                if not new_tag:
+                    continue
+
+                doc.Regenerate()
+
+                final_head, final_box = choose_tag_head_position(new_tag, occupied_tag_boxes)
+
+                try:
+                    new_tag.TagHeadPosition = final_head
+                    doc.Regenerate()
+                except:
+                    pass
+
+                occupied_tag_boxes.append(final_box)
+                already_tagged_ids.add(element.Id.IntegerValue)
                 tagged_count += 1
 
             except:
-                error_count += 1
                 continue
 
         t2.Commit()
         tg.Assimilate()
 
-        TaskDialog.Show(
-            "Tag Visible Elements",
-            "Completed.\n\nTagged: {}\nSkipped: {}\nErrors: {}".format(
-                tagged_count,
-                skipped_count,
-                error_count
-            )
-        )
+        TaskDialog.Show("Tag Visible Elements", "Tagged: {}".format(tagged_count))
 
     except Exception as e:
         if t2.HasStarted():

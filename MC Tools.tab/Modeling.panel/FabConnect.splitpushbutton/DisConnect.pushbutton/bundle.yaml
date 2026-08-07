@@ -1,10 +1,7 @@
 title:
-  fr_fr: Déconnecter
   en_us: Disconnect
 tooltip:
-  fr_fr: |
-    Décconnecter tous les connecteurs d’un objet.
   en_us: |
-    Disconnect all connector of an element
+    Disconnect all connectors of fabrication Pipework and Ductwork.
 help_url: "{{youtube}}"
 author: "{{author}}"

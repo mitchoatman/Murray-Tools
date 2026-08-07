@@ -1,18 +1,22 @@
+# -*- coding: UTF-8 -*-
 import Autodesk
 import sys
 import clr
 
-from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, BuiltInParameter, FilterStringLessOrEqual, FilterStringRule, \
-ParameterValueProvider, ElementId, FilterStringBeginsWith, Transaction, FilterStringEquals, \
-ElementParameterFilter, ParameterValueProvider, LogicalOrFilter, TransactionGroup, FabricationPart, FabricationConfiguration
+from Autodesk.Revit.DB import (
+    FilteredElementCollector, BuiltInCategory, BuiltInParameter, 
+    ElementId, Transaction, FabricationConfiguration
+)
 from pyrevit import revit, DB, script, forms
 from Parameters.Add_SharedParameters import Shared_Params
 from Parameters.Get_Set_Params import set_parameter_by_name, get_parameter_value_by_name_AsString
 
-# WPF Imports
+# WPF & Windows Forms Imports
 clr.AddReference('PresentationFramework')
 clr.AddReference('PresentationCore')
 clr.AddReference('WindowsBase')
+clr.AddReference("System.Windows.Forms")
+clr.AddReference("System.Drawing")
 
 from System.Windows import Window, Thickness, WindowStyle, ResizeMode, WindowStartupLocation, GridLength
 from System.Windows.Controls import Label, ListBox, Grid, RowDefinition, Button
@@ -22,6 +26,8 @@ from System import Action
 import System.Windows.Threading
 from System.Collections.Generic import List
 from Autodesk.Revit.UI import TaskDialog
+from System.Windows.Forms import NotifyIcon, ToolTipIcon
+from System.Drawing import SystemIcons
 
 Shared_Params()
 
@@ -34,6 +40,18 @@ app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float(RevitVersion)
 Config = FabricationConfiguration.GetFabricationConfiguration(doc)
+
+
+def show_balloon_notification(title, message, timeout=5000):
+    """Displays a native Windows balloon notification in the system tray area."""
+    notify_icon = NotifyIcon()
+    try:
+        notify_icon.Icon = SystemIcons.Information
+        notify_icon.Visible = True
+        notify_icon.ShowBalloonTip(timeout, title, message, ToolTipIcon.Info)
+    except Exception:
+        pass
+
 
 # This writes to fab part custom data field
 def set_customdata_by_custid(fabpart, custid, value):
@@ -294,3 +312,5 @@ if error_data:
             System.Windows.Threading.DispatcherPriority.Background,
             Action(lambda: None)
         )
+else:
+    show_balloon_notification("Success", "Pointload completed on single hangers without error.")

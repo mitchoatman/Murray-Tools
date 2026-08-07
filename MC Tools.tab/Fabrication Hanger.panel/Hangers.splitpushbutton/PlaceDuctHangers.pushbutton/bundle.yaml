@@ -1,0 +1,31 @@
+#highlight: new
+
+# bundle title
+title:
+  "Place Duct\nHangers"
+
+# bundle tooltip
+tooltip: |-
+  Populates hangers on selected ducts(s).
+    1. Run Command.
+    2. Select a fabrication ducts to populate hangers on.
+
+  [Shift]+Click:    
+  Opens hanger config to define:
+  - Hanger Type
+  - Round Duct Spacing
+  - Rectangle Duct Spacing
+  - Attach to Structure
+
+  Function will always place hangers at couplings. Do not
+  optimize pipe or duct runs if you wish to populate hangers with spacing.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+help_url: "https://youtu.be/z014sgDpJRk"
+
+# bundle author
+author: Mitchell Oatman

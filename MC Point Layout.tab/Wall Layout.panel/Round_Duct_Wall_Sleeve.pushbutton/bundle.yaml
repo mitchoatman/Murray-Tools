@@ -3,13 +3,16 @@ title:
   "Duct Round\nWall Opening"
 
 tooltip: |-
-  Place wall sleeve family on duct centerline at wall locations for point layout purposes.
+  Place wall opening on duct centerline at wall locations for point layout purposes.
   It will also append Fabrication service name and abbreviation to the sleeve.
-  Sleeve will read the "Overall Size" of element.
   
-  1.  Pick the pipe to place sleeve on.
-  2.  Pick the intersection of the pipe and wall.
+  1.  Pick the round duct to place opening on.
+  2.  Pick the intersection of the opening and face of wall.
   3.  Repeat as necessary, ESC to end the command.
+
+  [Shift]+Click:
+  Places opening on duct centerline at selected linked wall location.
+  User is not specifying a point, they are selecting a linked wall.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

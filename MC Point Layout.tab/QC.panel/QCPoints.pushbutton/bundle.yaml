@@ -7,7 +7,11 @@ title:
 
 # bundle tooltip
 tooltip: |-
-  Displays all the point data so it can be copied into AutoCAD
+  Copies the point data to clipboard without displaying content in dialog.
+
+
+  [Shift]+Click:    
+  Displays all the point data so it can be copied to clipboard  so it can then be copied to AutoCAD
 
 # context directives are listed under `context` key, the order does not matter
 #context:

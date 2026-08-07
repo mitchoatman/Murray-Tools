@@ -9,6 +9,8 @@ tooltip: |-
   Adds tags to visible families with TS_Point_Number Parameter.
   1. Execute command.
   2. elements will be tagged (WITH LEADERS).
+  
+  User should isolate points to tag prior to executing.
 
   [Shift]+Click:    
   Add tags WITHOUT leaders.

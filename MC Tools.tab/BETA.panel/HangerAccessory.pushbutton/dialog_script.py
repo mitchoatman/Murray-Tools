@@ -3,14 +3,18 @@ import clr
 clr.AddReference("PresentationFramework")
 clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
+clr.AddReference("System.Windows.Forms")
+clr.AddReference("System.Drawing")
 
 from Autodesk.Revit.DB import *
 from Autodesk.Revit.UI import TaskDialog
 from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
 from Autodesk.Revit.Exceptions import OperationCanceledException
-from System.Windows import Window, Thickness, WindowStartupLocation, ResizeMode
-from System.Windows.Controls import StackPanel, TextBox, ListBox, Label, ComboBox
+from System.Windows import Window, Thickness, WindowStartupLocation, ResizeMode, HorizontalAlignment
+from System.Windows.Controls import StackPanel, TextBox, ListBox, Label, ComboBox, Button, DockPanel, Dock, Orientation
 from System.Windows.Input import Keyboard
+from System.Windows.Forms import NotifyIcon, ToolTipIcon
+from System.Drawing import SystemIcons
 
 # Revit
 doc = __revit__.ActiveUIDocument.Document
@@ -93,6 +97,17 @@ def get_service_from_part(part):
         except:
             pass
     return None
+
+
+def show_balloon_notification(title, message, timeout=5000):
+    """Displays a native Windows balloon notification."""
+    notify_icon = NotifyIcon()
+    try:
+        notify_icon.Icon = SystemIcons.Information
+        notify_icon.Visible = True
+        notify_icon.ShowBalloonTip(timeout, title, message, ToolTipIcon.Info)
+    except Exception:
+        pass
 
 
 # -------------------------------------------------------
@@ -206,17 +221,32 @@ class PartPicker(Window):
         self.selected_record = None
 
         self.Title = "Select Fabrication Part"
-        self.Width = 400
-        self.Height = 620
+        self.Width = 450
+        self.Height = 635
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
         self.ResizeMode = ResizeMode.CanResize
 
-        stack = StackPanel()
-        stack.Margin = Thickness(10)
+        root_panel = DockPanel()
+        root_panel.Margin = Thickness(10)
+
+        # OK Button docked to bottom so it stays pinned at the bottom right
+        self.ok_button = Button()
+        self.ok_button.Content = "OK"
+        self.ok_button.Height = 30
+        self.ok_button.Width = 100
+        self.ok_button.HorizontalAlignment = HorizontalAlignment.Right
+        self.ok_button.Margin = Thickness(0, 10, 0, 0)
+        self.ok_button.Click += self.on_ok_click
+        DockPanel.SetDock(self.ok_button, Dock.Bottom)
+        root_panel.Children.Add(self.ok_button)
+
+        # Top controls container
+        top_stack = StackPanel()
+        DockPanel.SetDock(top_stack, Dock.Top)
 
         palette_label = Label()
         palette_label.Content = "Palette:"
-        stack.Children.Add(palette_label)
+        top_stack.Children.Add(palette_label)
 
         self.palette_combo = ComboBox()
         self.palette_combo.Margin = Thickness(0, 0, 0, 10)
@@ -225,34 +255,66 @@ class PartPicker(Window):
             self.palette_combo.Items.Add(p)
         self.palette_combo.SelectedIndex = 0
         self.palette_combo.SelectionChanged += self.apply_filters
-        stack.Children.Add(self.palette_combo)
+        top_stack.Children.Add(self.palette_combo)
 
         label = Label()
         label.Content = "Search Part:"
-        stack.Children.Add(label)
+        top_stack.Children.Add(label)
 
         self.search_box = TextBox()
-        self.search_box.Margin = Thickness(0, 0, 0, 10)
+        self.search_box.Margin = Thickness(0, 0, 0, 5)
         self.search_box.TextChanged += self.apply_filters
-        stack.Children.Add(self.search_box)
+        top_stack.Children.Add(self.search_box)
+
+        # Quick Search Label
+        quick_label = Label()
+        quick_label.Content = "Quick Search:"
+        quick_label.Margin = Thickness(0, 0, 0, 2)
+        top_stack.Children.Add(quick_label)
+
+        # Quick Search Buttons Row
+        quick_panel = StackPanel()
+        quick_panel.Orientation = Orientation.Horizontal
+        quick_panel.Margin = Thickness(0, 0, 0, 10)
+
+        for tag in ["BEAM", "CLAMP", "CLEAR"]:
+            quick_btn = Button()
+            quick_btn.Content = tag
+            quick_btn.Height = 22
+            quick_btn.Margin = Thickness(0, 0, 5, 0)
+            quick_btn.Padding = Thickness(8, 0, 8, 0)
+            quick_btn.Click += self.create_quick_click_handler(tag)
+            quick_panel.Children.Add(quick_btn)
+
+        top_stack.Children.Add(quick_panel)
 
         instr_label = Label()
-        instr_label.Content = "Double Click Item to Insert"
+        instr_label.Content = "Double click to insert or click OK button"
         instr_label.Margin = Thickness(0, 0, 0, 5)
-        stack.Children.Add(instr_label)
+        top_stack.Children.Add(instr_label)
 
+        root_panel.Children.Add(top_stack)
+
+        # ListBox fills the remaining space dynamically
         self.list_box = ListBox()
-        self.list_box.Height = 430
-        self.list_box.Margin = Thickness(0, 0, 0, 10)
+        self.list_box.Margin = Thickness(0, 0, 0, 0)
         self.list_box.MouseDoubleClick += self.on_double_click
-        stack.Children.Add(self.list_box)
+        root_panel.Children.Add(self.list_box)
 
-        self.Content = stack
+        self.Content = root_panel
 
         self.refresh_list()
 
         self.search_box.Focus()
         Keyboard.Focus(self.search_box)
+
+    def create_quick_click_handler(self, tag):
+        def handler(sender, args):
+            if tag == "CLEAR":
+                self.search_box.Text = ""
+            else:
+                self.search_box.Text = tag
+        return handler
 
     def refresh_list(self):
         self.list_box.ItemsSource = [r["display"] for r in self.filtered_records]
@@ -272,16 +334,23 @@ class PartPicker(Window):
         self.filtered_records = records
         self.refresh_list()
 
-    def on_double_click(self, sender, args):
+    def confirm_selection(self):
         idx = self.list_box.SelectedIndex
-
         if idx < 0 or idx >= len(self.filtered_records):
             TaskDialog.Show("Error", "Please select a part.")
-            return
-
+            return False
         self.selected_record = self.filtered_records[idx]
-        self.DialogResult = True
-        self.Close()
+        return True
+
+    def on_double_click(self, sender, args):
+        if self.confirm_selection():
+            self.DialogResult = True
+            self.Close()
+
+    def on_ok_click(self, sender, args):
+        if self.confirm_selection():
+            self.DialogResult = True
+            self.Close()
 
 
 # -------------------------------------------------------
@@ -338,11 +407,10 @@ except:
     t.RollBack()
     raise
 
-TaskDialog.Show(
-    "Complete",
-    "Processed hangers: {0}\nPlaced parts: {1}\nSkipped hangers with no rods: {2}".format(
-        len(selected_hangers),
-        placed_count,
-        skipped_count
-    )
+completion_message = "Processed hangers: {0}\nPlaced parts: {1}\nSkipped hangers with no rods: {2}".format(
+    len(selected_hangers),
+    placed_count,
+    skipped_count
 )
+
+show_balloon_notification("Fabrication Parts Placed", completion_message)

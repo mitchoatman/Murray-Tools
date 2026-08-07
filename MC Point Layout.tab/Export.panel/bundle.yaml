@@ -1,6 +1,7 @@
 layout:
   - ExportPoints
   - ExportDWG
+  - Export Schedules To CSV
 
 
 highlight: new      # highlight as new

@@ -16,6 +16,10 @@ volumes_of_interest = forms.SelectFromList.show(
     name_attr="Name",
 )
 
+if not volumes_of_interest:
+    forms.alert("No scope boxes selected.")
+    script.exit()
+
 # Get ViewFamilyType for 3D views
 view_family_types = FilteredElementCollector(doc).OfClass(ViewFamilyType).WhereElementIsElementType().ToElements()
 view_family_type = next((vft for vft in view_family_types if vft.ViewFamily == ViewFamily.ThreeDimensional), None)
@@ -67,14 +71,7 @@ def create_3d_views_with_scope_boxes(volumes_of_interest):
                 for category_id in categories_to_hide:
                     category = Category.GetCategory(doc, category_id)
                     if category:
-                        # Check if view template controls visibility
-                        view_template = new_view.ViewTemplateId
-                        if view_template != revit.DB.ElementId.InvalidElementId:
-                            # If view template is applied, modify the view's visibility directly
-                            new_view.SetCategoryHidden(category.Id, True)
-                        else:
-                            # If no view template, modify visibility through the view's visibility settings
-                            new_view.SetCategoryHidden(category.Id, True)
+                        new_view.SetCategoryHidden(category.Id, True)
 
                 created_views.append(view_name)
                 logger.info("New 3D view created: {}".format(view_name))
@@ -84,13 +81,10 @@ def create_3d_views_with_scope_boxes(volumes_of_interest):
 
         t.Commit()
 
-    # Print results
-    # created_message = "\n".join("- {}".format(view) for view in created_views) if created_views else "None"
-    # skipped_message = "\n".join("- {}".format(view) for view in skipped_views) if skipped_views else "None"
-    # output.print_md("**Views Created:**\n{}\n\n**Views Skipped (Already Existing):**\n{}".format(created_message, skipped_message))
+    # Print results summary via pyRevit output
+    created_message = "\n".join("- {}".format(view) for view in created_views) if created_views else "None"
+    skipped_message = "\n".join("- {}".format(view) for view in skipped_views) if skipped_views else "None"
+    output.print_md("**Views Created:**\n{}\n\n**Views Skipped (Already Existing):**\n{}".format(created_message, skipped_message))
 
 # Execute if scope boxes are selected
-if volumes_of_interest:
-    create_3d_views_with_scope_boxes(volumes_of_interest)
-else:
-    forms.alert("No scope boxes selected.")
+create_3d_views_with_scope_boxes(volumes_of_interest)

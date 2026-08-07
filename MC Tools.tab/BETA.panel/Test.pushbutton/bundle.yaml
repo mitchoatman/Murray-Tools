@@ -1,1 +1,28 @@
-File: "www.msn.com"
+#highlight: new
+
+# bundle title
+title:
+  "Place Pipe\nHangers"
+
+# bundle tooltip
+tooltip: |-
+  Populates hangers on selected pipe(s).
+    1. Run Command.
+    2. Select pipe(s) or duct(s) to populate hangers on.
+
+  [Shift]+Click:    
+  Opens hanger config to define:
+  - Hanger Type
+  - Hanger spacing with size breaks
+  - Support Joints
+  - Attach to Structure
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+help_url: "https://youtu.be/z014sgDpJRk"
+
+# bundle author
+author: Mitchell Oatman

@@ -4,25 +4,53 @@ import clr
 import os
 
 # Reference .NET and Revit API
+clr.AddReference('System')
 clr.AddReference('System.Windows.Forms')
 clr.AddReference('RevitAPI')
 clr.AddReference('RevitAPIUI')
 
-# Import .NET SaveFileDialog and System for generic collections
+# Import .NET classes properly
 from System.Windows.Forms import SaveFileDialog, DialogResult
+from System.Diagnostics import Process, ProcessStartInfo
 import System
-from Autodesk.Revit.UI import TaskDialog
+
+from Autodesk.Revit.UI import (
+    TaskDialog,
+    TaskDialogCommandLinkId,
+    TaskDialogCommonButtons,
+    TaskDialogResult
+)
 
 # Get the current Revit document
 doc = __revit__.ActiveUIDocument.Document
+
+
+def show_export_success_dialog(filepath):
+    try:
+        td = TaskDialog("DWG Export")
+        td.MainInstruction = "DWG export completed successfully."
+        td.MainContent = filepath
+        td.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Open File")
+        td.CommonButtons = TaskDialogCommonButtons.Close
+
+        result = td.Show()
+
+        if result == TaskDialogResult.CommandLink1:
+            psi = ProcessStartInfo(filepath)
+            psi.UseShellExecute = True
+            Process.Start(psi)
+
+    except Exception as ex:
+        TaskDialog.Show(
+            "Error",
+            "Export succeeded, but could not open dialog/file:\n{}".format(str(ex))
+        )
+
 
 def export_to_dwg(view, output_path):
     try:
         # Create DWG export options
         dwg_options = Autodesk.Revit.DB.DWGExportOptions()
-
-        # Debug: List all properties of DWGExportOptions
-        # print("DWGExportOptions properties: {}".format([attr for attr in dir(dwg_options) if not attr.startswith('_')]))
 
         # Set export to use shared coordinates
         dwg_options.SharedCoords = True
@@ -32,7 +60,6 @@ def export_to_dwg(view, output_path):
 
         # Set HideUnreferenceViewTags
         dwg_options.HideUnreferenceViewTags = True
-
 
         # Additional DWG export settings
         dwg_options.ExportingAreas = False
@@ -48,25 +75,28 @@ def export_to_dwg(view, output_path):
         file_name = os.path.splitext(os.path.basename(output_path))[0]
 
         # Perform the export
-        doc.Export(output_folder, file_name, view_set, dwg_options)
+        result = doc.Export(output_folder, file_name, view_set, dwg_options)
+        return result
 
-    
     except Exception as ex:
         TaskDialog.Show("Error", "Error during DWG export: {}".format(str(ex)))
+        return False
 
 
 def main():
     """
     Main function to export the active floor plan view to DWG.
     """
-    # Get the active view
     active_view = doc.ActiveView
     if not active_view:
         TaskDialog.Show("Error", "No active view found")
         return
 
     # Check if the active view is a floor plan
-    if active_view.ViewType not in [Autodesk.Revit.DB.ViewType.FloorPlan, Autodesk.Revit.DB.ViewType.CeilingPlan]:
+    if active_view.ViewType not in [
+        Autodesk.Revit.DB.ViewType.FloorPlan,
+        Autodesk.Revit.DB.ViewType.CeilingPlan
+    ]:
         TaskDialog.Show("Error", "The active view is not a floor plan")
         return
 
@@ -91,7 +121,13 @@ def main():
     file_path = save_dialog.FileName
 
     # Export the active floor plan view
-    export_to_dwg(active_view, file_path)
+    success = export_to_dwg(active_view, file_path)
+
+    if success and os.path.exists(file_path):
+        show_export_success_dialog(file_path)
+    elif success:
+        TaskDialog.Show("Export Complete", "DWG export completed.")
+
 
 if __name__ == "__main__":
     main()

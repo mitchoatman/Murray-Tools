@@ -40,10 +40,10 @@ FIRE_DAMPER_SERVICE_TYPE_NAME = "Fire Damper"
 
 FIRE_SMOKE_DAMPER_KEY = "Fire Smoke Damper"
 
-RECT_FAMILY_NAME = 'RWS'
-RECT_FAMILY_TYPE = 'RWS'
-ROUND_FAMILY_NAME = 'RDS'
-ROUND_FAMILY_TYPE = 'RDS'
+RECT_FAMILY_NAME = "RWS"
+RECT_FAMILY_TYPE = "RWS"
+ROUND_FAMILY_NAME = "RDS"
+ROUND_FAMILY_TYPE = "RDS"
 
 try:
     active_view_level = active_view.GenLevel
@@ -224,6 +224,15 @@ def is_supported_fab_element(elem):
             return False
         if not isinstance(elem, DB.FabricationPart):
             return False
+
+        service_type_name = get_fab_part_service_type_name(elem)
+
+        if service_type_name == FIRE_DAMPER_SERVICE_TYPE_NAME:
+            return get_element_shape(elem) in ["RECT", "ROUND"]
+
+        if not elem.IsAStraight():
+            return False
+
         return get_element_shape(elem) in ["RECT", "ROUND"]
     except:
         return False
@@ -300,23 +309,30 @@ def get_round_diameter_from_duct(elem, connector=None):
     except:
         pass
 
-    overall_size = get_parameter_value_by_name_AsString(elem, 'Overall Size')
+    overall_size = get_parameter_value_by_name_AsString(elem, "Overall Size")
     if not overall_size:
         raise Exception("Could not read element Overall Size.")
 
     size_text = overall_size.strip()
 
-    if '/' in size_text:
-        size_text = re.sub(r'(?:(\d+)[-\s])?(\d+/\d+)', frac2string, size_text)
+    if "/" in size_text:
+        size_text = re.sub(r"(?:(\d+)[-\s])?(\d+/\d+)", frac2string, size_text)
 
-    numeric = re.sub(r'[^\d.]', '', size_text)
+    numeric = re.sub(r"[^\d.]", "", size_text)
     if not numeric:
         raise Exception("Could not parse round diameter from Overall Size.")
 
     return float(numeric) / 12.0
 
 
-def get_linked_wall_thickness_and_curve(link_instance, wall):
+def get_link_transform(link_instance):
+    try:
+        return link_instance.GetTotalTransform()
+    except:
+        return link_instance.GetTransform()
+
+
+def get_linked_wall_thickness(wall):
     if not isinstance(wall, Wall):
         raise Exception("Linked element is not a wall.")
 
@@ -325,21 +341,7 @@ def get_linked_wall_thickness_and_curve(link_instance, wall):
     if not thickness_param:
         raise Exception("Could not get wall thickness.")
 
-    thickness = thickness_param.AsDouble()
-
-    wall_loc = wall.Location
-    if not isinstance(wall_loc, LocationCurve):
-        raise Exception("Wall does not have a valid location curve.")
-
-    wall_curve = wall_loc.Curve
-
-    try:
-        transform = link_instance.GetTotalTransform()
-    except:
-        transform = link_instance.GetTransform()
-
-    transformed_wall_curve = wall_curve.CreateTransformed(transform)
-    return thickness, transformed_wall_curve
+    return thickness_param.AsDouble()
 
 
 def get_all_walls_in_link(link_instance):
@@ -355,51 +357,212 @@ def get_all_walls_in_link(link_instance):
 
 
 # --------------------------------------------------
-# Intersection logic
+# Bounding box / geometry filtering
 # --------------------------------------------------
-def flatten_point_xy(pt):
-    return DB.XYZ(pt.X, pt.Y, 0.0)
+
+def get_element_bbox(element):
+    try:
+        return element.get_BoundingBox(None)
+    except:
+        return None
 
 
-def flatten_curve_to_xy(curve):
+def get_transformed_bbox(link_instance, element):
+    bbox = get_element_bbox(element)
+    if not bbox:
+        return None
+
+    transform = get_link_transform(link_instance)
+
+    corners = [
+        DB.XYZ(bbox.Min.X, bbox.Min.Y, bbox.Min.Z),
+        DB.XYZ(bbox.Min.X, bbox.Min.Y, bbox.Max.Z),
+        DB.XYZ(bbox.Min.X, bbox.Max.Y, bbox.Min.Z),
+        DB.XYZ(bbox.Min.X, bbox.Max.Y, bbox.Max.Z),
+        DB.XYZ(bbox.Max.X, bbox.Min.Y, bbox.Min.Z),
+        DB.XYZ(bbox.Max.X, bbox.Min.Y, bbox.Max.Z),
+        DB.XYZ(bbox.Max.X, bbox.Max.Y, bbox.Min.Z),
+        DB.XYZ(bbox.Max.X, bbox.Max.Y, bbox.Max.Z),
+    ]
+
+    pts = [transform.OfPoint(p) for p in corners]
+
+    min_x = min(p.X for p in pts)
+    min_y = min(p.Y for p in pts)
+    min_z = min(p.Z for p in pts)
+    max_x = max(p.X for p in pts)
+    max_y = max(p.Y for p in pts)
+    max_z = max(p.Z for p in pts)
+
+    out = DB.BoundingBoxXYZ()
+    out.Min = DB.XYZ(min_x, min_y, min_z)
+    out.Max = DB.XYZ(max_x, max_y, max_z)
+    return out
+
+
+def bboxes_overlap(a, b, tol=0.1):
+    if not a or not b:
+        return False
+
+    return not (
+        a.Max.X < b.Min.X - tol or a.Min.X > b.Max.X + tol or
+        a.Max.Y < b.Min.Y - tol or a.Min.Y > b.Max.Y + tol or
+        a.Max.Z < b.Min.Z - tol or a.Min.Z > b.Max.Z + tol
+    )
+
+
+def curve_bbox_3d(curve, pad_xy=0.25, pad_z=0.25):
     p0 = curve.GetEndPoint(0)
     p1 = curve.GetEndPoint(1)
-    return Line.CreateBound(flatten_point_xy(p0), flatten_point_xy(p1))
+
+    min_x = min(p0.X, p1.X) - pad_xy
+    min_y = min(p0.Y, p1.Y) - pad_xy
+    min_z = min(p0.Z, p1.Z) - pad_z
+    max_x = max(p0.X, p1.X) + pad_xy
+    max_y = max(p0.Y, p1.Y) + pad_xy
+    max_z = max(p0.Z, p1.Z) + pad_z
+
+    bbox = DB.BoundingBoxXYZ()
+    bbox.Min = DB.XYZ(min_x, min_y, min_z)
+    bbox.Max = DB.XYZ(max_x, max_y, max_z)
+    return bbox
 
 
-def get_plan_intersection_point_on_duct(duct_curve, wall_curve):
-    flat_duct = flatten_curve_to_xy(duct_curve)
-    flat_wall = flatten_curve_to_xy(wall_curve)
+def get_candidate_walls_for_element(link_instance, elem):
+    linked_doc = link_instance.GetLinkDocument()
+    if linked_doc is None:
+        return []
 
-    result_array = clr.Reference[DB.IntersectionResultArray]()
-    result = flat_duct.Intersect(flat_wall, result_array)
+    shape_name = get_element_shape(elem)
+    if not shape_name:
+        return []
 
-    if result != DB.SetComparisonResult.Overlap:
+    try:
+        elem_curve = get_element_centerline(elem, shape_name)
+    except:
+        elem_curve = None
+
+    elem_bbox = get_element_bbox(elem)
+    curve_based_bbox = curve_bbox_3d(elem_curve, 0.5, 0.5) if elem_curve else None
+
+    walls = (
+        FilteredElementCollector(linked_doc)
+        .OfClass(Wall)
+        .WhereElementIsNotElementType()
+    )
+
+    candidates = []
+    for wall in walls:
+        try:
+            wall_bbox = get_transformed_bbox(link_instance, wall)
+            if not wall_bbox:
+                continue
+
+            overlap_elem = bboxes_overlap(elem_bbox, wall_bbox, tol=0.25) if elem_bbox else False
+            overlap_curve = bboxes_overlap(curve_based_bbox, wall_bbox, tol=0.25) if curve_based_bbox else False
+
+            if overlap_elem or overlap_curve:
+                candidates.append(wall)
+        except:
+            pass
+
+    return candidates
+
+
+# --------------------------------------------------
+# Solid intersection logic
+# --------------------------------------------------
+
+def get_wall_solids_in_host(link_instance, wall):
+    solids = []
+    link_transform = get_link_transform(link_instance)
+
+    opt = DB.Options()
+    opt.ComputeReferences = False
+    opt.IncludeNonVisibleObjects = False
+    opt.DetailLevel = DB.ViewDetailLevel.Fine
+
+    geom = wall.get_Geometry(opt)
+    if not geom:
+        return solids
+
+    for g in geom:
+        try:
+            if isinstance(g, DB.Solid):
+                if g.Volume > 1e-6:
+                    solids.append(DB.SolidUtils.CreateTransformed(g, link_transform))
+
+            elif isinstance(g, DB.GeometryInstance):
+                inst_geom = g.GetInstanceGeometry()
+                if not inst_geom:
+                    continue
+
+                for ig in inst_geom:
+                    try:
+                        if isinstance(ig, DB.Solid) and ig.Volume > 1e-6:
+                            solids.append(DB.SolidUtils.CreateTransformed(ig, link_transform))
+                    except:
+                        pass
+        except:
+            pass
+
+    return solids
+
+
+def get_curve_solid_intersection_point(curve, solid):
+    try:
+        opts = DB.SolidCurveIntersectionOptions()
+        result = solid.IntersectWithCurve(curve, opts)
+
+        if not result:
+            return None
+
+        seg_count = result.SegmentCount
+        if seg_count < 1:
+            return None
+
+        best_seg = None
+        best_len = -1.0
+
+        for i in range(seg_count):
+            try:
+                seg = result.GetCurveSegment(i)
+                if not seg:
+                    continue
+
+                seg_len = seg.Length
+                if seg_len > best_len:
+                    best_len = seg_len
+                    best_seg = seg
+            except:
+                pass
+
+        if not best_seg:
+            return None
+
+        p0 = best_seg.GetEndPoint(0)
+        p1 = best_seg.GetEndPoint(1)
+
+        return DB.XYZ(
+            (p0.X + p1.X) / 2.0,
+            (p0.Y + p1.Y) / 2.0,
+            (p0.Z + p1.Z) / 2.0
+        )
+    except:
         return None
 
-    if not result_array.Value or result_array.Value.Size == 0:
+
+def get_wall_solid_intersection_point(link_instance, wall, duct_curve):
+    solids = get_wall_solids_in_host(link_instance, wall)
+    if not solids:
         return None
 
-    plan_pt = result_array.Value[0].XYZPoint
+    for solid in solids:
+        pt = get_curve_solid_intersection_point(duct_curve, solid)
+        if pt:
+            return pt
 
-    d0 = duct_curve.GetEndPoint(0)
-    d1 = duct_curve.GetEndPoint(1)
-    flat_d0 = flatten_point_xy(d0)
-    flat_d1 = flatten_point_xy(d1)
-
-    flat_dir = flat_d1 - flat_d0
-    flat_len = flat_dir.GetLength()
-    if flat_len < 1e-9:
-        return None
-
-    flat_dir = flat_dir.Normalize()
-    proj_dist = (plan_pt - flat_d0).DotProduct(flat_dir)
-
-    if proj_dist < 0.0 or proj_dist > flat_len:
-        return None
-
-    real_dir = (d1 - d0).Normalize()
-    return d0 + real_dir * proj_dist
+    return None
 
 
 def points_close_xy(pt1, pt2, tol=0.25):
@@ -419,7 +582,6 @@ def is_duplicate_intersection(elem_id, intersection_point, placed_keys, tol=0.25
 
 
 def get_family_instance_point(inst):
-    # For duplicate checking, use geometric center, not insertion point.
     try:
         bbox = inst.get_BoundingBox(None)
         if bbox:
@@ -512,6 +674,7 @@ def rotate_instance_to_duct(instance, duct_curve, insertion_point):
 # --------------------------------------------------
 # Dynamic centering fix
 # --------------------------------------------------
+
 def xyz_scale(v, s):
     return DB.XYZ(v.X * s, v.Y * s, v.Z * s)
 
@@ -618,6 +781,7 @@ def center_instance_on_point_along_axis(instance, target_point, axis):
 # --------------------------------------------------
 # Family loading
 # --------------------------------------------------
+
 class FamilyLoadOptions(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):
         overwriteParameterValues[0] = False
@@ -632,7 +796,7 @@ class FamilyLoadOptions(DB.IFamilyLoadOptions):
 def load_family(family_path, family_name):
     t = None
     try:
-        t = Transaction(doc, 'Load {} Family'.format(family_name))
+        t = Transaction(doc, "Load {} Family".format(family_name))
         t.Start()
 
         families = FilteredElementCollector(doc).OfClass(Family)
@@ -682,7 +846,7 @@ def activate_symbol(symbol, family_name):
 
     t = None
     try:
-        t = Transaction(doc, 'Activate {} Symbol'.format(family_name))
+        t = Transaction(doc, "Activate {} Symbol".format(family_name))
         t.Start()
         symbol.Activate()
         doc.Regenerate()
@@ -719,10 +883,22 @@ def get_ready_symbol(family_path, family_name, family_type):
 # --------------------------------------------------
 # Selection filters
 # --------------------------------------------------
+
 class FabricationDuctSelectionFilter(ISelectionFilter):
     def AllowElement(self, elem):
         try:
-            return isinstance(elem, DB.FabricationPart)
+            if not isinstance(elem, DB.FabricationPart):
+                return False
+
+            service_type_name = get_fab_part_service_type_name(elem)
+
+            if service_type_name == FIRE_DAMPER_SERVICE_TYPE_NAME:
+                return True
+
+            if not elem.IsAStraight():
+                return False
+
+            return True
         except:
             return False
 
@@ -741,11 +917,12 @@ class LinkInstanceSelectionFilter(ISelectionFilter):
 # --------------------------------------------------
 # Selection
 # --------------------------------------------------
+
 def pick_many_fabrication_elements():
     refs = uidoc.Selection.PickObjects(
         ObjectType.Element,
         FabricationDuctSelectionFilter(),
-        "Select fabrication ducts and fire dampers, then click Finish"
+        "Select straight fabrication ducts and fire dampers, then click Finish"
     )
     return [doc.GetElement(r.ElementId) for r in refs]
 
@@ -762,9 +939,10 @@ def pick_single_link_instance():
 # --------------------------------------------------
 # Placement settings
 # --------------------------------------------------
+
 path, filename = os.path.split(__file__)
-rect_family_path = os.path.join(path, 'RWS.rfa')
-round_family_path = os.path.join(path, 'RDS.rfa')
+rect_family_path = os.path.join(path, "RWS.rfa")
+round_family_path = os.path.join(path, "RDS.rfa")
 
 folder_name = r"c:\Temp"
 filepath = os.path.join(folder_name, "Ribbon_Duct-Wall-Sleeve-Services.txt")
@@ -776,7 +954,7 @@ def load_service_settings(path):
     if not os.path.exists(path):
         return settings
 
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         for line in f:
             line = line.strip()
             if "=" not in line:
@@ -800,17 +978,25 @@ def load_service_settings(path):
 service_annular_map = load_service_settings(filepath)
 
 
-def place_sleeve_at_intersection(elem, link_instance, wall, symbol_map, placed_keys, existing_sleeve_points):
+def place_sleeve_at_intersection(elem, link_instance, wall, symbol_map, placed_keys, existing_sleeve_points, debug_log):
     shape_name = get_element_shape(elem)
     if shape_name not in symbol_map:
         raise Exception("No family symbol loaded for element shape '{}'.".format(shape_name))
 
     famsymb = symbol_map[shape_name]
-
     elem_curve = get_element_centerline(elem, shape_name)
-    wall_thickness, wall_curve = get_linked_wall_thickness_and_curve(link_instance, wall)
 
-    intersection_point = get_plan_intersection_point_on_duct(elem_curve, wall_curve)
+    elem_bbox = get_element_bbox(elem)
+    wall_bbox = get_transformed_bbox(link_instance, wall)
+    duct_curve_bbox = curve_bbox_3d(elem_curve, 0.5, 0.5)
+
+    overlap_elem = bboxes_overlap(elem_bbox, wall_bbox, tol=0.25) if elem_bbox and wall_bbox else False
+    overlap_curve = bboxes_overlap(duct_curve_bbox, wall_bbox, tol=0.25) if duct_curve_bbox and wall_bbox else False
+
+    if not (overlap_elem or overlap_curve):
+        return False
+
+    intersection_point = get_wall_solid_intersection_point(link_instance, wall, elem_curve)
     if not intersection_point:
         return False
 
@@ -838,6 +1024,7 @@ def place_sleeve_at_intersection(elem, link_instance, wall, symbol_map, placed_k
     level_id = safe_get_level_id(elem)
     annular_feet, service_name = get_annular_space_for_element(elem)
     total_clearance = annular_feet * 2.0
+    wall_thickness = get_linked_wall_thickness(wall)
 
     new_family_instance = create_family_instance(insertion_point, famsymb, level_id)
     if not new_family_instance:
@@ -845,14 +1032,14 @@ def place_sleeve_at_intersection(elem, link_instance, wall, symbol_map, placed_k
 
     if shape_name == "RECT":
         width, height = get_rectangular_size_from_connector(nearest_conn)
-        set_parameter_by_name(new_family_instance, 'Width', width + total_clearance)
-        set_parameter_by_name(new_family_instance, 'Height', height + total_clearance)
+        set_parameter_by_name(new_family_instance, "Width", width + total_clearance)
+        set_parameter_by_name(new_family_instance, "Height", height + total_clearance)
 
     elif shape_name == "ROUND":
         diameter = get_round_diameter_from_duct(elem, nearest_conn)
-        set_parameter_by_name(new_family_instance, 'Diameter', diameter + total_clearance)
+        set_parameter_by_name(new_family_instance, "Diameter", diameter + total_clearance)
 
-    safe_set_length_param_if_exists(new_family_instance, 'Length', wall_thickness)
+    safe_set_length_param_if_exists(new_family_instance, "Length", wall_thickness)
 
     rotate_instance_to_duct(new_family_instance, elem_curve, insertion_point)
 
@@ -862,7 +1049,7 @@ def place_sleeve_at_intersection(elem, link_instance, wall, symbol_map, placed_k
     try:
         set_parameter_by_name(
             new_family_instance,
-            'FP_Service Name',
+            "FP_Service Name",
             get_fabrication_service_name(elem)
         )
     except:
@@ -874,12 +1061,25 @@ def place_sleeve_at_intersection(elem, link_instance, wall, symbol_map, placed_k
 
     placed_keys.add((elem.Id.IntegerValue, intersection_point))
     existing_sleeve_points.append(intersection_point)
+
+    debug_log.append(
+        "PLACED | elem {} | wall {} | service '{}' | point ({:.3f}, {:.3f}, {:.3f})".format(
+            elem.Id.IntegerValue,
+            wall.Id.IntegerValue,
+            service_name,
+            intersection_point.X,
+            intersection_point.Y,
+            intersection_point.Z
+        )
+    )
+
     return True
 
 
 # --------------------------------------------------
 # Main
 # --------------------------------------------------
+
 try:
     elems = pick_many_fabrication_elements()
 
@@ -891,7 +1091,7 @@ try:
     skipped_unsupported = len(elems) - len(supported_elems)
 
     if not supported_elems:
-        show_message("Warning", "No supported fabrication ducts or fire dampers were found in the selection.")
+        show_message("Warning", "No supported straight fabrication ducts or fire dampers were found in the selection.")
         sys.exit()
 
     shapes_needed = set([get_element_shape(e) for e in supported_elems])
@@ -918,9 +1118,8 @@ try:
         show_message("Cancelled", "No Revit link instance selected.")
         sys.exit()
 
-    all_link_walls = get_all_walls_in_link(link_instance)
-
-    if not all_link_walls:
+    total_link_walls = get_all_walls_in_link(link_instance)
+    if not total_link_walls:
         show_message("Cancelled", "No walls found in selected Revit link.")
         sys.exit()
 
@@ -930,18 +1129,22 @@ try:
     checked_pairs = 0
     skipped_non_intersecting = 0
     error_log = []
+    debug_log = []
     placed_keys = set()
     existing_sleeve_points = collect_existing_sleeve_points()
+    total_candidate_walls = 0
 
     t = None
     try:
-        t = Transaction(doc, 'Batch Place Duct Wall Sleeves')
+        t = Transaction(doc, "Batch Place Duct Wall Sleeves")
         t.Start()
 
         for elem in supported_elems:
             elem_shape = get_element_shape(elem)
+            candidate_walls = get_candidate_walls_for_element(link_instance, elem)
+            total_candidate_walls += len(candidate_walls)
 
-            for wall in all_link_walls:
+            for wall in candidate_walls:
                 checked_pairs += 1
                 try:
                     placed = place_sleeve_at_intersection(
@@ -950,7 +1153,8 @@ try:
                         wall,
                         symbol_map,
                         placed_keys,
-                        existing_sleeve_points
+                        existing_sleeve_points,
+                        debug_log
                     )
 
                     if placed:
@@ -985,8 +1189,24 @@ try:
         if t:
             t.Dispose()
 
+    summary = []
+    summary.append("Sleeves placed: {}".format(placed_count))
+    summary.append("Rectangular: {}".format(placed_rect))
+    summary.append("Round: {}".format(placed_round))
+    summary.append("Selected fabrication elements: {}".format(len(elems)))
+    summary.append("Supported elements processed: {}".format(len(supported_elems)))
+    summary.append("Unsupported skipped: {}".format(skipped_unsupported))
+    summary.append("Walls in selected link: {}".format(len(total_link_walls)))
+    summary.append("Candidate walls after 3D filtering: {}".format(total_candidate_walls))
+    summary.append("Checked element/wall pairs: {}".format(checked_pairs))
+    summary.append("Non-placements: {}".format(skipped_non_intersecting))
+
+    if error_log:
+        summary.append("")
+        summary.append("Errors: {}".format(len(error_log)))
+        summary.extend(error_log[:20])
+
+        show_message("Batch Sleeve Placement Errors", "\n".join(summary))
+
 except OperationCanceledException:
     show_message("Cancelled", "Operation cancelled by user.")
-
-except Exception as e:
-    show_message("Error", "Error during execution:\n{}".format(str(e)))

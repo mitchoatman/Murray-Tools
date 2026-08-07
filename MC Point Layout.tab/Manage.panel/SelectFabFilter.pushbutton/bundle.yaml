@@ -6,15 +6,15 @@ title:
 
 # bundle tooltip
 tooltip: |-
+  A leaner faster TS_Point_Number locate tool.
+  It only looks for TS_Point_Number and nothing else.
+
+  [Shift]+Click:    
   Selects all FABRICATION PARTS in ACTIVE VIEW by user specified Fabrication properties.
   1. Execute command.
   2. Pick the desired properties to filter by.
   3. Elements will be selected.
   4. Do what you will with selected elements...
-
-  [Shift]+Click:    
-  A leaner faster more betterer TS_Point_Number locate tool.
-  It only looks for TS_Point_Number and nothing else.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

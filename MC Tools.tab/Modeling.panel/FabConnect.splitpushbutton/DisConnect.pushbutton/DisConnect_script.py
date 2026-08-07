@@ -1,9 +1,8 @@
 # coding: utf8
-from Autodesk.Revit.DB import Transaction, Reference
-from Autodesk.Revit.UI import UIDocument, TaskDialog
-from Autodesk.Revit.UI.Selection import ObjectType
+from Autodesk.Revit.DB import Transaction, FabricationPart
+from Autodesk.Revit.UI import TaskDialog
+from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
 from Autodesk.Revit.Exceptions import InvalidOperationException
-from System.Collections.Generic import List
 
 # Get the active document and UI document
 uidoc = __revit__.ActiveUIDocument
@@ -13,21 +12,19 @@ doc = uidoc.Document
 messages = []
 
 
+class FabricationPartSelectionFilter(ISelectionFilter):
+    """Allow only Fabrication Parts to be selected"""
+    def AllowElement(self, element):
+        return isinstance(element, FabricationPart)
+
+    def AllowReference(self, reference, position):
+        return False
+
+
 def get_connector_manager(element):
-    """Get connector manager for both Revit MEP elements and Fabrication parts"""
-    # Try MEP ConnectorManager
+    """Get connector manager for Fabrication parts"""
     if hasattr(element, 'ConnectorManager') and element.ConnectorManager:
         return element.ConnectorManager
-    
-    # Try MEP ConnectorManager on MEPModel
-    if hasattr(element, 'MEPModel') and element.MEPModel:
-        if hasattr(element.MEPModel, 'ConnectorManager') and element.MEPModel.ConnectorManager:
-            return element.MEPModel.ConnectorManager
-    
-    # Try Fabrication ConnectorManager
-    if hasattr(element, 'ConnectorManager') and element.ConnectorManager:
-        return element.ConnectorManager
-    
     raise AttributeError("No connector manager found")
 
 
@@ -42,42 +39,36 @@ def disconnect_all_connectors(el):
         if not connector.IsConnected:
             continue
         
-        # Collect all connected connectors first to avoid collection modification
         connected_connectors = []
         for other_connector in connector.AllRefs:
             if other_connector.Owner.Id != connector.Owner.Id:
                 connected_connectors.append(other_connector)
         
-        # Disconnect from all connected connectors
         for other_connector in connected_connectors:
             try:
                 connector.DisconnectFrom(other_connector)
             except Exception as ex:
                 messages.append("Failed to disconnect connector: {}".format(str(ex)))
-        
-        # Handle MEP system division
-        try:
-            system = connector.MEPSystem
-            if system and hasattr(system, 'IsMultipleNetwork') and system.IsMultipleNetwork:
-                system.DivideSystem(doc)
-        except:
-            pass
 
 
 def disconnect():
-    """Main function to disconnect selected elements"""
+    """Main function to disconnect selected fabrication parts"""
     global messages
     messages = []
     
     try:
-        # Prompt user to select elements
-        selected_refs = uidoc.Selection.PickObjects(ObjectType.Element, "Select elements to disconnect (press Finish when done)")
+        selection_filter = FabricationPartSelectionFilter()
+        selected_refs = uidoc.Selection.PickObjects(
+            ObjectType.Element,
+            selection_filter,
+            "Select fabrication parts to disconnect (press Finish when done)"
+        )
         
         if not selected_refs:
-            TaskDialog.Show("Disconnect Elements", "No elements selected")
+            TaskDialog.Show("Disconnect Fabrication Parts", "No fabrication parts selected")
             return
         
-        transaction = Transaction(doc, "Disconnect elements")
+        transaction = Transaction(doc, "Disconnect fabrication parts")
         transaction.Start()
         
         try:
@@ -85,13 +76,7 @@ def disconnect():
                 el = doc.GetElement(ref.ElementId)
                 try:
                     disconnect_all_connectors(el)
-                    messages.append("Disconnected: {} - ID: {}".format(
-                        el.Category.Name if el.Category else "Unknown",
-                        el.Id.IntegerValue
-                    ))
-                except AttributeError as e:
-                    messages.append("No connector manager found for {}: {}".format(
-                        el.Category.Name if el.Category else "Unknown",
+                    messages.append("Disconnected Fabrication Part - ID: {}".format(
                         el.Id.IntegerValue
                     ))
                 except Exception as e:
@@ -101,17 +86,18 @@ def disconnect():
                     ))
             
             transaction.Commit()
-            
-            # Show results in TaskDialog
             result_message = "\n".join(messages)
-            TaskDialog.Show("Disconnect Complete", result_message if result_message else "All elements disconnected successfully")
+            TaskDialog.Show(
+                "Disconnect Complete",
+                result_message if result_message else "All fabrication parts disconnected successfully"
+            )
             
         except Exception as e:
             transaction.RollBack()
             TaskDialog.Show("Error", "Transaction failed: {}".format(str(e)))
     
     except InvalidOperationException:
-        TaskDialog.Show("Disconnect Elements", "Selection cancelled by user")
+        TaskDialog.Show("Disconnect Fabrication Parts", "Selection cancelled by user")
 
 
 disconnect()

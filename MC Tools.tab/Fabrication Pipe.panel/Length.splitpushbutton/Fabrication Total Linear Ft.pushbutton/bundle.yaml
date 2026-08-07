@@ -12,6 +12,12 @@ tooltip: |-
     1. Run Command.
     2. Linear Ft of pipe will be shown in the dialog
 
+  [Shift]+Click:    
+  Collects combined length of (SELECTED) Fabrication Pipes.
+    1. Select parts in the model.
+    2. Run Command.
+    3. Linear Ft of pipe will be shown in the dialog.
+
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Walls

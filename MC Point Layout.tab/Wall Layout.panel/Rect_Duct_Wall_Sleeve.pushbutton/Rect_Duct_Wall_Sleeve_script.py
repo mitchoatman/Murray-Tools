@@ -15,6 +15,14 @@ Shared_Params()
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
+active_view = doc.ActiveView
+
+# --------------------------------------------------
+# View Check
+# --------------------------------------------------
+if active_view.ViewType == DB.ViewType.CeilingPlan:
+    TaskDialog.Show("Unsupported View", "This tool cannot be used in Reflected Ceiling Plans. Please switch to a Floor Plan or 3D view.")
+    sys.exit(0)
 
 class FamilyLoadOptions(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):
@@ -129,7 +137,7 @@ else:
 
     def select_fabrication_duct():
         try:
-            pipe_ref = uidoc.Selection.PickObject(ObjectType.Element, "Select a round MEP Fabrication Duct")
+            pipe_ref = uidoc.Selection.PickObject(ObjectType.Element, "Select a Rectangular MEP Fabrication Duct")
             return doc.GetElement(pipe_ref.ElementId)
         except:
             return None
@@ -156,13 +164,6 @@ else:
                 return connector.Width, connector.Height
         except:
             pass
-
-        overall_size = get_parameter_value_by_name_AsString(duct, 'Overall Size')
-        match = re.match(r'(\d+)"x(\d+)"', overall_size)
-        if match:
-            return float(match.group(1)) / 12.0, float(match.group(2)) / 12.0
-
-        raise ValueError("Invalid duct size format")
 
     def place_and_modify_family(duct, famsymb):
         try:
@@ -195,6 +196,10 @@ else:
             set_parameter_by_name(new_family_instance, 'Width', width + (AnnularSpace / 12.0))
             set_parameter_by_name(new_family_instance, 'Height', height + (AnnularSpace / 12.0))
 
+            width_in_inches = int(round(width * 12.0))
+            height_in_inches = int(round(height * 12.0))
+            dynamic_size_str = "{}x{}".format(width_in_inches, height_in_inches)            
+
             vec_x = connector2.Origin.X - connector1.Origin.X
             vec_y = connector2.Origin.Y - connector1.Origin.Y
             angle = atan2(vec_y, vec_x)
@@ -202,6 +207,7 @@ else:
 
             DB.ElementTransformUtils.RotateElement(doc, new_family_instance.Id, axis, angle)
             set_parameter_by_name(new_family_instance, 'FP_Service Name', get_parameter_value_by_name_AsString(duct, 'Fabrication Service Name'))
+            set_parameter_by_name(new_family_instance, 'FP_Product Entry', dynamic_size_str)
             schedule_level_param = new_family_instance.LookupParameter("Schedule Level")
             schedule_level_param.Set(level.Id)
             return True
