@@ -34,8 +34,7 @@ icon_file = None # Set to your icon path if desired, e.g., r"C:\path\to\Murray.i
 show_balloon_notification(
     "Database Update", 
     """The Database and Support files are being synced to your Hard Drive.
-Once sync is complete, you must reload the Fabrication database inside
-your Revit project to receive any database changes.""",
+Once sync is complete, you must reload the Fabrication database inside your Revit project.""",
     icon_path=icon_file
 )
 

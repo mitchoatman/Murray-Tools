@@ -160,16 +160,6 @@ class SeedHangerFilter(ISelectionFilter):
     def AllowReference(self, reference, point):
         return False
 
-class SameFabServiceHangerFilter(ISelectionFilter):
-    def __init__(self, service_value):
-        self.service_value = norm(service_value)
-    def AllowElement(self, elem):
-        if not is_fab_hanger(elem): return False
-        val = get_service_param_value(elem)
-        return norm(val) == self.service_value
-    def AllowReference(self, reference, point):
-        return False
-
 # -----------------------------------------------------------------------------
 # WPF Dialog with Checkbox
 # -----------------------------------------------------------------------------
@@ -336,8 +326,8 @@ def main():
     try:
         target_refs = uidoc.Selection.PickObjects(
             ObjectType.Element,
-            SameFabServiceHangerFilter(seed_service_value),
-            "Select fabrication hangers on the same Fabrication Service"
+            SeedHangerFilter(),
+            "Select fabrication hangers to swap"
         )
     except:
         return

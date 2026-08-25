@@ -1,0 +1,20 @@
+#highlight: new
+title:
+  "File\nExporter"
+
+tooltip: |-
+  Sheet Exporter - pyRevit Button
+  WPF modeless + IExternalEventHandler (matches Spool Manager pattern)
+  Revit 2022+
+  
+
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+#help_url: "https://youtu.be/2464K7fS2iY"
+
+# bundle author
+author: Logan Dempster

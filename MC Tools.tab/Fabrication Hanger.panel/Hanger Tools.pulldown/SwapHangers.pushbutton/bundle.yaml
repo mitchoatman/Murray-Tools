@@ -12,6 +12,9 @@ tooltip: |-
   3. Choose hanger and if you want rod attached to structure.
   4. Select hangers to replace.
 
+  [Shift]+Click:    
+  Removes service filter enabling the ability to swap hanger and their service.
+
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Selection

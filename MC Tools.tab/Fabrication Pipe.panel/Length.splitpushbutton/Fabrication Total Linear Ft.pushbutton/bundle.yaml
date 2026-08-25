@@ -8,15 +8,10 @@ title:
 # bundle tooltip
 tooltip: |-
   Collects combined length of Fabrication Pipes in the Model.
+  If elements are selected prior, only those elements are shown in the list.
 
     1. Run Command.
     2. Linear Ft of pipe will be shown in the dialog
-
-  [Shift]+Click:    
-  Collects combined length of (SELECTED) Fabrication Pipes.
-    1. Select parts in the model.
-    2. Run Command.
-    3. Linear Ft of pipe will be shown in the dialog.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

@@ -3,10 +3,19 @@
 Persists state between Revit sessions."""
 
 import os
+import clr
+
 from pyrevit import script, forms
+
+# .NET namespaces for native Windows balloon notification
+clr.AddReference("System.Windows.Forms")
+clr.AddReference("System.Drawing")
+from System.Windows.Forms import NotifyIcon, ToolTipIcon
+from System.Drawing import Icon, SystemIcons
 
 # ── Config ────────────────────────────────────────────────────────────────────
 FLAG_FILE = r'C:\temp\Ribbon_Workset-hook-status.txt'
+
 
 def get_state():
     try:
@@ -16,6 +25,7 @@ def get_state():
     except Exception:
         pass
     return True  # Default state (enabled)
+
 
 def set_state(value):
     try:
@@ -28,6 +38,22 @@ def set_state(value):
     except Exception as e:
         forms.alert('Could not save state:\n{}'.format(str(e)), title='Error')
         return False
+
+
+def show_balloon_notification(title, message, icon_path=None, timeout=5000):
+    """Displays a native Windows balloon notification."""
+    notify_icon = NotifyIcon()
+    try:
+        if icon_path and os.path.exists(icon_path):
+            notify_icon.Icon = Icon(icon_path)
+        else:
+            notify_icon.Icon = SystemIcons.Information
+
+        notify_icon.Visible = True
+        notify_icon.ShowBalloonTip(timeout, title, message, ToolTipIcon.Info)
+    except Exception:
+        pass
+
 
 def __selfinit__(script_cmp, ui_button_cmp, __rvt__):
     try:
@@ -46,21 +72,31 @@ def __selfinit__(script_cmp, ui_button_cmp, __rvt__):
     except Exception:
         return True
 
+
 def main():
     current_state = get_state()
     new_state = not current_state
-    
+
     if set_state(new_state):
         script.toggle_icon(new_state)
-        forms.show_balloon(
+
+        # Optional custom .ico in your button bundle folder
+        icon_file = os.path.join(os.path.dirname(__file__), 'Murray.ico')
+        if not os.path.exists(icon_file):
+            icon_file = None
+
+        show_balloon_notification(
             'Hook {}'.format('Enabled' if new_state else 'Disabled'),
             'Workset Hook is now {}\n\n{}'.format(
                 'ON' if new_state else 'OFF',
-                'Workset will change when view is changed.' 
-                if new_state 
+                'Workset will change when view is changed.'
+                if new_state
                 else 'Workset will NOT change when view is changed.'
-            )
+            ),
+            icon_path=icon_file,
+            timeout=5000
         )
+
 
 if __name__ == '__main__':
     main()

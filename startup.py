@@ -8,8 +8,18 @@ import System
 
 from pyrevit import forms
 from pyrevit.framework import Threading
+
+# Existing Pane Imports
 from LineNumberPane.pane import MyPane
-from LineNumberPane.config import is_visible, set_visible
+from LineNumberPane.config import is_visible as is_line_visible, set_visible as set_line_visible
+
+# Spool Manager Pane Imports
+from SpoolManagerPane.pane import SpoolManagerPane
+from SpoolManagerPane.config import is_visible as is_spool_visible, set_visible as set_spool_visible
+
+# Family Viewer Pane Imports
+from FamilyPane.pane import FamilyViewerPane
+from FamilyPane.config import is_visible as is_family_visible, set_visible as set_family_visible
 
 # Revit Selection Options
 uidoc = HOST_APP.uidoc
@@ -18,14 +28,12 @@ opts.DragOnSelection = False
 opts.SelectLinks     = False
 opts.SelectUnderlay  = True
 
-PANE_AVAILABLE = False
+PANES_AVAILABLE = False
 
 try:
     from pyrevit import forms
     from pyrevit.framework import Threading
-    from LineNumberPane.pane import MyPane
-    from LineNumberPane.config import is_visible, set_visible
-    PANE_AVAILABLE = True
+    PANES_AVAILABLE = True
 except Exception:
     import traceback
     with open(r'C:\temp\startup_debug.txt', 'a') as log:
@@ -99,7 +107,6 @@ def set_FP_hook_icon(sender, args):
         except Exception:
             pass
 
-# Subscribe - will fire once the first view is activated after Revit loads
 HOST_APP.uiapp.ViewActivated += set_FP_hook_icon
 
 
@@ -156,12 +163,11 @@ def set_workset_hook_icon(sender, args):
         except Exception:
             pass
 
-# Subscribe - will fire once the first view is activated after Revit loads
 HOST_APP.uiapp.ViewActivated += set_workset_hook_icon
 
-# dockable pane ===============================================================
+# dockable panes ===============================================================
 
-if PANE_AVAILABLE:
+if PANES_AVAILABLE:
     def _pane_defer(func):
         try:
             Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
@@ -174,56 +180,85 @@ if PANE_AVAILABLE:
             except Exception:
                 pass
 
-    def _ensure_my_pane_registered():
+    def _ensure_panes_registered():
         try:
             if not forms.is_registered_dockable_panel(MyPane):
                 forms.register_dockable_panel(MyPane, default_visible=False)
+            if not forms.is_registered_dockable_panel(SpoolManagerPane):
+                forms.register_dockable_panel(SpoolManagerPane, default_visible=False)
+            if not forms.is_registered_dockable_panel(FamilyViewerPane):
+                forms.register_dockable_panel(FamilyViewerPane, default_visible=False)
         except Exception:
             import traceback
             with open(r'C:\temp\startup_debug.txt', 'a') as log:
                 log.write("Pane register error:\n{}\n".format(traceback.format_exc()))
 
-    def _restore_my_pane_visibility():
+    def _restore_panes_visibility():
         try:
-            if is_visible():
+            # Line Number Pane
+            if is_line_visible():
                 forms.open_dockable_panel(MyPane)
             else:
                 forms.close_dockable_panel(MyPane)
+
+            # Spool Manager Pane
+            if is_spool_visible():
+                forms.open_dockable_panel(SpoolManagerPane)
+            else:
+                forms.close_dockable_panel(SpoolManagerPane)
+
+            # Family Viewer Pane
+            if is_family_visible():
+                forms.open_dockable_panel(FamilyViewerPane)
+            else:
+                forms.close_dockable_panel(FamilyViewerPane)
         except Exception:
             pass
 
-    def _sync_my_pane_visibility():
+    def _sync_panes_visibility():
         try:
-            dockable = forms.get_dockable_panel(MyPane)
-            set_visible(dockable.IsShown())
+            line_dockable = forms.get_dockable_panel(MyPane)
+            set_line_visible(line_dockable.IsShown())
         except Exception:
             pass
 
-    def _on_my_pane_visibility_changed(sender, args):
-        _pane_defer(_sync_my_pane_visibility)
-
-    def _on_my_pane_document_opened(sender, args):
         try:
-            HOST_APP.uiapp.Application.DocumentOpened -= _on_my_pane_document_opened
+            spool_dockable = forms.get_dockable_panel(SpoolManagerPane)
+            set_spool_visible(spool_dockable.IsShown())
         except Exception:
             pass
 
-        _pane_defer(_restore_my_pane_visibility)
+        try:
+            family_dockable = forms.get_dockable_panel(FamilyViewerPane)
+            set_family_visible(family_dockable.IsShown())
+        except Exception:
+            pass
 
-    _ensure_my_pane_registered()
+    def _on_pane_visibility_changed(sender, args):
+        _pane_defer(_sync_panes_visibility)
+
+    def _on_pane_document_opened(sender, args):
+        try:
+            HOST_APP.uiapp.Application.DocumentOpened -= _on_pane_document_opened
+        except Exception:
+            pass
+
+        _pane_defer(_restore_panes_visibility)
+
+    _ensure_panes_registered()
 
     try:
-        HOST_APP.uiapp.DockableFrameVisibilityChanged += _on_my_pane_visibility_changed
+        HOST_APP.uiapp.DockableFrameVisibilityChanged += _on_pane_visibility_changed
     except Exception:
         pass
 
     try:
         if HOST_APP.uidoc is not None:
-            _pane_defer(_restore_my_pane_visibility)
+            _pane_defer(_restore_panes_visibility)
         else:
-            HOST_APP.uiapp.Application.DocumentOpened += _on_my_pane_document_opened
+            HOST_APP.uiapp.Application.DocumentOpened += _on_pane_document_opened
     except Exception:
         try:
-            HOST_APP.uiapp.Application.DocumentOpened += _on_my_pane_document_opened
+            HOST_APP.uiapp.Application.DocumentOpened += _on_pane_document_opened
         except Exception:
             pass

@@ -5,10 +5,10 @@ title:
 
 tooltip: |-
   Opens a panel that allows the folling actions:
-   - Writes line number value to the FP_Line Number parameter.
-   - Collects a list of all line numbers in project.
-   - Zoom to elements using specific line number.
-   - Make view filters of line numbers.
+   - Writes Assembly data to the STRATUS Assembly parameter.
+   - Collects a list of all Assemblies in active view.
+   - Zoom to elements using specific Assembly number.
+   - Make view filters of Assemblies.
 
 # context directives are listed under `context` key, the order does not matter
 # context:

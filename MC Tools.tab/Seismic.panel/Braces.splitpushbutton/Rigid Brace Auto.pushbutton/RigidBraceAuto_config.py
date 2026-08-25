@@ -74,6 +74,16 @@ def place_two_braces(point):
     new_family_instance = second_instance
     stretch_brace()
 
+def place_single_brace(point, rotation_angle=0.0):
+    global new_family_instance
+    new_family_instance = doc.Create.NewFamilyInstance(point, target_famtype, DB.Structure.StructuralType.NonStructural)
+    if rotation_angle != 0.0:
+        axis_start = point
+        axis_end = XYZ(point.X, point.Y, point.Z + 1)
+        rotation_axis = Line.CreateBound(axis_start, axis_end)
+        ElementTransformUtils.RotateElement(doc, new_family_instance.Id, rotation_axis, rotation_angle)
+    stretch_brace()
+
 class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):
         overwriteParameterValues.Value = False
@@ -165,6 +175,10 @@ if target_famtype:
             place_two_braces(point)
 
         else:
+            rod0_loc = rod_info.GetRodEndPosition(0)
+            rod1_loc = rod_info.GetRodEndPosition(1)
+            trapeze_angle = math.atan2(rod1_loc.Y - rod0_loc.Y, rod1_loc.X - rod0_loc.X)
+
             for i in range(rod_count):
                 rodloc = rod_info.GetRodEndPosition(i)
                 valuenum = rodloc.Z
@@ -182,7 +196,14 @@ if target_famtype:
                     z = middle_top.Z - BraceOffsetZ
 
                 point = XYZ(rodloc.X, rodloc.Y, z)
-                place_two_braces(point)
+
+                # Each rod gets an unrotated brace
+                place_single_brace(point, rotation_angle=0.0)
+
+                # On the second rod of a 2-rod trapeze, add the transverse brace rotated opposite to the trapeze angle
+                if rod_count == 2 and i == 1:
+                    transverse_point = XYZ(rodloc.X, rodloc.Y, z + 0.04)
+                    place_single_brace(transverse_point, rotation_angle=-trapeze_angle)
 
     t.Commit()
 

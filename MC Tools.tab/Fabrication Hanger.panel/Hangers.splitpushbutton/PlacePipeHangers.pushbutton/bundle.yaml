@@ -8,13 +8,16 @@ title:
 tooltip: |-
   Populates hangers on selected pipe(s).
     1. Run Command.
-    2. Select a fabrication pipe to specify service.
-    3. Choose group.
-    4. Choose hanger button and specify settings.
-    5. Select pipe(s) or duct(s) to populate hangers on.
+    2. Select pipe(s) or duct(s) to populate hangers on.
 
-  Function will always place hangers at couplings. Do not
-  optimize pipe or duct runs if you wish to populate hangers with spacing.
+  [Shift]+Click:    
+  Opens hanger config to define:
+  - Hanger Type
+  - Hanger spacing with size breaks
+  - Support Joints
+  - Attach to Structure
+
+  Config settings must be set and are saved for each project file.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

@@ -724,12 +724,25 @@ def update_sleeve_descriptions_in_view():
         result_string = 'SLV {0} x {1}'.format(slvdiameter, slvlength)
         set_parameter_by_name(x, 'TS_Point_Description', result_string)
 
-    accessory_elements4 = [element for element in pipe_accessories or duct_accessories if "Rectangular Sleeve" in element.Name]
+    accessory_elements4 = [element for element in (pipe_accessories + duct_accessories) if "Rectangular Sleeve" in element.Name]
     for x in accessory_elements4:
-        slvlength = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Length') * 12)
-        slvwidth = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Width') * 12)
-        slvheight = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Height') * 12)
-        result_string = 'SLV {0} x {1} x {2}'.format(slvlength, slvwidth, slvheight)
+        length_val = get_parameter_value_by_name_AsDouble(x, 'Sleeve Length')
+        if not length_val:
+            length_val = get_parameter_value_by_name_AsDouble(x, 'Length')
+
+        width_val = get_parameter_value_by_name_AsDouble(x, 'Sleeve Width')
+        if not width_val:
+            width_val = get_parameter_value_by_name_AsDouble(x, 'Width')
+
+        depth_val = get_parameter_value_by_name_AsDouble(x, 'Sleeve Depth')
+        if not depth_val:
+            depth_val = get_parameter_value_by_name_AsDouble(x, 'Height')
+
+        slvlength = "{0:.2f}".format(length_val * 12)
+        slvwidth = "{0:.2f}".format(width_val * 12)
+        slvdepth = "{0:.2f}".format(depth_val * 12)
+
+        result_string = 'SLV {0} x {1} x {2}'.format(slvlength, slvwidth, slvdepth)
         set_parameter_by_name(x, 'TS_Point_Description', result_string)
 
     accessory_elements5 = [element for element in pipe_accessories if "WS" in element.Name or "DR-WS" in element.Name]
@@ -762,6 +775,13 @@ def update_sleeve_descriptions_in_view():
         result_string = "RDS DIA {0} CL {1}".format(slvdiameter, slvelevation)
         set_parameter_by_name(x, 'TS_Point_Description', result_string)
 
+    accessory_elements9 = [element for element in pipe_accessories if "Round Wall Sleeve" in element.Name]
+    for x in accessory_elements9:
+        slvdiameter = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Diameter') * 12)
+        slvlength = "{0:.2f}".format(get_parameter_value_by_name_AsDouble(x, 'Length') * 12)
+        slvelevation = feet_to_feet_inches_fraction(get_parameter_value_by_name_AsDouble(x, 'Elevation from Level'))
+        result_string = "DIA {0} x L {1}  CL {2}".format(slvdiameter, slvlength, slvelevation)
+        set_parameter_by_name(x, 'TS_Point_Description', result_string)
 
 class AllElementSelectionFilter(Autodesk.Revit.UI.Selection.ISelectionFilter):
     def AllowElement(self, element):

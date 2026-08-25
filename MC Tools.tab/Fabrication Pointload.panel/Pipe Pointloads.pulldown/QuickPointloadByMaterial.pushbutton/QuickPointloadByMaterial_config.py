@@ -4,8 +4,12 @@ import sys
 import clr
 
 from Autodesk.Revit.DB import (
-    FilteredElementCollector, BuiltInCategory, BuiltInParameter, 
-    ElementId, Transaction, FabricationConfiguration
+    FilteredElementCollector,
+    BuiltInCategory,
+    BuiltInParameter,
+    ElementId,
+    Transaction,
+    FabricationConfiguration
 )
 from pyrevit import revit, DB, script, forms
 from Parameters.Add_SharedParameters import Shared_Params
@@ -57,24 +61,33 @@ def show_balloon_notification(title, message, timeout=5000):
 def set_customdata_by_custid(fabpart, custid, value):
     fabpart.SetPartCustomDataText(custid, value)
 
+
 def get_parameter_value_by_name_AsValueString(element, parameterName):
     param = element.LookupParameter(parameterName)
     if param and param.HasValue:
         return param.AsValueString() or param.AsString()
     return ""
 
-hanger_collector = FilteredElementCollector(doc, curview.Id).OfCategory(BuiltInCategory.OST_FabricationHangers) \
-                   .WhereElementIsNotElementType() \
-                   .ToElements()
+
+def set_pointload(hanger, load_value, rounded_value):
+    set_parameter_by_name(hanger, 'FP_Pointload', load_value)
+    set_customdata_by_custid(hanger, 7, str(rounded_value))
+
+
+hanger_collector = (
+    FilteredElementCollector(doc, curview.Id)
+    .OfCategory(BuiltInCategory.OST_FabricationHangers)
+    .WhereElementIsNotElementType()
+    .ToElements()
+)
 
 error_data = []
 
-t = Transaction(doc, 'Set CI Pointload Values')
-# Start Transaction
+t = Transaction(doc, 'Set Full Pointload Values')
 t.Start()
 
 for hanger in hanger_collector:
-    family_name = get_parameter_value_by_name_AsValueString(hanger, 'Family')
+    family_name = get_parameter_value_by_name_AsValueString(hanger, 'Family') or ""
 
     # Skip trapeze hangers
     if 'trapeze' in family_name.lower():
@@ -82,158 +95,142 @@ for hanger in hanger_collector:
 
     try:
         hosted_info_obj = hanger.GetHostedInfo()
+
+        # Catch non-hosted single hangers and add them to the error list
         if hosted_info_obj is None or hosted_info_obj.HostId == ElementId.InvalidElementId:
             display_text = "{} (ID: {})".format(family_name, hanger.Id)
             error_data.append((display_text, hanger.Id))
             continue
 
-        hosted_info = hosted_info_obj.HostId
+        host_id = hosted_info_obj.HostId
+        host = doc.GetElement(host_id)
 
-        Hostmat = doc.GetElement(hosted_info).Parameter[BuiltInParameter.FABRICATION_PART_MATERIAL].AsValueString()  # Copper: Hard Copper  # Cast Iron: Cast Iron
+        if host is None:
+            display_text = "{} (ID: {}) - Host Not Found".format(family_name, hanger.Id)
+            error_data.append((display_text, hanger.Id))
+            continue
+
+        host_mat_param = host.Parameter[BuiltInParameter.FABRICATION_PART_MATERIAL]
+        Hostmat = host_mat_param.AsValueString() if host_mat_param else ""
+        HostSize = get_parameter_value_by_name_AsString(host, 'Size')
 
         if Hostmat == 'Cast Iron: Cast Iron':
-            HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
             if HostSize == '2"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 24.75)
-                set_customdata_by_custid(hanger, 7, '3')
-            if HostSize == '3"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 41.2)
-                set_customdata_by_custid(hanger, 7, '5')
-            if HostSize == '4"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 64.1)
-                set_customdata_by_custid(hanger, 7, '7')
-            if HostSize == '5"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 87.5)
-                set_customdata_by_custid(hanger, 7, '9')
-            if HostSize == '6"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 115.9)
-                set_customdata_by_custid(hanger, 7, '12')
-            if HostSize == '8"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 198.3)
-                set_customdata_by_custid(hanger, 7, '20')
-            if HostSize == '10"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 298)
-                set_customdata_by_custid(hanger, 7, '30')
-            if HostSize == '12"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 420)
-                set_customdata_by_custid(hanger, 7, '42')
-            if HostSize == '15"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 650)
-                set_customdata_by_custid(hanger, 7, '65')
+                set_pointload(hanger, 24.75, 3)
+            elif HostSize == '3"':
+                set_pointload(hanger, 41.2, 5)
+            elif HostSize == '4"':
+                set_pointload(hanger, 64.1, 7)
+            elif HostSize == '5"':
+                set_pointload(hanger, 87.5, 9)
+            elif HostSize == '6"':
+                set_pointload(hanger, 115.9, 12)
+            elif HostSize == '8"':
+                set_pointload(hanger, 198.3, 20)
+            elif HostSize == '10"':
+                set_pointload(hanger, 298.0, 30)
+            elif HostSize == '12"':
+                set_pointload(hanger, 420.0, 42)
+            elif HostSize == '15"':
+                set_pointload(hanger, 650.0, 65)
 
-        if Hostmat == 'Copper: Hard Copper':
-            HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
+        elif Hostmat == 'Copper: Hard Copper':
             if HostSize == '1/2"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 2.638)
-                set_customdata_by_custid(hanger, 7, '1')
-            if HostSize == '3/4"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 7.56)
-                set_customdata_by_custid(hanger, 7, '1')
-            if HostSize == '1"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 10.68)
-                set_customdata_by_custid(hanger, 7, '2')
-            if HostSize == '1 1/4"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 11.58)
-                set_customdata_by_custid(hanger, 7, '2')
-            if HostSize == '1 1/2"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 16.56)
-                set_customdata_by_custid(hanger, 7, '2')
-            if HostSize == '2"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 42.1)
-                set_customdata_by_custid(hanger, 7, '5')
-            if HostSize == '2 1/2"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 58.8)
-                set_customdata_by_custid(hanger, 7, '6')
-            if HostSize == '3"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 80.3)
-                set_customdata_by_custid(hanger, 7, '8')
-            if HostSize == '4"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 147.5)
-                set_customdata_by_custid(hanger, 7, '15')
-            if HostSize == '6"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 292.8)
-                set_customdata_by_custid(hanger, 7, '30')
-            if HostSize == '8"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 500)
-                set_customdata_by_custid(hanger, 7, '50')
+                set_pointload(hanger, 2.638, 1)
+            elif HostSize == '3/4"':
+                set_pointload(hanger, 7.56, 1)
+            elif HostSize == '1"':
+                set_pointload(hanger, 10.68, 2)
+            elif HostSize == '1 1/4"':
+                set_pointload(hanger, 11.58, 2)
+            elif HostSize == '1 1/2"':
+                set_pointload(hanger, 16.56, 2)
+            elif HostSize == '2"':
+                set_pointload(hanger, 42.1, 5)
+            elif HostSize == '2 1/2"':
+                set_pointload(hanger, 58.8, 6)
+            elif HostSize == '3"':
+                set_pointload(hanger, 80.3, 8)
+            elif HostSize == '4"':
+                set_pointload(hanger, 147.5, 15)
+            elif HostSize == '6"':
+                set_pointload(hanger, 292.8, 30)
+            elif HostSize == '8"':
+                set_pointload(hanger, 500.0, 50)
 
-        if Hostmat == 'Carbon Steel: Carbon Steel':
-            HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
+        elif Hostmat == 'Carbon Steel: Carbon Steel':
             if HostSize == '1/2"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 8.7)
-                set_customdata_by_custid(hanger, 7, '1')
-            if HostSize == '3/4"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 14.32)
-                set_customdata_by_custid(hanger, 7, '2')
-            if HostSize == '1"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 21.36)
-                set_customdata_by_custid(hanger, 7, '3')
-            if HostSize == '1 1/4"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 36.2)
-                set_customdata_by_custid(hanger, 7, '4')
-            if HostSize == '1 1/2"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 42.4)
-                set_customdata_by_custid(hanger, 7, '5')
-            if HostSize == '2"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 58.9)
-                set_customdata_by_custid(hanger, 7, '6')
-            if HostSize == '2 1/2"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 91)
-                set_customdata_by_custid(hanger, 7, '10')
-            if HostSize == '3"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 118.6)
-                set_customdata_by_custid(hanger, 7, '12')
-            if HostSize == '4"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 194.9)
-                set_customdata_by_custid(hanger, 7, '20')
-            if HostSize == '6"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 357.2)
-                set_customdata_by_custid(hanger, 7, '36')
-            if HostSize == '8"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 503.0)
-                set_customdata_by_custid(hanger, 7, '50')
+                set_pointload(hanger, 8.7, 1)
+            elif HostSize == '3/4"':
+                set_pointload(hanger, 14.32, 2)
+            elif HostSize == '1"':
+                set_pointload(hanger, 21.36, 3)
+            elif HostSize == '1 1/4"':
+                set_pointload(hanger, 36.2, 4)
+            elif HostSize == '1 1/2"':
+                set_pointload(hanger, 42.4, 5)
+            elif HostSize == '2"':
+                set_pointload(hanger, 58.9, 6)
+            elif HostSize == '2 1/2"':
+                set_pointload(hanger, 91.0, 10)
+            elif HostSize == '3"':
+                set_pointload(hanger, 118.6, 12)
+            elif HostSize == '4"':
+                set_pointload(hanger, 194.9, 20)
+            elif HostSize == '6"':
+                set_pointload(hanger, 357.2, 36)
+            elif HostSize == '8"':
+                set_pointload(hanger, 503.0, 50)
 
-        if Hostmat in ['Stainless Steel: 304L', 'Stainless Steel: 316L']:
-            HostSize = get_parameter_value_by_name_AsString(doc.GetElement(hosted_info), 'Size')
+        elif Hostmat in ['Stainless Steel: 304L', 'Stainless Steel: 316L']:
             if HostSize == '1/2"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 4.95)
-                set_customdata_by_custid(hanger, 7, '1')
-            if HostSize == '3/4"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 8.984)
-                set_customdata_by_custid(hanger, 7, '2')
-            if HostSize == '1"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 14.504)
-                set_customdata_by_custid(hanger, 7, '2')
-            if HostSize == '1 1/4"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 25.13)
-                set_customdata_by_custid(hanger, 7, '3')
-            if HostSize == '1 1/2"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 30.47)
-                set_customdata_by_custid(hanger, 7, '4')
-            if HostSize == '2"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 42.2)
-                set_customdata_by_custid(hanger, 7, '5')
-            if HostSize == '2 1/2"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 58.92)
-                set_customdata_by_custid(hanger, 7, '6')
-            if HostSize == '3"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 79.46)
-                set_customdata_by_custid(hanger, 7, '8')
-            if HostSize == '4"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 117.86)
-                set_customdata_by_custid(hanger, 7, '12')
-            if HostSize == '6"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 230.34)
-                set_customdata_by_custid(hanger, 7, '24')
-            if HostSize == '8"':
-                set_parameter_by_name(hanger, 'FP_Pointload', 366.96)
-                set_customdata_by_custid(hanger, 7, '37')
+                set_pointload(hanger, 4.95, 1)
+            elif HostSize == '3/4"':
+                set_pointload(hanger, 8.984, 2)
+            elif HostSize == '1"':
+                set_pointload(hanger, 14.504, 2)
+            elif HostSize == '1 1/4"':
+                set_pointload(hanger, 25.13, 3)
+            elif HostSize == '1 1/2"':
+                set_pointload(hanger, 30.47, 4)
+            elif HostSize == '2"':
+                set_pointload(hanger, 42.2, 5)
+            elif HostSize == '2 1/2"':
+                set_pointload(hanger, 58.92, 6)
+            elif HostSize == '3"':
+                set_pointload(hanger, 79.46, 8)
+            elif HostSize == '4"':
+                set_pointload(hanger, 117.86, 12)
+            elif HostSize == '6"':
+                set_pointload(hanger, 230.34, 24)
+            elif HostSize == '8"':
+                set_pointload(hanger, 366.96, 37)
 
-    except:
+        elif Hostmat in ['PVC: PVC', 'PVC: Sch 40 Clear PVC', 'PVC: CPVC']:
+            if HostSize == '2"':
+                set_pointload(hanger, 8.4, 1)
+            elif HostSize == '3"':
+                set_pointload(hanger, 14.0, 2)
+            elif HostSize == '4"':
+                set_pointload(hanger, 24.0, 3)
+            elif HostSize == '6"':
+                set_pointload(hanger, 51.0, 6)
+            elif HostSize == '8"':
+                set_pointload(hanger, 89.0, 9)
+            elif HostSize == '10"':
+                set_pointload(hanger, 138.0, 14)
+
+        # Optional PolyPro block if you want to add full weights later
+        # elif Hostmat.startswith('PolyPro:'):
+        #     if HostSize == '2"':
+        #         set_pointload(hanger, YOUR_VALUE_HERE, 2)
+        #     elif HostSize == '3"':
+        #         set_pointload(hanger, YOUR_VALUE_HERE, 3)
+
+    except Exception:
         display_text = "{} (ID: {})".format(family_name, hanger.Id)
         error_data.append((display_text, hanger.Id))
 
-# End Transaction
 t.Commit()
 
 

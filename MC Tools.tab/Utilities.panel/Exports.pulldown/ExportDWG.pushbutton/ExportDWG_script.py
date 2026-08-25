@@ -15,7 +15,7 @@ clr.AddReference('System.Xaml')
 
 import System
 from Autodesk.Revit.UI import TaskDialog
-from Autodesk.Revit.DB import View, ViewType, FilteredElementCollector
+from Autodesk.Revit.DB import View, ViewType, FilteredElementCollector, SolidGeometry
 from System.Windows.Forms import FolderBrowserDialog, DialogResult
 
 from System.Windows import Window, Thickness, HorizontalAlignment, WindowStartupLocation, ResizeMode
@@ -43,8 +43,19 @@ def is_valid_export_view(view):
         return False
     if view.IsTemplate:
         return False
-    if view.ViewType not in [ViewType.FloorPlan, ViewType.CeilingPlan]:
+
+    allowed_types = [ViewType.FloorPlan, ViewType.CeilingPlan, ViewType.ThreeD]
+    if view.ViewType not in allowed_types:
         return False
+
+    # Exclude perspective 3D views
+    if view.ViewType == ViewType.ThreeD:
+        try:
+            if view.IsPerspective:
+                return False
+        except:
+            return False
+
     return True
 
 
@@ -183,16 +194,16 @@ class ExportFolderAndOptionsDialog(Window):
     def InitializeComponents(self):
         self.Title = "DWG Export Options"
         self.Width = 520
-        self.Height = 300
+        self.Height = 340
         self.MinWidth = 520
-        self.MinHeight = 300
+        self.MinHeight = 340
         self.ResizeMode = ResizeMode.NoResize
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
 
         grid = Grid()
         grid.Margin = Thickness(10)
 
-        for _ in range(8):
+        for _ in range(9):
             grid.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
 
         grid.ColumnDefinitions.Add(ColumnDefinition())
@@ -258,6 +269,13 @@ class ExportFolderAndOptionsDialog(Window):
         Grid.SetColumnSpan(self.cb_export_areas, 2)
         grid.Children.Add(self.cb_export_areas)
 
+        self.cb_acis_solids = CheckBox(Content="Export 3D solids as ACIS Solids")
+        self.cb_acis_solids.IsChecked = True
+        self.cb_acis_solids.Margin = Thickness(0, 2, 0, 2)
+        Grid.SetRow(self.cb_acis_solids, 8)
+        Grid.SetColumnSpan(self.cb_acis_solids, 2)
+        grid.Children.Add(self.cb_acis_solids)
+
         button_panel = StackPanel(Orientation=Orientation.Horizontal, HorizontalAlignment=HorizontalAlignment.Center)
         button_panel.Margin = Thickness(0, 12, 0, 0)
 
@@ -270,7 +288,7 @@ class ExportFolderAndOptionsDialog(Window):
         button_panel.Children.Add(cancel_btn)
 
         grid.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
-        Grid.SetRow(button_panel, 8)
+        Grid.SetRow(button_panel, 9)
         Grid.SetColumnSpan(button_panel, 2)
         grid.Children.Add(button_panel)
 
@@ -301,7 +319,8 @@ class ExportFolderAndOptionsDialog(Window):
             "SharedCoords": bool(self.cb_shared_coords.IsChecked),
             "MergedViews": bool(self.cb_merged_views.IsChecked),
             "HideUnreferenceViewTags": bool(self.cb_hide_unref_tags.IsChecked),
-            "ExportingAreas": bool(self.cb_export_areas.IsChecked)
+            "ExportingAreas": bool(self.cb_export_areas.IsChecked),
+            "UseAcisSolids": bool(self.cb_acis_solids.IsChecked)
         }
 
         self.DialogResult = True
@@ -332,13 +351,13 @@ def prompt_user_to_select_views():
     ]
 
     if not all_views:
-        TaskDialog.Show("Export DWG", "No valid floor plan or ceiling plan views found in this document.")
+        TaskDialog.Show("Export DWG", "No valid floor plan, ceiling plan, or non-perspective 3D views found in this document.")
         return []
 
     form = ViewSelectionDialog(
         all_views,
         "Select Views to Export",
-        "Search and select floor plan / ceiling plan views:"
+        "Search and select floor plan / ceiling plan / 3D views:"
     )
 
     result = form.ShowDialog()
@@ -363,7 +382,11 @@ def get_dwg_options(settings):
     dwg_options.HideUnreferenceViewTags = settings.get("HideUnreferenceViewTags", True)
     dwg_options.ExportingAreas = settings.get("ExportingAreas", False)
 
-    # Fixed settings from your original script
+    if settings.get("UseAcisSolids", True):
+        dwg_options.ExportOfSolids = SolidGeometry.ACIS
+    else:
+        dwg_options.ExportOfSolids = SolidGeometry.Polymesh
+
     dwg_options.LineScaling = Autodesk.Revit.DB.LineScaling.PaperSpace
     dwg_options.TargetUnit = Autodesk.Revit.DB.ExportUnit.Inch
 

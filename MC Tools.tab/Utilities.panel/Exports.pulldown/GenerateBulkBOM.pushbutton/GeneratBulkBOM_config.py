@@ -169,7 +169,7 @@ def create_schedule(schedule_name, category_id, filters, fieldNames):
 
                     if index == 0:  # Primary group: FP_Rod Size
                         sort_field.ShowFooter = True
-                        sort_field.ShowFooterTitle = True
+                        sort_field.ShowFooterTitle = False
                         sort_field.ShowFooterCount = False
                     else:
                         sort_field.ShowFooter = False

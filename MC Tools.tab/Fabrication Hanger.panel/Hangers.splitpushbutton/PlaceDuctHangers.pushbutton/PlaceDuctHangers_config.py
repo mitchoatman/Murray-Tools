@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import os
 import clr
-
+import System
+import Autodesk
 clr.AddReference("PresentationFramework")
 clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
@@ -17,18 +18,27 @@ from System.Windows.Controls import (
 )
 from System.Windows.Media import FontFamily
 
-from Autodesk.Revit.DB import FabricationConfiguration
+from Autodesk.Revit.DB import FilteredElementCollector, FabricationConfiguration, Transaction
+from Autodesk.Revit.DB.ExtensibleStorage import Schema, SchemaBuilder, Entity, AccessLevel
+from Autodesk.Revit.UI import TaskDialog
 
+app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
-app = doc.Application
 RevitINT = float(app.VersionNumber)
 
-FOLDER = r"C:\Temp"
-FILEPATH = os.path.join(FOLDER, "Ribbon_Duct-Hanger-Config.txt")
+# Unique GUID for our Duct Extensible Storage Schema
+SCHEMA_GUID = System.Guid("8C4F9B23-5D1F-4E32-9A7C-2F0B4D6E8F9A")
+DATA_STORAGE_NAME = "DuctHangerConfigData"
+
+# Per-project file name setup for title
+file_path = doc.PathName
+file_name = System.IO.Path.GetFileNameWithoutExtension(file_path)
+if not file_name:
+    file_name = doc.Title
 
 DEFAULTS = {
-    "ROUND_HANGER": "",
-    "RECT_HANGER": "",
+    "ROUND_HANGER": "Hanger Strap Round 1pt",
+    "RECT_HANGER": "Hanger Strap Rectangular",
     "END_DIST_IN": "12",
     "ROUND_MAX_SPACING_FT": "8",
     "RECT_MAX_SPACING_FT": "8",
@@ -45,19 +55,47 @@ CONFIG_KEYS = [
 ]
 
 
-def ensure_folder():
-    if not os.path.exists(FOLDER):
-        os.makedirs(FOLDER)
+def get_or_create_schema():
+    schema = Schema.Lookup(SCHEMA_GUID)
+    if schema is not None:
+        return schema
+
+    builder = SchemaBuilder(SCHEMA_GUID)
+    builder.SetReadAccessLevel(AccessLevel.Public)
+    builder.SetWriteAccessLevel(AccessLevel.Public)
+    builder.SetVendorId("BIMTools")
+    builder.SetSchemaName("DuctHangerConfigSchema")
+    builder.AddSimpleField("ConfigPayload", System.String)
+    return builder.Finish()
 
 
-def load_config(path):
+def load_config(doc):
     data = dict(DEFAULTS)
+    try:
+        schema = Schema.Lookup(SCHEMA_GUID)
+        if not schema:
+            return data
 
-    if not os.path.exists(path):
-        return data
+        collector = FilteredElementCollector(doc).OfClass(Autodesk.Revit.DB.ExtensibleStorage.DataStorage)
+        target_ds = None
+        for ds in collector:
+            if ds.Name == DATA_STORAGE_NAME:
+                target_ds = ds
+                break
 
-    with open(path, "r") as f:
-        for line in f:
+        if not target_ds:
+            return data
+
+        entity = target_ds.GetEntity(schema)
+        if not entity.IsValid():
+            return data
+
+        val_string = entity.Get[System.String]("ConfigPayload")
+        if not val_string:
+            return data
+
+        lines = val_string.split("\n")
+        for line in lines:
             line = line.strip()
             if "=" not in line:
                 continue
@@ -66,46 +104,77 @@ def load_config(path):
             val = val.strip()
             if key:
                 data[key] = val
-
+    except:
+        pass
     return data
 
 
-def save_config(path, data):
-    with open(path, "w") as f:
-        for key in CONFIG_KEYS:
-            f.write("{0}={1}\n".format(key, data.get(key, "")))
+def save_config(doc, data):
+    lines = []
+    for key in CONFIG_KEYS:
+        lines.append("{0}={1}".format(key, data.get(key, "")))
+
+    combined_text = "\n".join(lines)
+    schema = get_or_create_schema()
+
+    t = Transaction(doc, "Save Duct Hanger Configurations")
+    t.Start()
+    try:
+        collector = FilteredElementCollector(doc).OfClass(Autodesk.Revit.DB.ExtensibleStorage.DataStorage)
+        target_ds = None
+        for ds in collector:
+            if ds.Name == DATA_STORAGE_NAME:
+                target_ds = ds
+                break
+
+        if not target_ds:
+            target_ds = Autodesk.Revit.DB.ExtensibleStorage.DataStorage.Create(doc)
+            target_ds.Name = DATA_STORAGE_NAME
+
+        entity = Entity(schema)
+        entity.Set("ConfigPayload", combined_text)
+        target_ds.SetEntity(entity)
+        t.Commit()
+    except Exception as e:
+        t.RollBack()
+        TaskDialog.Show("Error Saving Config", str(e))
 
 
 def collect_hanger_names(doc):
     names = set()
+    try:
+        config = FabricationConfiguration.GetFabricationConfiguration(doc)
+        services = config.GetAllLoadedServices()
 
-    config = FabricationConfiguration.GetFabricationConfiguration(doc)
-    services = config.GetAllLoadedServices()
-
-    for svc in services:
-        try:
-            grp_count = svc.PaletteCount if RevitINT > 2022 else svc.GroupCount
-            for gi in range(grp_count):
-                for bi in range(svc.GetButtonCount(gi)):
-                    bt = svc.GetButton(gi, bi)
-                    if bt.IsAHanger:
-                        try:
-                            if bt.Name and bt.Name.strip():
-                                names.add(bt.Name.strip())
-                        except:
-                            pass
-        except:
-            pass
+        for svc in services:
+            try:
+                grp_count = svc.PaletteCount if RevitINT > 2022 else svc.GroupCount
+                for gi in range(grp_count):
+                    for bi in range(svc.GetButtonCount(gi)):
+                        bt = svc.GetButton(gi, bi)
+                        if bt and bt.IsAHanger:
+                            try:
+                                if bt.Name and bt.Name.strip():
+                                    names.add(bt.Name.strip())
+                            except:
+                                pass
+            except:
+                pass
+    except:
+        pass
 
     result = sorted(list(names))
-    if not result:
-        result = [""]
+    if "--- NONE ---" not in result:
+        result.insert(0, "--- NONE ---")
+    if not result or result == ["--- NONE ---"]:
+        if "" not in result:
+            result.insert(0, "")
     return result
 
 
 class DuctHangerConfigForm(Window):
     def __init__(self, hanger_names, saved):
-        self.Title = "Duct Hanger Configuration"
+        self.Title = "Duct Hanger Configuration ({})".format(file_name)
         self.Width = 520
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
         self.ResizeMode = ResizeMode.NoResize
@@ -153,20 +222,28 @@ class DuctHangerConfigForm(Window):
             Grid.SetColumn(control, 1)
             root.Children.Add(control)
 
+        saved_round = saved.get("ROUND_HANGER", "")
+        if not saved_round or saved_round not in hanger_names:
+            saved_round = "Hanger Strap Round 1pt" if "Hanger Strap Round 1pt" in hanger_names else hanger_names[0]
+
         self.cb_round_hanger = ComboBox()
         self.cb_round_hanger.Width = 220
         self.cb_round_hanger.Height = 24
         self.cb_round_hanger.Margin = Thickness(0, 4, 0, 4)
         self.cb_round_hanger.ItemsSource = Array[object](hanger_names)
-        self.cb_round_hanger.SelectedItem = saved["ROUND_HANGER"] if saved["ROUND_HANGER"] in hanger_names else hanger_names[0]
+        self.cb_round_hanger.SelectedItem = saved_round if saved_round in hanger_names else hanger_names[0]
         add_control(0, "Round Duct Hanger:", self.cb_round_hanger)
+
+        saved_rect = saved.get("RECT_HANGER", "")
+        if not saved_rect or saved_rect not in hanger_names:
+            saved_rect = "Hanger Strap Rectangular" if "Hanger Strap Rectangular" in hanger_names else hanger_names[0]
 
         self.cb_rect_hanger = ComboBox()
         self.cb_rect_hanger.Width = 220
         self.cb_rect_hanger.Height = 24
         self.cb_rect_hanger.Margin = Thickness(0, 4, 0, 4)
         self.cb_rect_hanger.ItemsSource = Array[object](hanger_names)
-        self.cb_rect_hanger.SelectedItem = saved["RECT_HANGER"] if saved["RECT_HANGER"] in hanger_names else hanger_names[0]
+        self.cb_rect_hanger.SelectedItem = saved_rect if saved_rect in hanger_names else hanger_names[0]
         add_control(1, "Rectangular Duct Hanger:", self.cb_rect_hanger)
 
         self.tb_end_dist = make_textbox(saved["END_DIST_IN"])
@@ -230,8 +307,8 @@ class DuctHangerConfigForm(Window):
                 return
 
         self.result = {
-            "ROUND_HANGER": self.cb_round_hanger.SelectedItem or "",
-            "RECT_HANGER": self.cb_rect_hanger.SelectedItem or "",
+            "ROUND_HANGER": str(self.cb_round_hanger.SelectedItem or ""),
+            "RECT_HANGER": str(self.cb_rect_hanger.SelectedItem or ""),
             "END_DIST_IN": self.tb_end_dist.Text,
             "ROUND_MAX_SPACING_FT": self.tb_round_spacing.Text,
             "RECT_MAX_SPACING_FT": self.tb_rect_spacing.Text,
@@ -246,11 +323,10 @@ class DuctHangerConfigForm(Window):
         self.Close()
 
 
-ensure_folder()
-saved = load_config(FILEPATH)
+saved = load_config(doc)
 hanger_names = collect_hanger_names(doc)
 
 form = DuctHangerConfigForm(hanger_names, saved)
 if form.ShowDialog():
     if form.result:
-        save_config(FILEPATH, form.result)
+        save_config(doc, form.result)

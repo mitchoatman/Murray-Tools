@@ -1,7 +1,6 @@
-
 # -*- coding: utf-8 -*-
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FabricationPart
+from Autodesk.Revit.DB import FabricationPart, FamilyInstance
 from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
 from Autodesk.Revit.UI import TaskDialog
 import sys
@@ -10,14 +9,9 @@ doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 active_view = doc.ActiveView
 
-
-# --------------------------------------------------
-# Allowed straight fabrication CIDs only
-# Update this list to match your real straight pipe
-# and straight duct CID values.
-# --------------------------------------------------
+# Straight fabrication CIDs only
 ALLOWED_CIDS = set([
-    2041,866,40,
+    2041, 866, 40,
 ])
 
 
@@ -33,8 +27,11 @@ def require_plan_view(view):
         raise Exception("Run this command from a floor plan view.")
 
 
-class StraightFabPipeDuctFilter(ISelectionFilter):
-    def is_allowed(self, element):
+class StraightFabOrLineBasedGenericFilter(ISelectionFilter):
+    def __init__(self, document):
+        self.doc = document
+
+    def _is_straight_fab(self, element):
         try:
             if not isinstance(element, FabricationPart):
                 return False
@@ -54,12 +51,41 @@ class StraightFabPipeDuctFilter(ISelectionFilter):
         except:
             return False
 
+    def _is_line_based_generic(self, element):
+        try:
+            if not isinstance(element, FamilyInstance):
+                return False
+
+            if not element.Category:
+                return False
+
+            if element.Category.Id.IntegerValue != int(DB.BuiltInCategory.OST_GenericModel):
+                return False
+
+            fam = element.Symbol.Family
+            if fam.FamilyPlacementType != DB.FamilyPlacementType.CurveBased:
+                return False
+
+            loc = element.Location
+            if not isinstance(loc, DB.LocationCurve):
+                return False
+
+            if not isinstance(loc.Curve, DB.Line):
+                return False
+
+            return True
+        except:
+            return False
+
+    def is_allowed(self, element):
+        return self._is_straight_fab(element) or self._is_line_based_generic(element)
+
     def AllowElement(self, element):
         return self.is_allowed(element)
 
     def AllowReference(self, reference, point):
         try:
-            element = doc.GetElement(reference.ElementId)
+            element = self.doc.GetElement(reference.ElementId)
             return self.is_allowed(element)
         except:
             return False
@@ -68,8 +94,8 @@ class StraightFabPipeDuctFilter(ISelectionFilter):
 def pick_element_and_point():
     ref = uidoc.Selection.PickObject(
         ObjectType.PointOnElement,
-        StraightFabPipeDuctFilter(),
-        "Pick a straight fabrication pipe/duct on the side where you want the section marker"
+        StraightFabOrLineBasedGenericFilter(doc),
+        "Pick a straight fabrication part or line-based Generic Model on the side where you want the section marker"
     )
     elem = doc.GetElement(ref.ElementId)
     pt = ref.GlobalPoint
@@ -138,7 +164,7 @@ def build_section_transform_from_plan(curve, view, pick_point):
     side_vec = pick_point - on_curve
     side_vec = side_vec - y_axis.Multiply(side_vec.DotProduct(y_axis))
 
-    # reversed marker behavior per your preference
+    # keeps same side behavior as your fab-part version
     if side_vec.GetLength() > 1e-6 and side_vec.DotProduct(z_guess) > 0:
         z_axis = z_guess.Negate()
     else:
@@ -173,6 +199,8 @@ try:
 
     elem, pick_point = pick_element_and_point()
     curve = get_linear_curve(elem)
+    if not curve:
+        raise Exception("Selected element must have a straight line location curve.")
 
     section_type = get_section_view_type(doc)
     if not section_type:
@@ -199,7 +227,8 @@ try:
     t = DB.Transaction(doc, "Create Section Along Element")
     try:
         t.Start()
-        DB.ViewSection.CreateSection(doc, section_type.Id, box)
+        section_view = DB.ViewSection.CreateSection(doc, section_type.Id, box)
+        section_view.DetailLevel = DB.ViewDetailLevel.Fine
         t.Commit()
     except:
         if t.HasStarted():

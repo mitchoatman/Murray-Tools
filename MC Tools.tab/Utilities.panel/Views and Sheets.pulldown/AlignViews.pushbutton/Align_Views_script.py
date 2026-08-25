@@ -4,21 +4,39 @@ from System.Collections.Generic import List
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import ViewSheet, Viewport, FilteredElementCollector, XYZ
 from Autodesk.Revit.UI import TaskDialog
-import clr, sys
+import clr, sys, os
 
 clr.AddReference('PresentationFramework')
 clr.AddReference('PresentationCore')
 clr.AddReference('WindowsBase')
 clr.AddReference('System.Xaml')
+clr.AddReference("System.Windows.Forms")
+clr.AddReference("System.Drawing")
 
 import System
 from System.Windows.Controls import Label, TextBox, Button, ScrollViewer, StackPanel, Grid, Orientation
 from System.Windows import Window, Thickness, SizeToContent, ResizeMode, HorizontalAlignment, GridLength, GridUnitType
-from System.Windows.Input import Keyboard, ModifierKeys  # ✅ ADDED
+from System.Windows.Input import Keyboard, ModifierKeys
+from System.Windows.Forms import NotifyIcon, ToolTipIcon
+from System.Drawing import Icon, SystemIcons
 
 doc = __revit__.ActiveUIDocument.Document
 
 SheetOption = namedtuple('SheetOption', ['name', 'sheet'])
+
+def show_balloon_notification(title, message, icon_path=None, timeout=5000):
+    """Displays a native Windows balloon notification."""
+    notify_icon = NotifyIcon()
+    try:
+        if icon_path and os.path.exists(icon_path):
+            notify_icon.Icon = Icon(icon_path)
+        else:
+            notify_icon.Icon = SystemIcons.Information
+            
+        notify_icon.Visible = True
+        notify_icon.ShowBalloonTip(timeout, title, message, ToolTipIcon.Info)
+    except Exception:
+        pass
 
 class SheetSelectionWindow(Window):
     def __init__(self, sheet_list, multiselect=False, title="Select Sheet"):
@@ -27,8 +45,8 @@ class SheetSelectionWindow(Window):
         self.multiselect = multiselect
         self.checkboxes = []
         self.check_all_state = False
-        self.last_checked_index = None  # ✅ ADDED
-        self._is_updating = False       # ✅ ADDED
+        self.last_checked_index = None
+        self._is_updating = False
         self.InitializeComponents(title)
 
     def InitializeComponents(self, title):
@@ -95,7 +113,6 @@ class SheetSelectionWindow(Window):
             checkbox = System.Windows.Controls.CheckBox(Content=display_name)
             checkbox.Tag = sheet
 
-            # ✅ CHANGED EVENTS
             checkbox.Checked += self.checkbox_changed
             checkbox.Unchecked += self.checkbox_changed
 
@@ -116,14 +133,12 @@ class SheetSelectionWindow(Window):
             cb.IsChecked = self.check_all_state
         self.selected_sheets = [cb.Tag for cb in self.checkboxes if cb.IsChecked]
 
-    # ✅ REPLACED HANDLER (SHIFT SUPPORT + NO FREEZE)
     def checkbox_changed(self, sender, args):
         if self._is_updating:
             return
 
         try:
             self._is_updating = True
-
             current_index = self.checkboxes.index(sender)
 
             # SHIFT selection
@@ -177,7 +192,7 @@ if not template_vp:
 
 template_position = template_vp.GetBoxCenter()
 
-# Step 3 - Target sheets (SHIFT WORKS HERE)
+# Step 3 - Target sheets
 form = SheetSelectionWindow(all_sheets, multiselect=True, title="Select Sheets to Align Views")
 if not form.ShowDialog() or not form.selected_sheets:
     sys.exit()
@@ -202,4 +217,8 @@ finally:
     if trans.HasStarted() and not trans.HasEnded():
         trans.RollBack()
 
-TaskDialog.Show("Alignment Complete", "Aligned %d view(s) to match template position." % aligned)
+# Replaced TaskDialog with Windows Balloon Notification
+show_balloon_notification(
+    "Alignment Complete",
+    "Aligned %d view(s) to match template position." % aligned
+)

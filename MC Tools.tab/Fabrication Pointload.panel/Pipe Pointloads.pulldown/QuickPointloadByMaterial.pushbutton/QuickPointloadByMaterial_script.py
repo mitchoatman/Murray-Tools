@@ -216,7 +216,7 @@ for hanger in hanger_collector:
             elif HostSize == '8"':
                 set_pointload(hanger, 37)
 
-        elif Hostmat in ['PVC: PVC', 'PVC: Sch 40 Clear PVC']:
+        elif Hostmat in ['PVC: PVC', 'PVC: Sch 40 Clear PVC', 'PVC: CPVC']:
             if HostSize == '2"':
                 set_pointload(hanger, 1)
             elif HostSize == '3"':

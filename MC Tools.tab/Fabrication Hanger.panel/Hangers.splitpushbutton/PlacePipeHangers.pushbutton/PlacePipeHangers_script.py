@@ -1,17 +1,19 @@
 # -*- coding: UTF-8 -*-
 import Autodesk
-from Autodesk.Revit.DB import Transaction, FabricationConfiguration, FabricationPart, XYZ
+from Autodesk.Revit.DB import Transaction, FabricationConfiguration, FabricationPart, XYZ, ConnectorProfileType, FilteredElementCollector
+from Autodesk.Revit.DB.ExtensibleStorage import Schema
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+from Autodesk.Revit.UI import TaskDialog
 import math
 import os
+
+# Import .NET namespaces for native Windows Balloon Notification and path handling
 import clr
-clr.AddReference("PresentationCore")
-clr.AddReference("PresentationFramework")
-clr.AddReference("WindowsBase")
-from System.Windows import Window, Thickness, WindowStartupLocation, ResizeMode, HorizontalAlignment
-from System.Windows.Controls import StackPanel, Label, ComboBox, TextBox, CheckBox, Button, Orientation
-from System.Windows.Media import FontFamily
-from System import Array
+clr.AddReference("System.Windows.Forms")
+clr.AddReference("System.Drawing")
+import System
+from System.Windows.Forms import NotifyIcon, ToolTipIcon
+from System.Drawing import SystemIcons, Bitmap
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -21,6 +23,32 @@ RevitINT = float(RevitVersion)
 
 DIRECTION_DOT_THRESHOLD = 0.999
 MARGIN = 0.01
+DIST_FROM_END = 1.0  # Default 1ft (12") from end since new UI omits this parameter
+ATOS = True
+
+# Unique GUID for our Extensible Storage Schema (must match config script)
+SCHEMA_GUID = System.Guid("7B3F8A12-4C9E-4D21-8F6B-1E9A3C5D7F8E")
+DATA_STORAGE_NAME = "PipeHangerConfigData"
+
+file_path = doc.PathName
+file_name = System.IO.Path.GetFileNameWithoutExtension(file_path)
+if not file_name:
+    file_name = doc.Title
+
+SCRIPT_DIR = os.path.dirname(__file__)
+CONFIG_SCRIPT_PATH = os.path.join(SCRIPT_DIR, "PlacePipeHangers_config.py")
+
+
+def show_balloon_notification(title, message, timeout=5000):
+    """Displays a native Windows balloon notification in the system tray area."""
+    notify_icon = NotifyIcon()
+    try:
+        notify_icon.Icon = SystemIcons.Information
+        notify_icon.Visible = True
+        notify_icon.ShowBalloonTip(timeout, title, message, ToolTipIcon.Info)
+    except Exception:
+        pass
+
 
 class FabricationPartSelectionFilter(ISelectionFilter):
     def AllowElement(self, element):
@@ -28,13 +56,227 @@ class FabricationPartSelectionFilter(ISelectionFilter):
     def AllowReference(self, reference, point):
         return False
 
-class CustomISelectionFilter(ISelectionFilter):
-    def __init__(self, nom_categorie):
-        self.nom_categorie = nom_categorie
-    def AllowElement(self, e):
-        return e.LookupParameter('Fabrication Service').AsValueString() == self.nom_categorie
-    def AllowReference(self, ref, point):
+
+def load_service_settings(doc):
+    settings = {}
+    try:
+        schema = Schema.Lookup(SCHEMA_GUID)
+        if not schema:
+            return settings
+
+        collector = FilteredElementCollector(doc).OfClass(Autodesk.Revit.DB.ExtensibleStorage.DataStorage)
+        target_ds = None
+        for ds in collector:
+            if ds.Name == DATA_STORAGE_NAME:
+                target_ds = ds
+                break
+
+        if not target_ds:
+            return settings
+
+        entity = target_ds.GetEntity(schema)
+        if not entity.IsValid():
+            return settings
+
+        val_string = entity.Get[System.String]("ConfigPayload")
+        if not val_string:
+            return settings
+
+        lines = val_string.split("\n")
+        for line in lines:
+            line = line.strip()
+            if "=" not in line:
+                continue
+            parts = line.split("=", 1)
+            if len(parts) != 2:
+                continue
+
+            key = parts[0].strip()
+            rule_block = parts[1].strip()
+            rules = []
+
+            if ":" not in rule_block:
+                vals = rule_block.split("|")
+                if len(vals) == 3:
+                    try:
+                        rules.append({
+                            "size": 999.0,
+                            "hanger": vals[0].strip(),
+                            "spacing": float(vals[1].strip()),
+                            "dist_from_end": 1.0,
+                            "joints": vals[2].strip().lower() == "true"
+                        })
+                    except:
+                        pass
+                elif len(vals) == 4:
+                    try:
+                        rules.append({
+                            "size": 999.0,
+                            "hanger": vals[0].strip(),
+                            "spacing": float(vals[1].strip()),
+                            "dist_from_end": float(vals[2].strip()),
+                            "joints": vals[3].strip().lower() == "true"
+                        })
+                    except:
+                        pass
+            else:
+                rule_strings = rule_block.split("|")
+                for rs in rule_strings:
+                    r_parts = rs.split(":")
+                    if len(r_parts) == 4:
+                        try:
+                            rules.append({
+                                "size": float(r_parts[0].strip()),
+                                "hanger": r_parts[1].strip(),
+                                "spacing": float(r_parts[2].strip()),
+                                "dist_from_end": 1.0,
+                                "joints": r_parts[3].strip().lower() == "true"
+                            })
+                        except:
+                            pass
+                    elif len(r_parts) == 5:
+                        try:
+                            rules.append({
+                                "size": float(r_parts[0].strip()),
+                                "hanger": r_parts[1].strip(),
+                                "spacing": float(r_parts[2].strip()),
+                                "dist_from_end": float(r_parts[3].strip()),
+                                "joints": r_parts[4].strip().lower() == "true"
+                            })
+                        except:
+                            pass
+
+            if rules:
+                rules.sort(key=lambda x: x["size"])
+                settings[key] = rules
+    except:
+        pass
+    return settings
+
+
+def safe_param_string(elem, param_name):
+    try:
+        p = elem.LookupParameter(param_name)
+        if p:
+            val = p.AsString()
+            if val and val.strip(): return val.strip()
+            val = p.AsValueString()
+            if val and val.strip(): return val.strip()
+    except: pass
+    return None
+
+
+def get_service_name(elem):
+    for p_name in ["Fabrication Service Name", "Service Name", "Fabrication Service"]:
+        val = safe_param_string(elem, p_name)
+        if val: return val
+    try:
+        return elem.LookupParameter('Fabrication Service').AsValueString()
+    except:
+        pass
+    return "UNASSIGNED"
+
+
+def get_pipe_size(elem):
+    try:
+        conns = list(elem.ConnectorManager.Connectors)
+        for c in conns:
+            if c.Shape == ConnectorProfileType.Round:
+                return c.Radius * 2.0 * 12.0
+            elif c.Shape == ConnectorProfileType.Rectangular:
+                return max(c.Width, c.Height) * 12.0
+    except: pass
+    return 999.0
+
+
+def is_disabled_hanger(hanger_name):
+    if not hanger_name: return True
+    h = hanger_name.strip().upper()
+    return h == "" or h == "--- NONE ---" or "NONE" in h
+
+
+def are_all_settings_none(settings):
+    """Returns True if every rule across all services points to 'NONE'."""
+    if not settings:
         return True
+    
+    for svc, rules in settings.items():
+        for r in rules:
+            if not is_disabled_hanger(r.get("hanger", "")):
+                return False  # Found at least one active hanger rule
+    return True
+
+
+def get_rule_for_element(elem, settings):
+    svc_name = get_service_name(elem).strip().lower()
+    size_inches = get_pipe_size(elem)
+    
+    rules = []
+    # 1. Exact match
+    for k, v in settings.items():
+        if k.strip().lower() == svc_name:
+            rules = v
+            break
+            
+    # 2. Substring/fuzzy match if exact match fails
+    if not rules:
+        for k, v in settings.items():
+            k_clean = k.strip().lower()
+            if k_clean in svc_name or svc_name in k_clean:
+                rules = v
+                break
+
+    if not rules:
+        return "--- NONE ---", 10.0, 1.0, True
+    
+    for rule in rules:
+        if size_inches <= rule["size"]:
+            return (
+                rule["hanger"],
+                rule["spacing"],
+                rule.get("dist_from_end", 1.0),
+                rule["joints"]
+            )
+            
+    last_rule = rules[-1]
+    return (
+        last_rule["hanger"],
+        last_rule["spacing"],
+        last_rule.get("dist_from_end", 1.0),
+        last_rule["joints"]
+    )
+
+
+def get_hanger_button(doc, elem, hanger_name):
+    if is_disabled_hanger(hanger_name): return None
+    try:
+        config = FabricationConfiguration.GetFabricationConfiguration(doc)
+        svc_name = get_service_name(elem).strip().lower()
+        target_hanger = hanger_name.strip().lower()
+        
+        for svc in config.GetAllLoadedServices():
+            if svc.Name:
+                s_name = svc.Name.strip().lower()
+                if s_name == svc_name or svc_name in s_name or s_name in svc_name:
+                    grp_count = svc.PaletteCount if RevitINT > 2022 else svc.GroupCount
+                    for gi in range(grp_count):
+                        for bi in range(svc.GetButtonCount(gi)):
+                            bt = svc.GetButton(gi, bi)
+                            if bt and bt.IsAHanger and bt.Name:
+                                if bt.Name.strip().lower() == target_hanger:
+                                    return bt
+                                    
+        for svc in config.GetAllLoadedServices():
+            grp_count = svc.PaletteCount if RevitINT > 2022 else svc.GroupCount
+            for gi in range(grp_count):
+                for bi in range(svc.GetButtonCount(gi)):
+                    bt = svc.GetButton(gi, bi)
+                    if bt and bt.IsAHanger and bt.Name:
+                        if bt.Name.strip().lower() == target_hanger:
+                            return bt
+    except: pass
+    return None
+
 
 def is_cid_2875(element):
     try:
@@ -42,15 +284,6 @@ def is_cid_2875(element):
     except:
         return False
 
-def find_nearest_connector(element, pick_point):
-    nearest = None
-    min_dist = float('inf')
-    for c in element.ConnectorManager.Connectors:
-        d = pick_point.DistanceTo(c.Origin)
-        if d < min_dist:
-            min_dist = d
-            nearest = c
-    return nearest
 
 def vertical_fab(element):
     pts = [c.Origin for c in element.ConnectorManager.Connectors]
@@ -58,21 +291,19 @@ def vertical_fab(element):
         v = pts[1].Subtract(pts[0])
         if v.GetLength() < 0.0001:
             return False
-
         v = v.Normalize()
-
-        # angle from horizontal = arcsin(|Z|)
         angle_from_horizontal = math.asin(abs(v.Z))
-
-        # 30 degrees in radians
         threshold = math.radians(22.5)
-
         return angle_from_horizontal > threshold
-
     return False
 
+
 def is_pipe(element):
-    return element.LookupParameter('Part Pattern Number').AsInteger() == 2041
+    try:
+        return element.LookupParameter('Part Pattern Number').AsInteger() == 2041
+    except:
+        return False
+
 
 def get_pipe_direction(entry_xyz, exit_xyz):
     v = exit_xyz.Subtract(entry_xyz)
@@ -80,13 +311,11 @@ def get_pipe_direction(entry_xyz, exit_xyz):
         return None
     return v.Normalize()
 
-# ---------------------------------------------------------------------------
-# Walk selected elements starting from start_element/start_connector.
-# At each step advance through the exit connector of the current element to
-# find the next adjacent selected element. Returns an ordered list of all
-# selected elements reachable from the start, plus a dict of entry connectors.
-# Elements NOT reachable are returned as leftovers (branches).
-# ---------------------------------------------------------------------------
+
+# ==============================================================================
+# WALKING CHAINS & PLACING HANGERS
+# ==============================================================================
+
 def walk_chain(selected_elements, start_element, start_connector):
     selected_ids = {e.Id: e for e in selected_elements}
     ordered = [start_element]
@@ -124,8 +353,7 @@ def walk_chain(selected_elements, start_element, start_connector):
         if len(candidates) > 1 and last_pipe_dir is not None:
             best_dot = -2.0
             for cand_elem, cand_entry in candidates:
-                other_conns = [c for c in cand_elem.ConnectorManager.Connectors
-                               if c.Id != cand_entry.Id]
+                other_conns = [c for c in cand_elem.ConnectorManager.Connectors if c.Id != cand_entry.Id]
                 if other_conns:
                     d = get_pipe_direction(cand_entry.Origin, other_conns[0].Origin)
                     if d is not None:
@@ -149,10 +377,8 @@ def walk_chain(selected_elements, start_element, start_connector):
 
         if is_cid_2875(found_elem):
             current_exit_conn = exits[0]
-
         elif len(exits) == 1:
             current_exit_conn = exits[0]
-
         else:
             best_exit = exits[0]
             if last_pipe_dir is not None:
@@ -169,11 +395,7 @@ def walk_chain(selected_elements, start_element, start_connector):
     leftovers = [e for e in selected_elements if e.Id not in visited]
     return ordered, entry_conns, leftovers
 
-# ---------------------------------------------------------------------------
-# From an ordered chain of elements + entry connectors, extract only the
-# horizontal pipes and split into direction-based segments.
-# Returns list of segments, each segment is a list of pipe dicts.
-# ---------------------------------------------------------------------------
+
 def chain_to_segments(ordered_chain, entry_conns):
     pipe_dicts = []
     for e in ordered_chain:
@@ -221,13 +443,9 @@ def chain_to_segments(ordered_chain, entry_conns):
     segments.append(current_seg)
     return segments
 
-# ---------------------------------------------------------------------------
-# Place hangers on one segment (list of pipe dicts, all same direction).
-# force_end_hanger: True only for the last segment of a run.
-# ---------------------------------------------------------------------------
-def place_segment(pipe_list, fab_btn, distancefromend, spacing, atos,
-                  force_end_hanger, label, debug_lines):
 
+def place_segment(pipe_list, fab_btn, distancefromend, spacing, atos, force_end_hanger, doc):
+    placed_count = 0
     def walk(start_idx, start_xyz, distance):
         idx = start_idx
         remaining = distance
@@ -258,13 +476,10 @@ def place_segment(pipe_list, fab_btn, distancefromend, spacing, atos,
     cur_hanger_xyz = first['entry_xyz'].Add(unit_dir.Multiply(first_local))
     cur_pipe_idx = 0
 
-    debug_lines.append("  [{}] first hanger pipe[0] local={:.6f} xyz=({:.4f},{:.4f},{:.4f})".format(
-        label, first_local, cur_hanger_xyz.X, cur_hanger_xyz.Y, cur_hanger_xyz.Z))
     try:
-        FabricationPart.CreateHanger(doc, fab_btn, first['element'].Id,
-                                     first['entry_conn'], first_local, atos)
-    except Exception as ex:
-        debug_lines.append("  FAILED first: {}".format(str(ex)))
+        FabricationPart.CreateHanger(doc, fab_btn, first['element'].Id, first['entry_conn'], first_local, atos)
+        placed_count += 1
+    except: pass
 
     last_pipe = pipe_list[-1]
     last_exit_xyz = last_pipe['exit_xyz']
@@ -273,79 +488,53 @@ def place_segment(pipe_list, fab_btn, distancefromend, spacing, atos,
     while True:
         result = walk(cur_pipe_idx, cur_hanger_xyz, spacing)
         if result is None:
-            debug_lines.append("  [{}] end of run".format(label))
             break
         next_idx, next_xyz, local_offset = result
-        # Stop before end hanger zone only if we are forcing an end hanger
         if force_end_hanger:
             dist_to_end = next_xyz.DistanceTo(last_exit_xyz)
             if dist_to_end < distancefromend - MARGIN:
-                debug_lines.append("  [{}] stopping for end zone dist={:.6f}".format(label, dist_to_end))
                 break
         pd = pipe_list[next_idx]
         local_offset = max(MARGIN, min(local_offset, pd['length'] - MARGIN))
-        actual_dist = cur_hanger_xyz.DistanceTo(next_xyz)
-        debug_lines.append("  [{}] hanger pipe[{}] local={:.6f} xyz=({:.4f},{:.4f},{:.4f}) dist_from_prev={:.6f}".format(
-            label, next_idx, local_offset,
-            next_xyz.X, next_xyz.Y, next_xyz.Z, actual_dist))
+        
         try:
-            FabricationPart.CreateHanger(doc, fab_btn, pd['element'].Id,
-                                         pd['entry_conn'], local_offset, atos)
-        except Exception as ex:
-            debug_lines.append("  FAILED: {}".format(str(ex)))
+            FabricationPart.CreateHanger(doc, fab_btn, pd['element'].Id, pd['entry_conn'], local_offset, atos)
+            placed_count += 1
+        except: pass
+        
         cur_hanger_xyz = next_xyz
         cur_pipe_idx = next_idx
 
     if force_end_hanger:
-        debug_lines.append("  [{}] forced end hanger pipe[{}] local={:.6f}".format(
-            label, len(pipe_list)-1, end_local))
         try:
-            FabricationPart.CreateHanger(doc, fab_btn, last_pipe['element'].Id,
-                                         last_pipe['entry_conn'], end_local, atos)
-        except Exception as ex:
-            debug_lines.append("  FAILED end: {}".format(str(ex)))
-
-# ---------------------------------------------------------------------------
-# Process a full run: walk chain, split into segments, place hangers.
-# Only the last segment gets a forced end hanger.
-# ---------------------------------------------------------------------------
-def get_element_id_value(eid):
-    try:
-        return eid.IntegerValue
-    except:
-        return eid.Value
+            FabricationPart.CreateHanger(doc, fab_btn, last_pipe['element'].Id, last_pipe['entry_conn'], end_local, atos)
+            placed_count += 1
+        except: pass
+        
+    return placed_count
 
 
-def process_run(ordered_chain, entry_conns, fab_btn, distancefromend,
-                spacing, atos, run_label, debug_lines):
-    
+def process_run(ordered_chain, entry_conns, settings, doc, atos):
+    run_placed = 0
     segments = chain_to_segments(ordered_chain, entry_conns)
-    debug_lines.append("[{}] {} direction segment(s)".format(run_label, len(segments)))
-
     for i, seg in enumerate(segments):
         is_last = (i == len(segments) - 1)
-        label = "{}-seg{}".format(run_label, i)
-        debug_lines.append("[{}] {} pipe(s)".format(label, len(seg)))
+        
+        first_pipe = seg[0]['element']
+        hanger_name, spacing, dist_from_end, _ = get_rule_for_element(first_pipe, settings)
+        
+        if is_disabled_hanger(hanger_name): 
+            continue
+            
+        fab_btn = get_hanger_button(doc, first_pipe, hanger_name)
+        if not fab_btn: 
+            continue
 
-        for j, pd in enumerate(seg):
-            eid_val = get_element_id_value(pd['element'].Id)
+        run_placed += place_segment(seg, fab_btn, dist_from_end, spacing, atos, is_last, doc)
+        
+    return run_placed
 
-            debug_lines.append(
-                "  pipe[{}] id={} len={:.6f} entry=({:.4f},{:.4f},{:.4f}) exit=({:.4f},{:.4f},{:.4f})".format(
-                    j,
-                    eid_val,
-                    pd['length'],
-                    pd['entry_xyz'].X, pd['entry_xyz'].Y, pd['entry_xyz'].Z,
-                    pd['exit_xyz'].X, pd['exit_xyz'].Y, pd['exit_xyz'].Z
-                )
-            )
 
-        place_segment(seg, fab_btn, distancefromend, spacing, atos,
-                      is_last, label, debug_lines)
-
-# ---------------------------------------------------------------------------
-# Group leftover elements into connected clusters for branch processing
-# ---------------------------------------------------------------------------
 def group_leftovers(leftovers):
     if not leftovers:
         return []
@@ -378,222 +567,197 @@ def group_leftovers(leftovers):
         groups.append(group)
     return groups
 
-# ---------------------------------------------------------------------------
-# Dialog
-# ---------------------------------------------------------------------------
-class HangerSpacingDialog(Window):
-    def __init__(self, button_names, lines):
-        super(HangerSpacingDialog, self).__init__()
-        self.Title = "Hanger and Spacing"
-        self.Width = 390
-        self.Height = 300
-        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
-        self.ResizeMode = ResizeMode.NoResize
-        stack = StackPanel()
-        stack.Orientation = Orientation.Vertical
-        stack.Margin = Thickness(10)
-        # rebuild properly
-        self.Content = None
-        stack = StackPanel()
-        stack.Orientation = Orientation.Vertical
-        stack.Margin = Thickness(10)
-        def lbl(txt):
-            l = Label(); l.Content = txt; l.FontSize = 12; l.FontFamily = FontFamily("Arial")
-            return l
-        stack.Children.Add(lbl("Choose Hanger:"))
-        self.combobox_hanger = ComboBox()
-        self.combobox_hanger.Width = 350; self.combobox_hanger.Height = 20
-        self.combobox_hanger.FontSize = 12; self.combobox_hanger.FontFamily = FontFamily("Arial")
-        self.combobox_hanger.ItemsSource = Array[object](button_names)
-        self.combobox_hanger.SelectedItem = lines[0] if lines[0] in button_names else button_names[0]
-        self.combobox_hanger.Margin = Thickness(0, 0, 0, 10)
-        self.combobox_hanger.HorizontalAlignment = HorizontalAlignment.Left
-        stack.Children.Add(self.combobox_hanger)
-        stack.Children.Add(lbl("Distance from End (In):"))
-        self.textbox_end_dist = TextBox()
-        self.textbox_end_dist.Width = 200; self.textbox_end_dist.Height = 20
-        self.textbox_end_dist.FontSize = 12; self.textbox_end_dist.FontFamily = FontFamily("Arial")
-        self.textbox_end_dist.Text = str(round(float(lines[1]) * 12.0, 4)); self.textbox_end_dist.Margin = Thickness(0, 0, 0, 10)
-        self.textbox_end_dist.HorizontalAlignment = HorizontalAlignment.Left
-        stack.Children.Add(self.textbox_end_dist)
-        stack.Children.Add(lbl("Hanger Spacing (Ft):"))
-        self.textbox_spacing = TextBox()
-        self.textbox_spacing.Width = 200; self.textbox_spacing.Height = 20
-        self.textbox_spacing.FontSize = 12; self.textbox_spacing.FontFamily = FontFamily("Arial")
-        self.textbox_spacing.Text = lines[2]; self.textbox_spacing.Margin = Thickness(0, 0, 0, 10)
-        self.textbox_spacing.HorizontalAlignment = HorizontalAlignment.Left
-        stack.Children.Add(self.textbox_spacing)
-        self.checkbox_atos = CheckBox()
-        self.checkbox_atos.Content = "Attach to Structure"; self.checkbox_atos.FontSize = 12
-        self.checkbox_atos.FontFamily = FontFamily("Arial"); self.checkbox_atos.IsChecked = True
-        self.checkbox_atos.Margin = Thickness(0, 0, 0, 5)
-        stack.Children.Add(self.checkbox_atos)
-        self.checkbox_support_joints = CheckBox()
-        self.checkbox_support_joints.Content = "Support Joints"; self.checkbox_support_joints.FontSize = 12
-        self.checkbox_support_joints.FontFamily = FontFamily("Arial")
-        self.checkbox_support_joints.IsChecked = lines[3].lower() == 'true'
-        self.checkbox_support_joints.Margin = Thickness(0, 0, 0, 10)
-        stack.Children.Add(self.checkbox_support_joints)
-        btn = Button(); btn.Content = "OK"; btn.FontSize = 12; btn.FontFamily = FontFamily("Arial")
-        btn.Width = 74; btn.Height = 25; btn.HorizontalAlignment = HorizontalAlignment.Center
-        btn.Click += self.ok_button_clicked
-        stack.Children.Add(btn)
-        self.Content = stack
 
-    def ok_button_clicked(self, sender, event):
-        self.DialogResult = True
-        self.Close()
+def find_best_start(network):
+    if not network: return None, None
+    if len(network) == 1:
+        conns = list(network[0].ConnectorManager.Connectors)
+        return network[0], conns[0] if conns else None
+        
+    for e in network:
+        connected_count = 0
+        open_conn = None
+        for c in e.ConnectorManager.Connectors:
+            is_connected = False
+            for other in network:
+                if other.Id == e.Id: continue
+                for oc in other.ConnectorManager.Connectors:
+                    if c.Origin.DistanceTo(oc.Origin) < 0.1:
+                        is_connected = True
+                        break
+                if is_connected: break
+            
+            if is_connected:
+                connected_count += 1
+            else:
+                open_conn = c
+        
+        if open_conn and connected_count >= 0:
+            return e, open_conn
+            
+    conns = list(network[0].ConnectorManager.Connectors)
+    return network[0], conns[0] if conns else None
+
 
 # ---------------------------------------------------------------------------
-# Main
+# MAIN EXECUTION
 # ---------------------------------------------------------------------------
 try:
-    selected_ref = uidoc.Selection.PickObject(
-        ObjectType.Element, FabricationPartSelectionFilter(),
-        'Select the starting Fabrication Part')
-    element = doc.GetElement(selected_ref.ElementId)
-    if not isinstance(element, FabricationPart):
-        raise Exception("Not a FabricationPart.")
-    pick_point = selected_ref.GlobalPoint
-    start_connector = find_nearest_connector(element, pick_point)
-    if not start_connector:
-        raise Exception("No connector found.")
+    settings = load_service_settings(doc)
+    
+    # Prompt user if settings are missing OR if all configured rules evaluate to "--- NONE ---"
+    if not settings or are_all_settings_none(settings):
+        alert_msg = (
+            "No hanger settings are configured!".format(file_name)
+            if settings else
+            "No hanger configurations found in '{}'".format(file_name)
+        )
 
-    parameters = element.LookupParameter('Fabrication Service').AsValueString()
-    from Autodesk.Revit.DB import FabricationConfiguration
-    Config = FabricationConfiguration.GetFabricationConfiguration(doc)
-    LoadedServices = Config.GetAllLoadedServices()
-    servicenamelist = []
-    for s in LoadedServices:
-        try: servicenamelist.append(s.Name)
-        except: servicenamelist.append('')
-    Servicenum = servicenamelist.index(parameters)
-    FabService = LoadedServices[Servicenum]
-    buttonnames = []
-    button_data = []
-    grp_count = FabService.PaletteCount if RevitINT > 2022 else FabService.GroupCount
-    for gi in range(grp_count):
-        for bi in range(FabService.GetButtonCount(gi)):
-            bt = FabService.GetButton(gi, bi)
-            if bt.IsAHanger:
-                buttonnames.append(bt.Name)
-                button_data.append((gi, bi, bt.Name))
+        td = TaskDialog("Place Hangers")
+        td.MainInstruction = alert_msg
+        td.MainContent = "Would you like to open the hanger configuration settings?"
+        td.AddCommandLink(
+            Autodesk.Revit.UI.TaskDialogCommandLinkId.CommandLink1,
+            "Open Configuration Settings"
+        )
+        td.CommonButtons = Autodesk.Revit.UI.TaskDialogCommonButtons.Cancel
 
-    folder_name = "c:\\Temp"
-    filepath = os.path.join(folder_name, 'Ribbon_PlaceHangers.txt')
-    if not os.path.exists(folder_name):
-        os.makedirs(folder_name)
-    if not os.path.exists(filepath):
-        with open(filepath, 'w') as f:
-            f.writelines([str(buttonnames[0]) + '\n', '1\n', '4\n', 'True'])
-    with open(filepath, 'r') as f:
-        lines = [l.rstrip() for l in f.readlines()]
-    if len(lines) < 4:
-        with open(filepath, 'w') as f:
-            f.writelines([str(buttonnames[0]) + '\n', '1\n', '4\n', 'True'])
-        with open(filepath, 'r') as f:
-            lines = [l.rstrip() for l in f.readlines()]
+        result = td.Show()
 
-    form = HangerSpacingDialog(buttonnames, lines)
-    if form.ShowDialog():
-        Selectedbutton = form.combobox_hanger.SelectedItem
-        distancefromend = float(form.textbox_end_dist.Text) / 12.0
-        Spacing = float(form.textbox_spacing.Text)
-        AtoS = form.checkbox_atos.IsChecked
-        SupportJoint = form.checkbox_support_joints.IsChecked
-
-        with open(filepath, 'w') as f:
-            f.writelines([Selectedbutton + '\n', str(distancefromend) + '\n',
-                          str(Spacing) + '\n', str(SupportJoint)])
-
-        for gi, bi, bn in button_data:
-            if bn == Selectedbutton:
-                Servicegroupnum = gi; Buttonnum = bi; break
-        FabServiceButton = FabService.GetButton(Servicegroupnum, Buttonnum)
-
-        selected_refs = uidoc.Selection.PickObjects(
-            ObjectType.Element, CustomISelectionFilter(parameters),
-            "Select Fabrication Parts")
-        selected_elements = [doc.GetElement(r) for r in selected_refs]
-        if element.Id not in [e.Id for e in selected_elements]:
-            selected_elements.insert(0, element)
-
-        t = Transaction(doc, 'Place Hangers')
-        t.Start()
-
-        debug_lines = ["=== HANGER DEBUG ===",
-                       "Spacing={} distancefromend={}".format(Spacing, distancefromend)]
-
-        if SupportJoint:
-            for e in selected_elements:
-                if not is_pipe(e) or vertical_fab(e):
-                    continue
-                pipelen = e.CenterlineLength
-                pipe_connectors = list(e.ConnectorManager.Connectors)
-                if not pipe_connectors:
-                    continue
-                if pipelen < 2 * distancefromend:
-                    try:
-                        FabricationPart.CreateHanger(doc, FabServiceButton, e.Id,
-                                                     pipe_connectors[0], pipelen / 2.0, AtoS)
-                    except: pass
-                else:
-                    try:
-                        for c in pipe_connectors:
-                            FabricationPart.CreateHanger(doc, FabServiceButton, e.Id,
-                                                         c, distancefromend, AtoS)
-                        if pipelen > Spacing + 2 * distancefromend:
-                            pos = distancefromend
-                            for _ in range(int((math.floor(pipelen) - 2 * distancefromend) / Spacing)):
-                                pos += Spacing
-                                FabricationPart.CreateHanger(doc, FabServiceButton, e.Id,
-                                                             pipe_connectors[0], pos, AtoS)
-                    except: pass
-
+        if result == Autodesk.Revit.UI.TaskDialogResult.CommandLink1:
+            selected = "Open Configuration Settings"
         else:
-            # Walk main chain from start element/connector
-            main_chain, main_entry_conns, leftovers = walk_chain(
-                selected_elements, element, start_connector)
+            selected = "Cancel"
+        
+        if selected == "Open Configuration Settings":
+            if os.path.exists(CONFIG_SCRIPT_PATH):
+                try:
+                    with open(CONFIG_SCRIPT_PATH, 'r') as cf:
+                        exec(cf.read(), globals())
+                    
+                    settings = load_service_settings(doc)
+                except Exception as ex:
+                    TaskDialog.Show("Configuration Error", "Failed to run config script:\n{}".format(str(ex)))
+                    import sys
+                    sys.exit()
+            else:
+                TaskDialog.Show("Error", "Could not find config script at:\n{}".format(CONFIG_SCRIPT_PATH))
+                import sys
+                sys.exit()
+        else:
+            import sys
+            sys.exit()
+            
+        if not settings or are_all_settings_none(settings):
+            TaskDialog.Show("Place Hangers", "Hanger placement cancelled. \nAll configurations remain disabled!")
+            import sys
+            sys.exit()
 
-            debug_lines.append("Main chain: {} elements, {} leftovers".format(
-                len(main_chain), len(leftovers)))
+    selected_refs = uidoc.Selection.PickObjects(
+        ObjectType.Element, FabricationPartSelectionFilter(),
+        "Select Fabrication Parts for Hanger Placement")
+        
+    selected_elements = [doc.GetElement(r) for r in selected_refs]
+    if not selected_elements:
+        import sys
+        sys.exit()
 
-            process_run(main_chain, main_entry_conns, FabServiceButton,
-                        distancefromend, Spacing, AtoS, "main", debug_lines)
+    t = Transaction(doc, 'Place Hangers')
+    t.Start()
 
-            # Process branches
-            branch_groups = group_leftovers(leftovers)
-            debug_lines.append("Branch groups: {}".format(len(branch_groups)))
-            for bi, branch_elems in enumerate(branch_groups):
-                # Find the branch element whose connector touches the main chain
-                branch_start = branch_elems[0]
-                branch_start_conn = next(iter(branch_start.ConnectorManager.Connectors), None)
-                # Try to find a better start: elem in branch connected to main chain
-                main_chain_ids = {e.Id for e in main_chain}
-                for be in branch_elems:
-                    for bc in be.ConnectorManager.Connectors:
-                        for me in main_chain:
-                            for mc in me.ConnectorManager.Connectors:
-                                if bc.Origin.DistanceTo(mc.Origin) < 0.1:
-                                    branch_start = be
-                                    branch_start_conn = bc
-                                    break
-                            if branch_start_conn == bc:
-                                break
-                        if branch_start_conn == bc:
-                            break
+    placed_count = 0
 
-                branch_chain, branch_entry_conns, _ = walk_chain(
-                    branch_elems, branch_start, branch_start_conn)
-                debug_lines.append("Branch {}: {} elements".format(bi, len(branch_chain)))
-                process_run(branch_chain, branch_entry_conns, FabServiceButton,
-                            distancefromend, Spacing, AtoS, "branch{}".format(bi), debug_lines)
+    elements_by_service = {}
+    for e in selected_elements:
+        svc_name = get_service_name(e)
+        if svc_name not in elements_by_service:
+            elements_by_service[svc_name] = []
+        elements_by_service[svc_name].append(e)
 
-        t.Commit()
+    for svc_name, svc_elements in elements_by_service.items():
+        joints_elements = []
+        chain_elements = []
+        
+        for e in svc_elements:
+            hanger_name, _, _, joints = get_rule_for_element(e, settings)
+            if is_disabled_hanger(hanger_name): 
+                continue
+            
+            if joints:
+                joints_elements.append(e)
+            else:
+                chain_elements.append(e)
 
-        # debug_path = os.path.join("c:\\Temp", "PlaceHangers_debug.txt")
-        # with open(debug_path, 'w') as f:
-            # f.write('\n'.join(debug_lines))
+        for e in joints_elements:
+            if not is_pipe(e) or vertical_fab(e): continue
+            
+            h_name, sp, dist_from_end, _ = get_rule_for_element(e, settings)
+            if is_disabled_hanger(h_name): continue
+            
+            btn = get_hanger_button(doc, e, h_name)
+            if not btn: continue
+            
+            pipelen = e.CenterlineLength
+            pipe_connectors = list(e.ConnectorManager.Connectors)
+            if not pipe_connectors: continue
+            
+            if pipelen < 2 * dist_from_end:
+                try: 
+                    FabricationPart.CreateHanger(doc, btn, e.Id, pipe_connectors[0], pipelen / 2.0, ATOS)
+                    placed_count += 1
+                except: 
+                    pass
+            else:
+                try:
+                    for c in pipe_connectors:
+                        FabricationPart.CreateHanger(doc, btn, e.Id, c, dist_from_end, ATOS)
+                        placed_count += 1
+                    if pipelen > sp + 2 * dist_from_end:
+                        pos = dist_from_end
+                        for _ in range(int((math.floor(pipelen) - 2 * dist_from_end) / sp)):
+                            pos += sp
+                            FabricationPart.CreateHanger(doc, btn, e.Id, pipe_connectors[0], pos, ATOS)
+                            placed_count += 1
+                except: 
+                    pass
+
+        if chain_elements:
+            networks = group_leftovers(chain_elements)
+            
+            for network in networks:
+                start_element, start_connector = find_best_start(network)
+                if not start_element or not start_connector: continue
+                
+                main_chain, main_entry_conns, leftovers = walk_chain(network, start_element, start_connector)
+                placed_count += process_run(main_chain, main_entry_conns, settings, doc, ATOS)
+
+                branch_groups = group_leftovers(leftovers)
+                for branch_elems in branch_groups:
+                    branch_start = branch_elems[0]
+                    branch_start_conn = next(iter(branch_start.ConnectorManager.Connectors), None)
+                    
+                    for be in branch_elems:
+                        for bc in be.ConnectorManager.Connectors:
+                            for me in main_chain:
+                                for mc in me.ConnectorManager.Connectors:
+                                    if bc.Origin.DistanceTo(mc.Origin) < 0.1:
+                                        branch_start = be
+                                        branch_start_conn = bc
+                                        break
+                                if branch_start_conn == bc: break
+                            if branch_start_conn == bc: break
+                    
+                    branch_chain, branch_entry_conns, _ = walk_chain(branch_elems, branch_start, branch_start_conn)
+                    placed_count += process_run(branch_chain, branch_entry_conns, settings, doc, ATOS)
+
+    t.Commit()
+    
+    show_balloon_notification(
+        "Place Hangers", 
+        "Hanger placement complete.\nTotal successfully placed: {}".format(placed_count)
+    )
 
 except Exception as ex:
-    pass
+    msg = str(ex).lower()
+    if "cancel" not in msg:
+        TaskDialog.Show("Place Hangers", str(ex))

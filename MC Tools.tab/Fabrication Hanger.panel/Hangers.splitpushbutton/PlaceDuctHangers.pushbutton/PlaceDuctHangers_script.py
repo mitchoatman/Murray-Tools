@@ -1,19 +1,40 @@
 # -*- coding: UTF-8 -*-
 import Autodesk
-from Autodesk.Revit.DB import Transaction, FabricationConfiguration, FabricationPart, ConnectorProfileType
+from Autodesk.Revit.DB import Transaction, FabricationConfiguration, FabricationPart, ConnectorProfileType, BuiltInCategory, FilteredElementCollector
+from Autodesk.Revit.DB.ExtensibleStorage import Schema, SchemaBuilder, Entity, FieldBuilder, AccessLevel
 from Autodesk.Revit.UI import TaskDialog
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+from pyrevit import forms
 import math
 import os
+import System
+
+# Import .NET namespaces for native Windows Balloon Notification
+import clr
+clr.AddReference("System.Windows.Forms")
+clr.AddReference("System.Drawing")
+from System.Windows.Forms import NotifyIcon, ToolTipIcon
+from System.Drawing import SystemIcons
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 app = doc.Application
-RevitINT = float(app.VersionNumber)
+RevitVersion = app.VersionNumber
+RevitINT = float(RevitVersion)
 
-CONFIG_FOLDER = r"C:\Temp"
-CONFIG_PATH = os.path.join(CONFIG_FOLDER, "Ribbon_Duct-Hanger-Config.txt")
+# Unique GUID for our Extensible Storage Schema (matches duct config tool schema)
+SCHEMA_GUID = System.Guid("8C4F9B23-5D1F-4E32-9A7C-2F0B4D6E8F9A")
+DATA_STORAGE_NAME = "DuctHangerConfigData"
+
+file_path = doc.PathName
+file_name = System.IO.Path.GetFileNameWithoutExtension(file_path)
+if not file_name:
+    file_name = doc.Title
+
 CONNECT_TOL = 0.1
+
+SCRIPT_DIR = os.path.dirname(__file__)
+CONFIG_SCRIPT_PATH = os.path.join(SCRIPT_DIR, "PlaceDuctHangers_config.py")
 
 DEFAULTS = {
     "ROUND_HANGER": "",
@@ -25,34 +46,72 @@ DEFAULTS = {
 }
 
 
+def show_balloon_notification(title, message, timeout=5000):
+    """Displays a native Windows balloon notification in the system tray area."""
+    notify_icon = NotifyIcon()
+    try:
+        notify_icon.Icon = SystemIcons.Information
+        notify_icon.Visible = True
+        notify_icon.ShowBalloonTip(timeout, title, message, ToolTipIcon.Info)
+    except Exception:
+        pass
+
+
 class FabricationPartSelectionFilter(ISelectionFilter):
     def AllowElement(self, element):
-        return isinstance(element, FabricationPart)
+        if isinstance(element, FabricationPart):
+            try:
+                cat = element.Category
+                if cat and cat.Id.IntegerValue == int(BuiltInCategory.OST_FabricationDuctwork):
+                    return True
+            except:
+                pass
+        return False
 
     def AllowReference(self, reference, point):
         return False
 
 
+def load_config(doc):
+    cfg = dict(DEFAULTS)
+    try:
+        schema = Schema.Lookup(SCHEMA_GUID)
+        if not schema:
+            return cfg
+
+        collector = FilteredElementCollector(doc).OfClass(Autodesk.Revit.DB.ExtensibleStorage.DataStorage)
+        target_ds = None
+        for ds in collector:
+            if ds.Name == DATA_STORAGE_NAME:
+                target_ds = ds
+                break
+
+        if not target_ds:
+            return cfg
+
+        entity = target_ds.GetEntity(schema)
+        if not entity.IsValid():
+            return cfg
+
+        val_string = entity.Get[System.String]("ConfigPayload")
+        if not val_string:
+            return cfg
+
+        lines = val_string.split("\n")
+        for line in lines:
+            line = line.strip()
+            if "=" not in line: 
+                continue
+            k, v = line.split("=", 1)
+            cfg[k.strip()] = v.strip()
+    except:
+        pass
+    return cfg
+
+
 def get_connectors(element):
     try: return list(element.ConnectorManager.Connectors)
     except: return []
-
-
-def load_config(path):
-    cfg = dict(DEFAULTS)
-    if not os.path.exists(path):
-        raise Exception("Config file not found:\n{}\n\nRun the config tool first.".format(path))
-
-    with open(path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if "=" not in line: continue
-            k, v = line.split("=", 1)
-            cfg[k.strip()] = v.strip()
-
-    if not cfg.get("ROUND_HANGER") or not cfg.get("RECT_HANGER"):
-        raise Exception("Hanger names are blank in config. Please re-run the configuration tool.")
-    return cfg
 
 
 def get_param_double(elem, names):
@@ -157,7 +216,6 @@ def is_supported_hanger_host(elem):
     m_conns = get_main_connectors(elem)
     if len(m_conns) < 2: return False
 
-    # GEOMETRIC VECTOR CHECK: Ignores elbows, 45s, and offsets based on connector vectors
     try:
         z1 = m_conns[0].CoordinateSystem.BasisZ
         z2 = m_conns[1].CoordinateSystem.BasisZ
@@ -203,8 +261,10 @@ def get_hanger_button(elem, cfg, service_map):
     if not si: return None
     
     button_name = cfg["ROUND_HANGER"] if si["shape"] == "ROUND" else cfg["RECT_HANGER"]
+    if not button_name or not button_name.strip():
+        return None
+
     svc_name = get_service_name(elem)
-    
     if not svc_name or svc_name not in service_map: 
         return None
         
@@ -215,7 +275,7 @@ def get_hanger_button(elem, cfg, service_map):
         for bi in range(svc.GetButtonCount(gi)):
             try:
                 bt = svc.GetButton(gi, bi)
-                if bt.IsAHanger and bt.Name and bt.Name.strip() == button_name.strip(): 
+                if bt.IsAHanger and bt.Name and bt.Name.strip().lower() == button_name.strip().lower(): 
                     return bt
             except: pass
     return None
@@ -292,7 +352,8 @@ def group_into_runs(valid_hosts):
 
 
 try:
-    cfg = load_config(CONFIG_PATH)
+    cfg = load_config(doc)
+
     service_map = build_loaded_service_map(doc)
     dist_from_end = float(cfg["END_DIST_IN"]) / 12.0
     atos = str(cfg["ATTACH_TO_STRUCTURE"]).lower() == "true"
@@ -353,7 +414,6 @@ try:
                 gap = exit_conn.Origin.DistanceTo(next_entry.Origin)
                 run_length += gap
 
-        # Map all tap/branch connectors in the run to avoid them
         tap_zones = []
         for span in part_spans:
             conns = get_connectors(span["part"])
@@ -373,10 +433,8 @@ try:
                     except: pass
                     
                     half_w = tap_width / 2.0
-                    # Create an exclusion zone representing the tap + a 6 inch buffer on both sides
                     tap_zones.append((tap_loc - half_w - 0.5, tap_loc + half_w + 0.5))
 
-        # Dynamic Strict Target Generation
         targets = []
         start_target = dist_from_end
         end_target = run_length - dist_from_end
@@ -392,13 +450,10 @@ try:
             while current_pos < end_target - 0.5 and loop_guard < 500:
                 loop_guard += 1
                 
-                # Check if current step lands in a tap zone
                 adjusted = False
                 for z_start, z_end in tap_zones:
                     if z_start <= current_pos <= z_end:
-                        # Attempt to pull it back slightly outside the tap zone
                         shifted_pos = z_start - 0.25
-                        # If pulling it back puts it too close to the previous hanger, push it forward instead
                         if shifted_pos < targets[-1] + 1.0:
                             shifted_pos = z_end + 0.25
                         
@@ -406,23 +461,18 @@ try:
                         adjusted = True
                         break
                 
-                # If adjustment pushes it beyond the end target, break the loop
                 if current_pos >= end_target - 0.5:
                     break
                     
                 targets.append(current_pos)
-                
-                # Next hanger is strictly 'spacing' distance from the newly adjusted position
                 current_pos += spacing
                 
             targets.append(end_target)
 
-        # Place hangers
         for t_abs in targets:
             for span in part_spans:
                 if span["start"] - CONNECT_TOL <= t_abs <= span["end"] + CONNECT_TOL:
                     local_pos = t_abs - span["start"]
-                    # Provide tiny safe clamping to prevent placing exactly on the connector face
                     local_pos = max(0.1, min(local_pos, span["L"] - 0.1))
                     
                     try:
@@ -434,7 +484,11 @@ try:
                     break
 
     t.Commit()
-    TaskDialog.Show("Place Duct Hangers", "Hanger placement complete. Total placed: {}".format(placed_count))
+    
+    show_balloon_notification(
+        "Place Duct Hangers",
+        "Hanger placement complete.\nTotal successfully placed: {}".format(placed_count)
+    )
 
 except Exception as ex:
     msg = str(ex).lower()
