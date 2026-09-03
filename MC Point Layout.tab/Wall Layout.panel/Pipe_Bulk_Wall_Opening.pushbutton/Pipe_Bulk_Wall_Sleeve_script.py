@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 import clr
 clr.AddReference('System')
+clr.AddReference("System.Windows.Forms")
+clr.AddReference("System.Drawing")
 import System
 
+from System.Windows.Forms import NotifyIcon, ToolTipIcon
+from System.Drawing import Icon, SystemIcons
+
 from Autodesk.Revit import DB
-from Autodesk.Revit.UI import TaskDialog
 from Autodesk.Revit.UI.Events import TaskDialogShowingEventArgs
 from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
 from Autodesk.Revit.DB import (
@@ -52,6 +56,9 @@ FAMILY_TYPE = 'WS'
 FAMILY_FILE = 'WS.rfa'
 family_path = os.path.join(script_dir, FAMILY_FILE)
 
+ICON_FILE = os.path.join(script_dir, "Murray.ico")
+_NOTIFY_ICONS = []
+
 RevitVersion = app.VersionNumber
 RevitINT = float(RevitVersion)
 
@@ -74,11 +81,46 @@ def get_id_value(id_obj):
             return id_obj.IntegerValue
 
 
-def safe_taskdialog(title, message):
+def show_balloon_notification(title, message, timeout=5000):
+    """
+    Displays a native Windows balloon notification.
+    Keeps a reference to the NotifyIcon so it does not get garbage collected immediately.
+    """
     try:
-        TaskDialog.Show(title, message)
+        notify_icon = NotifyIcon()
+
+        if ICON_FILE and os.path.exists(ICON_FILE):
+            notify_icon.Icon = Icon(ICON_FILE)
+        else:
+            notify_icon.Icon = SystemIcons.Information
+
+        notify_icon.Visible = True
+
+        # Windows balloon tips are limited in practical display length
+        balloon_title = str(title)[:63]
+        balloon_message = str(message)[:255]
+
+        notify_icon.ShowBalloonTip(timeout, balloon_title, balloon_message, ToolTipIcon.Info)
+
+        _NOTIFY_ICONS.append(notify_icon)
+        return True
     except:
-        print("{}: {}".format(title, message))
+        return False
+
+
+def safe_taskdialog(title, message):
+    """
+    Replaced TaskDialog with balloon notification.
+    Falls back to console print if notification fails.
+    """
+    try:
+        if not show_balloon_notification(title, message, 5000):
+            print("{}: {}".format(title, message))
+    except:
+        try:
+            print("{}: {}".format(title, message))
+        except:
+            pass
 
 
 def get_lookup_param(element, param_name):

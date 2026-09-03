@@ -3,11 +3,11 @@
 
 # bundle title
 title:
-  "Test3"
+  "Family\nNavigator"
 
 # bundle tooltip
 tooltip: |-
-  yep
+  Toggles a Pane on/off to navigate to family library.
 
 # bundle help url
 #help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"

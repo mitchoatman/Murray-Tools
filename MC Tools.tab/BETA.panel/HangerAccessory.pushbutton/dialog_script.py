@@ -11,7 +11,7 @@ from Autodesk.Revit.UI import TaskDialog
 from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
 from Autodesk.Revit.Exceptions import OperationCanceledException
 from System.Windows import Window, Thickness, WindowStartupLocation, ResizeMode, HorizontalAlignment
-from System.Windows.Controls import StackPanel, TextBox, ListBox, Label, ComboBox, Button, DockPanel, Dock, Orientation
+from System.Windows.Controls import StackPanel, TextBox, ListBox, Label, ComboBox, Button, DockPanel, Dock, Orientation, RadioButton
 from System.Windows.Input import Keyboard
 from System.Windows.Forms import NotifyIcon, ToolTipIcon
 from System.Drawing import SystemIcons
@@ -66,6 +66,17 @@ class SameServiceHangerSelectionFilter(ISelectionFilter):
         return False
 
 
+class AnyElementSelectionFilter(ISelectionFilter):
+    def AllowElement(self, elem):
+        try:
+            return elem is not None
+        except:
+            return False
+
+    def AllowReference(self, reference, point):
+        return False
+
+
 # -------------------------------------------------------
 # HELPERS
 # -------------------------------------------------------
@@ -99,8 +110,39 @@ def get_service_from_part(part):
     return None
 
 
+def get_element_bbox_elevation(elem, use_top=True):
+    try:
+        box = elem.get_BoundingBox(None)
+        if not box:
+            return None
+        return box.Max.Z if use_top else box.Min.Z
+    except:
+        return None
+
+
+def get_part_alignment_z(part, align_mode):
+    try:
+        if align_mode == "origin":
+            return part.Origin.Z
+
+        box = part.get_BoundingBox(None)
+        if not box:
+            return part.Origin.Z
+
+        if align_mode == "top":
+            return box.Max.Z
+        elif align_mode == "bottom":
+            return box.Min.Z
+        else:
+            return part.Origin.Z
+    except:
+        try:
+            return part.Origin.Z
+        except:
+            return None
+
+
 def show_balloon_notification(title, message, timeout=5000):
-    """Displays a native Windows balloon notification."""
     notify_icon = NotifyIcon()
     try:
         notify_icon.Icon = SystemIcons.Information
@@ -152,7 +194,6 @@ except OperationCanceledException:
 
 selected_hangers = []
 
-# If first picked element was already a hanger, include it automatically
 try:
     if first_part.IsAHanger():
         selected_hangers.append(first_part)
@@ -219,26 +260,91 @@ class PartPicker(Window):
         self.all_records = list(records)
         self.filtered_records = list(records)
         self.selected_record = None
+        self.selected_mode = "rod_end"
+        self.selected_align_mode = "origin"
 
         self.Title = "Select Fabrication Part"
-        self.Width = 450
-        self.Height = 635
+        self.Width = 470
+        self.Height = 790
+        self.Topmost = True
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
         self.ResizeMode = ResizeMode.CanResize
 
         root_panel = DockPanel()
         root_panel.Margin = Thickness(10)
 
-        # OK Button docked to bottom so it stays pinned at the bottom right
+        # OK Button
         self.ok_button = Button()
         self.ok_button.Content = "OK"
         self.ok_button.Height = 30
         self.ok_button.Width = 100
         self.ok_button.HorizontalAlignment = HorizontalAlignment.Right
         self.ok_button.Margin = Thickness(0, 10, 0, 0)
+        self.ok_button.IsEnabled = False
         self.ok_button.Click += self.on_ok_click
         DockPanel.SetDock(self.ok_button, Dock.Bottom)
         root_panel.Children.Add(self.ok_button)
+
+        # Bottom options panel
+        options_panel = StackPanel()
+        options_panel.Margin = Thickness(0, 10, 0, 0)
+        DockPanel.SetDock(options_panel, Dock.Bottom)
+
+        options_row = StackPanel()
+        options_row.Orientation = Orientation.Horizontal
+
+        # Left group - Placement Elevation
+        placement_panel = StackPanel()
+        placement_panel.Margin = Thickness(0, 0, 30, 0)
+
+        placement_label = Label()
+        placement_label.Content = "Placement Elevation:"
+        placement_panel.Children.Add(placement_label)
+
+        self.rb_rod_end = RadioButton()
+        self.rb_rod_end.Content = "End of Rod"
+        self.rb_rod_end.GroupName = "PlacementModeGroup"
+        self.rb_rod_end.IsChecked = True
+        placement_panel.Children.Add(self.rb_rod_end)
+
+        self.rb_bbox_top = RadioButton()
+        self.rb_bbox_top.Content = "Reference Element - BBox Top"
+        self.rb_bbox_top.GroupName = "PlacementModeGroup"
+        placement_panel.Children.Add(self.rb_bbox_top)
+
+        self.rb_bbox_bottom = RadioButton()
+        self.rb_bbox_bottom.Content = "Reference Element - BBox Bottom"
+        self.rb_bbox_bottom.GroupName = "PlacementModeGroup"
+        placement_panel.Children.Add(self.rb_bbox_bottom)
+
+        # Right group - Placed Part Alignment
+        alignment_panel = StackPanel()
+
+        align_label = Label()
+        align_label.Content = "Placed Part Alignment:"
+        alignment_panel.Children.Add(align_label)
+
+        self.rb_align_origin = RadioButton()
+        self.rb_align_origin.Content = "Origin"
+        self.rb_align_origin.GroupName = "AlignmentModeGroup"
+        self.rb_align_origin.IsChecked = True
+        alignment_panel.Children.Add(self.rb_align_origin)
+
+        self.rb_align_top = RadioButton()
+        self.rb_align_top.Content = "Top"
+        self.rb_align_top.GroupName = "AlignmentModeGroup"
+        alignment_panel.Children.Add(self.rb_align_top)
+
+        self.rb_align_bottom = RadioButton()
+        self.rb_align_bottom.Content = "Bottom"
+        self.rb_align_bottom.GroupName = "AlignmentModeGroup"
+        alignment_panel.Children.Add(self.rb_align_bottom)
+
+        options_row.Children.Add(placement_panel)
+        options_row.Children.Add(alignment_panel)
+        options_panel.Children.Add(options_row)
+
+        root_panel.Children.Add(options_panel)
 
         # Top controls container
         top_stack = StackPanel()
@@ -266,18 +372,16 @@ class PartPicker(Window):
         self.search_box.TextChanged += self.apply_filters
         top_stack.Children.Add(self.search_box)
 
-        # Quick Search Label
         quick_label = Label()
         quick_label.Content = "Quick Search:"
         quick_label.Margin = Thickness(0, 0, 0, 2)
         top_stack.Children.Add(quick_label)
 
-        # Quick Search Buttons Row
         quick_panel = StackPanel()
         quick_panel.Orientation = Orientation.Horizontal
         quick_panel.Margin = Thickness(0, 0, 0, 10)
 
-        for tag in ["BEAM", "CLAMP", "CLEAR"]:
+        for tag in ["BEAM", "CLAMP", "HEX", "CLEAR"]:
             quick_btn = Button()
             quick_btn.Content = tag
             quick_btn.Height = 22
@@ -295,15 +399,16 @@ class PartPicker(Window):
 
         root_panel.Children.Add(top_stack)
 
-        # ListBox fills the remaining space dynamically
         self.list_box = ListBox()
         self.list_box.Margin = Thickness(0, 0, 0, 0)
         self.list_box.MouseDoubleClick += self.on_double_click
+        self.list_box.SelectionChanged += self.on_list_selection_changed
         root_panel.Children.Add(self.list_box)
 
         self.Content = root_panel
 
         self.refresh_list()
+        self.update_ok_state()
 
         self.search_box.Focus()
         Keyboard.Focus(self.search_box)
@@ -318,6 +423,14 @@ class PartPicker(Window):
 
     def refresh_list(self):
         self.list_box.ItemsSource = [r["display"] for r in self.filtered_records]
+        self.update_ok_state()
+
+    def update_ok_state(self):
+        idx = self.list_box.SelectedIndex
+        self.ok_button.IsEnabled = (idx >= 0 and idx < len(self.filtered_records))
+
+    def on_list_selection_changed(self, sender, args):
+        self.update_ok_state()
 
     def apply_filters(self, sender, args):
         selected_palette = self.palette_combo.SelectedItem
@@ -338,8 +451,25 @@ class PartPicker(Window):
         idx = self.list_box.SelectedIndex
         if idx < 0 or idx >= len(self.filtered_records):
             TaskDialog.Show("Error", "Please select a part.")
+            self.update_ok_state()
             return False
+
         self.selected_record = self.filtered_records[idx]
+
+        if self.rb_bbox_top.IsChecked:
+            self.selected_mode = "bbox_top"
+        elif self.rb_bbox_bottom.IsChecked:
+            self.selected_mode = "bbox_bottom"
+        else:
+            self.selected_mode = "rod_end"
+
+        if self.rb_align_top.IsChecked:
+            self.selected_align_mode = "top"
+        elif self.rb_align_bottom.IsChecked:
+            self.selected_align_mode = "bottom"
+        else:
+            self.selected_align_mode = "origin"
+
         return True
 
     def on_double_click(self, sender, args):
@@ -365,15 +495,47 @@ if not dlg.ShowDialog():
 selected_record = dlg.selected_record
 fab_btn = selected_record["button"]
 condition_index = selected_record["condition_index"]
+placement_mode = dlg.selected_mode
+align_mode = dlg.selected_align_mode
 
 if fab_btn.IsAHanger:
-    TaskDialog.Show("Invalid Selection", "Selected button is a hanger. Only non-hanger parts can be placed at rod points.")
+    TaskDialog.Show("Invalid Selection", "Selected button is a hanger. Only non-hanger parts can be placed.")
     import sys
     sys.exit()
 
+reference_z = None
+
+if placement_mode in ["bbox_top", "bbox_bottom"]:
+    any_filter = AnyElementSelectionFilter()
+
+    try:
+        ref = uidoc.Selection.PickObject(
+            ObjectType.Element,
+            any_filter,
+            "Pick reference element for bounding box elevation"
+        )
+    except OperationCanceledException:
+        import sys
+        sys.exit()
+
+    ref_elem = doc.GetElement(ref.ElementId)
+
+    if not ref_elem:
+        TaskDialog.Show("Error", "No reference element selected.")
+        raise Exception("No reference element selected")
+
+    reference_z = get_element_bbox_elevation(
+        ref_elem,
+        use_top=(placement_mode == "bbox_top")
+    )
+
+    if reference_z is None:
+        TaskDialog.Show("Error", "Could not get bounding box elevation from selected element.")
+        raise Exception("Reference element has no bounding box")
+
 
 # -------------------------------------------------------
-# CREATE PARTS AT ALL ROD POINTS OF ALL SELECTED HANGERS
+# CREATE PARTS
 # -------------------------------------------------------
 placed_count = 0
 skipped_count = 0
@@ -394,9 +556,18 @@ try:
                 new_part = FabricationPart.Create(doc, fab_btn, condition_index, hanger.LevelId)
 
                 loc = new_part.Origin
-                target_pos = XYZ(pt.X, pt.Y, pt.Z)
-                translation = target_pos - loc
+                target_z = pt.Z if placement_mode == "rod_end" else reference_z
 
+                dx = pt.X - loc.X
+                dy = pt.Y - loc.Y
+
+                current_align_z = get_part_alignment_z(new_part, align_mode)
+                if current_align_z is None:
+                    current_align_z = loc.Z
+
+                dz = target_z - current_align_z
+
+                translation = XYZ(dx, dy, dz)
                 ElementTransformUtils.MoveElement(doc, new_part.Id, translation)
                 placed_count += 1
             except:
@@ -407,7 +578,21 @@ except:
     t.RollBack()
     raise
 
-completion_message = "Processed hangers: {0}\nPlaced parts: {1}\nSkipped hangers with no rods: {2}".format(
+mode_text = {
+    "rod_end": "End of Rod",
+    "bbox_top": "Reference Element - BBox Top",
+    "bbox_bottom": "Reference Element - BBox Bottom"
+}.get(placement_mode, "Unknown")
+
+align_text = {
+    "origin": "Origin",
+    "top": "Top",
+    "bottom": "Bottom"
+}.get(align_mode, "Unknown")
+
+completion_message = "Mode: {0}\nAlignment: {1}\nProcessed hangers: {2}\nPlaced parts: {3}\nSkipped hangers with no rods: {4}".format(
+    mode_text,
+    align_text,
     len(selected_hangers),
     placed_count,
     skipped_count

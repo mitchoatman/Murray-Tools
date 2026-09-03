@@ -19,6 +19,8 @@ import Autodesk.Revit.UI as UI
 
 from System.Collections.Generic import List
 from System.Windows.Forms import FolderBrowserDialog, DialogResult
+from System.Windows.Controls import ListBoxItem
+from System.Windows.Media import VisualTreeHelper
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import (
     Transaction,
@@ -67,7 +69,6 @@ PANE_XAML = """
 
     <Grid Margin="10">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -126,13 +127,8 @@ PANE_XAML = """
             <Button x:Name="create_section_btn" Grid.Column="0" Content="Create Section" Height="26"/>
         </Grid>
 
-        <TextBlock Grid.Row="4"
-                   Text="Single Click to Place in View"
-                   FontWeight="SemiBold"
-                   Margin="0,0,0,4"/>
-
         <!-- Image Grid ListBox -->
-        <ScrollViewer Grid.Row="5"
+        <ScrollViewer Grid.Row="4"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       BorderBrush="#FFD0D0D0"
@@ -148,10 +144,10 @@ PANE_XAML = """
                 </ListBox.ItemsPanel>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <Border Width="95" Height="110" Margin="4" Padding="4" BorderBrush="#FFDDDDDD" BorderThickness="1" Background="White" CornerRadius="3">
+                        <Border Width="78" Height="90" Margin="2" Padding="2" BorderBrush="#FFCCCCCC" BorderThickness="1" Background="White">
                             <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                <Image Source="{Binding ImagePath}" Width="75" Height="75" Stretch="Uniform"/>
-                                <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" TextAlignment="Center" FontSize="10" Margin="0,4,0,0" Width="85"/>
+                                <Image Source="{Binding ImagePath}" Width="64" Height="64" Stretch="Uniform"/>
+                                <TextBlock Text="{Binding DisplayName}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" TextAlignment="Center" FontSize="10" FontWeight="SemiBold" Margin="0,3,0,0" Width="72"/>
                             </StackPanel>
                         </Border>
                     </DataTemplate>
@@ -161,22 +157,23 @@ PANE_XAML = """
 
         <!-- Generate Button at Bottom -->
         <Button x:Name="generate_images_btn"
-                Grid.Row="6"
+                Grid.Row="5"
                 Content="Generate Missing Images"
                 Height="28"
                 Margin="0,8,0,0"/>
 
         <TextBlock x:Name="status_tb"
-                   Grid.Row="7"
+                   Grid.Row="6"
                    Margin="0,6,0,0"
                    Foreground="#666666"
                    TextWrapping="Wrap"
-                   Text="Ready."/>
+                   Text="Select part to insert in view"/>
     </Grid>
 </Page>
 """
 
 DEFAULT_FAMILY_FOLDER = r"C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Generic Models\Atkore"
+DEFAULT_STATUS_MESSAGE = "Select part to insert in view"
 
 # Allowed straight fabrication CIDs
 ALLOWED_CIDS = set([
@@ -190,7 +187,12 @@ state.DockPosition = UI.DockPosition.Right
 class FamilyItem(object):
     def __init__(self, name, rfa_path, image_path):
         self.Name = name
-        self.DisplayName = name
+
+        if name and "_" in name:
+            self.DisplayName = name.split("_", 1)[0]
+        else:
+            self.DisplayName = name
+
         self.RfaPath = rfa_path
         if image_path and os.path.exists(image_path):
             self.ImagePath = image_path
@@ -543,7 +545,7 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
             self.pane.set_status("Generated {} image(s). Failed: {}.".format(processed, failed))
 
     def _export_family_preview(self, fam_doc, app, rfa_path, img_path):
-        temp_root = os.environ.get("TEMP") or os.environ.get("TMP") or r"C:\Temp"
+        temp_root = os.environ.get("TEMP") or os.environ.get("TMP") or r"C:\\Temp"
         temp_dir = os.path.join(temp_root, "FamilyPreviewTemp")
 
         if not os.path.exists(temp_dir):
@@ -593,7 +595,7 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
                 opts.HLRandWFViewsFileType = ImageFileType.PNG
                 opts.ImageResolution = ImageResolution.DPI_150
                 opts.ZoomType = ZoomFitType.FitToPage
-                opts.PixelSize = 512
+                opts.PixelSize = 96
 
                 view_ids = List[ElementId]()
                 view_ids.Add(view3d.Id)
@@ -656,7 +658,7 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
                 if first_symbol is None:
                     return "{}; temp project symbol was None".format(export_err)
 
-                bmp = first_symbol.GetPreviewImage(Drawing.Size(256, 256))
+                bmp = first_symbol.GetPreviewImage(Drawing.Size(96, 96))
                 if bmp is None:
                     return "{}; temp project GetPreviewImage returned None".format(export_err)
 
@@ -844,7 +846,6 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
             pts.extend(self._bbox_corners(bbox))
         return pts
 
-    # PLAN LOGIC: kept to match your working behavior
     def _build_section_transform_from_plan(self, curve, view, pick_point):
         p0 = curve.GetEndPoint(0)
         p1 = curve.GetEndPoint(1)
@@ -879,7 +880,6 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
         side_vec = pick_point - on_curve
         side_vec = side_vec - y_axis.Multiply(side_vec.DotProduct(y_axis))
 
-        # keep plan behavior exactly as your working version
         if side_vec.GetLength() > 1e-6 and side_vec.DotProduct(z_guess) > 0:
             z_axis = z_guess.Negate()
         else:
@@ -895,7 +895,6 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
 
         return tf
 
-    # SECTION LOGIC: separate branch for active section view
     def _build_section_transform_from_section(self, curve, view, pick_point):
         p0 = curve.GetEndPoint(0)
         p1 = curve.GetEndPoint(1)
@@ -1033,6 +1032,7 @@ class FamilyViewerPane(forms.WPFPanel):
 
         self._all_families = []
         self._is_updating_selection = False
+        self._last_hover_name = None
 
         self.folder_path_tb.Text = DEFAULT_FAMILY_FOLDER
 
@@ -1041,6 +1041,8 @@ class FamilyViewerPane(forms.WPFPanel):
         self.clear_search_btn.Click += lambda s, e: setattr(self.search_tb, 'Text', '')
         self.search_tb.TextChanged += self.on_search_changed
         self.families_lb.SelectionChanged += self.on_family_selected
+        self.families_lb.MouseMove += self.on_families_mouse_move
+        self.families_lb.MouseLeave += self.on_families_mouse_leave
 
         self.set_workplane_btn.Click += self.on_set_workplane_clicked
         self.hide_workplane_btn.Click += self.on_hide_workplane_clicked
@@ -1051,6 +1053,7 @@ class FamilyViewerPane(forms.WPFPanel):
 
     def on_loaded(self, sender, args):
         self.load_families_from_folder(self.folder_path_tb.Text)
+        self.set_status(DEFAULT_STATUS_MESSAGE)
 
     def on_browse_clicked(self, sender, args):
         dlg = FolderBrowserDialog()
@@ -1066,17 +1069,21 @@ class FamilyViewerPane(forms.WPFPanel):
             if selected_folder:
                 self.folder_path_tb.Text = selected_folder
                 self.load_families_from_folder(selected_folder)
+                self.set_status(DEFAULT_STATUS_MESSAGE)
 
     def on_default_path_clicked(self, sender, args):
         if os.path.exists(DEFAULT_FAMILY_FOLDER):
             self.folder_path_tb.Text = DEFAULT_FAMILY_FOLDER
             self.load_families_from_folder(DEFAULT_FAMILY_FOLDER)
+            self.set_status(DEFAULT_STATUS_MESSAGE)
         else:
             self.set_status("Default folder path does not exist.")
 
     def load_families_from_folder(self, folder_path):
         self._is_updating_selection = True
         self._all_families = []
+        self._last_hover_name = None
+
         if not os.path.exists(folder_path):
             self.set_status("Folder path does not exist: {}".format(folder_path))
             self.apply_search_filter()
@@ -1101,7 +1108,7 @@ class FamilyViewerPane(forms.WPFPanel):
 
             self._all_families = sorted(self._all_families, key=family_sort_key)
             self.apply_search_filter()
-            self.set_status("Loaded {} family/families from folder.".format(len(self._all_families)))
+            self.set_status(DEFAULT_STATUS_MESSAGE)
         except Exception as ex:
             self.set_status("Error loading folder: {}".format(str(ex)))
         finally:
@@ -1129,6 +1136,38 @@ class FamilyViewerPane(forms.WPFPanel):
         self.families_lb.ItemsSource = filtered
         self.families_lb.SelectedItem = None
         self._is_updating_selection = False
+
+    def _find_parent_listboxitem(self, obj):
+        while obj is not None:
+            if isinstance(obj, ListBoxItem):
+                return obj
+            try:
+                obj = VisualTreeHelper.GetParent(obj)
+            except:
+                return None
+        return None
+
+    def on_families_mouse_move(self, sender, args):
+        try:
+            src = args.OriginalSource
+            lbi = self._find_parent_listboxitem(src)
+
+            if lbi and lbi.DataContext:
+                fam_item = lbi.DataContext
+                fam_name = fam_item.Name or ""
+                if fam_name != self._last_hover_name:
+                    self._last_hover_name = fam_name
+                    self.set_status(fam_name)
+            else:
+                if self._last_hover_name is not None:
+                    self._last_hover_name = None
+                    self.set_status(DEFAULT_STATUS_MESSAGE)
+        except:
+            pass
+
+    def on_families_mouse_leave(self, sender, args):
+        self._last_hover_name = None
+        self.set_status(DEFAULT_STATUS_MESSAGE)
 
     def on_family_selected(self, sender, args):
         if self._is_updating_selection:
@@ -1166,4 +1205,4 @@ class FamilyViewerPane(forms.WPFPanel):
         self._ext_event.Raise()
 
     def set_status(self, message):
-        self.status_tb.Text = message or ""
+        self.status_tb.Text = message or DEFAULT_STATUS_MESSAGE

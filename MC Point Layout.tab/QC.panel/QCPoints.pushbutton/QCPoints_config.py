@@ -1,42 +1,35 @@
 # -*- coding: UTF-8 -*-
-import os
 import clr
-clr.AddReference('System.Windows.Forms')
-clr.AddReference('System.Drawing')
+clr.AddReference('PresentationFramework')
+clr.AddReference('PresentationCore')
+clr.AddReference('WindowsBase')
 
-from System.Windows.Forms import Clipboard, NotifyIcon, ToolTipIcon
-from System.Drawing import Icon, SystemIcons
+from System.Windows import (
+    Window, WindowStartupLocation, WindowStyle, GridLength,
+    HorizontalAlignment, Thickness, FontWeights
+)
+from System.Windows import GridUnitType
+from System.Windows.Controls import (
+    Grid, RowDefinition, Button, TextBox,
+    ScrollViewer, StackPanel, Orientation, Label
+)
+from System.Windows.Media import FontFamily
 
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import (
     FilteredElementCollector, BuiltInCategory, FamilyInstance
 )
+from Autodesk.Revit.UI import TaskDialog
 
 import string
 from collections import defaultdict
 
 doc = __revit__.ActiveUIDocument.Document
+uidoc = __revit__.ActiveUIDocument
 curview = doc.ActiveView
 app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float(RevitVersion)
-
-
-# ── notification ─────────────────────────────────────────────────────────────
-
-def show_balloon_notification(title, message, icon_path=None, timeout=5000):
-    """Displays a native Windows balloon notification."""
-    notify_icon = NotifyIcon()
-    try:
-        if icon_path and os.path.exists(icon_path):
-            notify_icon.Icon = Icon(icon_path)
-        else:
-            notify_icon.Icon = SystemIcons.Information
-
-        notify_icon.Visible = True
-        notify_icon.ShowBalloonTip(timeout, title, message, ToolTipIcon.Info)
-    except:
-        pass
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -64,10 +57,18 @@ def get_element_id_value(element):
 
 def is_fab_hanger(element):
     try:
-        return (
-            element and element.Category and
-            get_id_value(element.Category.Id) == int(BuiltInCategory.OST_FabricationHangers)
-        )
+        return element and element.Category and \
+               get_id_value(element.Category.Id) == int(BuiltInCategory.OST_FabricationHangers)
+    except:
+        return False
+
+
+def is_trapeze_hanger(element):
+    if not is_fab_hanger(element):
+        return False
+    try:
+        rod_info = element.GetRodInfo()
+        return rod_info is not None and rod_info.RodCount > 1
     except:
         return False
 
@@ -115,10 +116,13 @@ def make_child_point_number(base_id, index):
     return "{}_{}".format(base_id, get_suffix(index))
 
 
+def make_rck_child_point_number(base_id, index):
+    return "{}{}".format(base_id, get_suffix(index))
+
+
 def get_parameter_value(element, param_name):
     if not element:
         return None
-
     try:
         p = element.LookupParameter(param_name)
         if p and p.HasValue:
@@ -359,23 +363,78 @@ def build_point_lines(elements):
     return lines, point_count
 
 
+# ── display window ────────────────────────────────────────────────────────────
+
+class PointDisplayWindow(Window):
+    def __init__(self, lines, point_count):
+        self.Title = "Point Export — Copy to CAD"
+        self.Width = 680
+        self.Height = 520
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
+        self.WindowStyle = WindowStyle.SingleBorderWindow
+        self.ResizeMode = 0
+        self.Topmost = True
+
+        root = Grid()
+        root.Margin = Thickness(10)
+        self.Content = root
+
+        root.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
+        root.RowDefinitions.Add(RowDefinition(Height=GridLength(1, GridUnitType.Star)))
+        root.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
+
+        header = Label()
+        header.Content = "{} point(s) — Copy, then paste into CAD command line".format(point_count)
+        header.FontWeight = FontWeights.Bold
+        header.Margin = Thickness(0, 0, 0, 6)
+        Grid.SetRow(header, 0)
+        root.Children.Add(header)
+
+        scroll = ScrollViewer()
+        Grid.SetRow(scroll, 1)
+        root.Children.Add(scroll)
+
+        self.txt = TextBox()
+        self.txt.FontFamily = FontFamily("Consolas")
+        self.txt.FontSize = 12
+        self.txt.IsReadOnly = True
+        self.txt.AcceptsReturn = True
+        self.txt.VerticalScrollBarVisibility = 0
+        self.txt.HorizontalScrollBarVisibility = 0
+        self.txt.Text = "\r\n".join(lines)
+        scroll.Content = self.txt
+
+        btn_panel = StackPanel()
+        btn_panel.Orientation = Orientation.Horizontal
+        btn_panel.HorizontalAlignment = HorizontalAlignment.Right
+        btn_panel.Margin = Thickness(0, 8, 0, 0)
+        Grid.SetRow(btn_panel, 2)
+        root.Children.Add(btn_panel)
+
+        btn_copy = Button()
+        btn_copy.Content = "Copy"
+        btn_copy.Width = 90
+        btn_copy.Height = 28
+        btn_copy.Click += self.on_copy
+        btn_panel.Children.Add(btn_copy)
+
+    def on_copy(self, sender, args):
+        self.txt.SelectAll()
+        self.txt.Copy()
+        self.Close()
+
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 elements = collect_elements()
 
-if elements:
+if not elements:
+    TaskDialog.Show("No Elements", "No fabrication hangers or GTP points found in the active view.")
+else:
     lines, point_count = build_point_lines(elements)
 
-    if point_count > 0:
-        Clipboard.SetText("\r\n".join(lines))
-
-        icon_file = os.path.join(os.path.dirname(__file__), 'Murray.ico')
-        if not os.path.exists(icon_file):
-            icon_file = None
-
-        show_balloon_notification(
-            "QC Points",
-            "{} point(s) copied to clipboard\n\nOpen DWG and Paste to Command Line".format(point_count),
-            icon_path=icon_file,
-            timeout=5000
-        )
+    if point_count == 0:
+        TaskDialog.Show("No Points", "Elements were found but none had a TS_Point_Number assigned.")
+    else:
+        win = PointDisplayWindow(lines, max(0, point_count))
+        win.ShowDialog()

@@ -11,7 +11,8 @@ tooltip: |-
 
 
   [Shift]+Click:    
-  Displays all the point data so it can be copied to clipboard  so it can then be copied to AutoCAD
+  Displays all the point data in a dialog.
+  Data can be copied to clipboard and then pasted to AutoCAD Command Line.
 
 # context directives are listed under `context` key, the order does not matter
 #context:
