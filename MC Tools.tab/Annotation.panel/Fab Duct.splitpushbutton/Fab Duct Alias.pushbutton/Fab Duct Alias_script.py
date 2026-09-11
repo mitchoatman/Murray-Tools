@@ -39,7 +39,6 @@ t.Start()
 if Fam_is_in_project == False:
     fload_handler = FamilyLoaderOptionsHandler()
     family = doc.LoadFamily(family_pathCC1, fload_handler)
-    family = doc.LoadFamily(family_pathCC2, fload_handler)
 t.Commit()
 
 #Family symbol name to place.

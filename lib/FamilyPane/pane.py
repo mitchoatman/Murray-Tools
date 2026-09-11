@@ -73,6 +73,7 @@ PANE_XAML = """
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -93,8 +94,25 @@ PANE_XAML = """
             </Grid>
         </StackPanel>
 
+        <!-- Quick Folder Buttons -->
+        <Grid Grid.Row="1" Margin="0,0,0,8" HorizontalAlignment="Left">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Button x:Name="atkore_btn" Grid.Column="0" Content="Atkore Strut" Height="26" Padding="10,0,10,0"/>
+            <Button x:Name="plumbing_btn" Grid.Column="2" Content="Plumbing Fixtures" Height="26" Padding="10,0,10,0"/>
+            <Button x:Name="mechanical_btn" Grid.Column="4" Content="Mechanical Equipment" Height="26" Padding="10,0,10,0"/>
+            <Button x:Name="pipe_accessories_btn" Grid.Column="6" Content="Pipe Accessories" Height="26" Padding="10,0,10,0"/>
+        </Grid>
+
         <!-- Search Filter -->
-        <StackPanel Grid.Row="1" Margin="0,0,0,8">
+        <StackPanel Grid.Row="2" Margin="0,0,0,8">
             <TextBlock Text="Search Families:" FontWeight="SemiBold" Margin="0,0,0,2"/>
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -107,7 +125,7 @@ PANE_XAML = """
         </StackPanel>
 
         <!-- Work Plane Tools Section -->
-        <Grid Grid.Row="2" Margin="0,0,0,8">
+        <Grid Grid.Row="3" Margin="0,0,0,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="4"/>
@@ -118,7 +136,7 @@ PANE_XAML = """
         </Grid>
 
         <!-- Section Tools Section -->
-        <Grid Grid.Row="3" Margin="0,0,0,8">
+        <Grid Grid.Row="4" Margin="0,0,0,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="4"/>
@@ -128,42 +146,39 @@ PANE_XAML = """
         </Grid>
 
         <!-- Image Grid ListBox -->
-        <ScrollViewer Grid.Row="4"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      BorderBrush="#FFD0D0D0"
-                      BorderThickness="1"
-                      Background="White">
-            <ListBox x:Name="families_lb"
-                     BorderThickness="0"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                <ListBox.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel IsItemsHost="True" Orientation="Horizontal"/>
-                    </ItemsPanelTemplate>
-                </ListBox.ItemsPanel>
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Border Width="78" Height="90" Margin="2" Padding="2" BorderBrush="#FFCCCCCC" BorderThickness="1" Background="White">
-                            <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                <Image Source="{Binding ImagePath}" Width="64" Height="64" Stretch="Uniform"/>
-                                <TextBlock Text="{Binding DisplayName}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" TextAlignment="Center" FontSize="10" FontWeight="SemiBold" Margin="0,3,0,0" Width="72"/>
-                            </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-        </ScrollViewer>
+        <ListBox x:Name="families_lb"
+                 Grid.Row="5"
+                 BorderBrush="#FFD0D0D0"
+                 BorderThickness="1"
+                 Background="White"
+                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel IsItemsHost="True" Orientation="Horizontal"/>
+                </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Border Width="78" Height="90" Margin="2" Padding="2" BorderBrush="#FFCCCCCC" BorderThickness="1" Background="White">
+                        <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                            <Image Source="{Binding ImagePath}" Width="64" Height="64" Stretch="Uniform"/>
+                            <TextBlock Text="{Binding DisplayName}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" TextAlignment="Center" FontSize="10" FontWeight="SemiBold" Margin="0,3,0,0" Width="72"/>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
 
         <!-- Generate Button at Bottom -->
         <Button x:Name="generate_images_btn"
-                Grid.Row="5"
+                Grid.Row="6"
                 Content="Generate Missing Images"
                 Height="28"
                 Margin="0,8,0,0"/>
 
         <TextBlock x:Name="status_tb"
-                   Grid.Row="6"
+                   Grid.Row="7"
                    Margin="0,6,0,0"
                    Foreground="#666666"
                    TextWrapping="Wrap"
@@ -172,7 +187,13 @@ PANE_XAML = """
 </Page>
 """
 
-DEFAULT_FAMILY_FOLDER = r"C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Generic Models\Atkore"
+DEFAULT_FAMILY_FOLDER = r"C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES"
+ATKORE_STRUT_FOLDER = r"C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Generic Models\Atkore"
+PLUMBING_FIXTURES_FOLDER = r"C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Plumbing Fixture"
+MECHANICAL_EQUIPMENT_FOLDER = r"C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Mechanical Equipment"
+PIPE_ACCESSORIES_FOLDER = r"C:\Egnyte\Shared\BIM\Murray CADetailing Dept\REVIT\FAMILIES\Pipe Accessories"
+LAST_FOLDER_FILE = r"C:\Temp\Ribbon_FamilyManager.txt"
+
 DEFAULT_STATUS_MESSAGE = "Select part to insert in view"
 
 # Allowed straight fabrication CIDs
@@ -1034,10 +1055,15 @@ class FamilyViewerPane(forms.WPFPanel):
         self._is_updating_selection = False
         self._last_hover_name = None
 
-        self.folder_path_tb.Text = DEFAULT_FAMILY_FOLDER
+        saved_path = self._read_saved_folder_path()
+        self.folder_path_tb.Text = saved_path if saved_path and os.path.exists(saved_path) else DEFAULT_FAMILY_FOLDER
 
         self.browse_btn.Click += self.on_browse_clicked
         self.default_path_btn.Click += self.on_default_path_clicked
+        self.atkore_btn.Click += lambda s, e: self.set_folder_path(ATKORE_STRUT_FOLDER)
+        self.plumbing_btn.Click += lambda s, e: self.set_folder_path(PLUMBING_FIXTURES_FOLDER)
+        self.mechanical_btn.Click += lambda s, e: self.set_folder_path(MECHANICAL_EQUIPMENT_FOLDER)
+        self.pipe_accessories_btn.Click += lambda s, e: self.set_folder_path(PIPE_ACCESSORIES_FOLDER)
         self.clear_search_btn.Click += lambda s, e: setattr(self.search_tb, 'Text', '')
         self.search_tb.TextChanged += self.on_search_changed
         self.families_lb.SelectionChanged += self.on_family_selected
@@ -1050,6 +1076,33 @@ class FamilyViewerPane(forms.WPFPanel):
         self.generate_images_btn.Click += self.on_generate_images_clicked
 
         self.Loaded += self.on_loaded
+
+    def _read_saved_folder_path(self):
+        try:
+            if os.path.exists(LAST_FOLDER_FILE):
+                with open(LAST_FOLDER_FILE, "r") as f:
+                    path = (f.read() or "").strip()
+                    return path if path else None
+        except:
+            pass
+        return None
+
+    def _save_folder_path(self, folder_path):
+        try:
+            parent = os.path.dirname(LAST_FOLDER_FILE)
+            if parent and not os.path.exists(parent):
+                os.makedirs(parent)
+            with open(LAST_FOLDER_FILE, "w") as f:
+                f.write(folder_path or "")
+        except:
+            pass
+
+    def set_folder_path(self, folder_path):
+        self.folder_path_tb.Text = folder_path
+        self.load_families_from_folder(folder_path)
+        if os.path.exists(folder_path):
+            self._save_folder_path(folder_path)
+            self.set_status(DEFAULT_STATUS_MESSAGE)
 
     def on_loaded(self, sender, args):
         self.load_families_from_folder(self.folder_path_tb.Text)
@@ -1067,15 +1120,11 @@ class FamilyViewerPane(forms.WPFPanel):
         if dlg.ShowDialog() == DialogResult.OK:
             selected_folder = dlg.SelectedPath
             if selected_folder:
-                self.folder_path_tb.Text = selected_folder
-                self.load_families_from_folder(selected_folder)
-                self.set_status(DEFAULT_STATUS_MESSAGE)
+                self.set_folder_path(selected_folder)
 
     def on_default_path_clicked(self, sender, args):
         if os.path.exists(DEFAULT_FAMILY_FOLDER):
-            self.folder_path_tb.Text = DEFAULT_FAMILY_FOLDER
-            self.load_families_from_folder(DEFAULT_FAMILY_FOLDER)
-            self.set_status(DEFAULT_STATUS_MESSAGE)
+            self.set_folder_path(DEFAULT_FAMILY_FOLDER)
         else:
             self.set_status("Default folder path does not exist.")
 
@@ -1108,6 +1157,7 @@ class FamilyViewerPane(forms.WPFPanel):
 
             self._all_families = sorted(self._all_families, key=family_sort_key)
             self.apply_search_filter()
+            self._save_folder_path(folder_path)
             self.set_status(DEFAULT_STATUS_MESSAGE)
         except Exception as ex:
             self.set_status("Error loading folder: {}".format(str(ex)))

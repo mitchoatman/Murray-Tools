@@ -164,7 +164,6 @@ def build_section_transform_from_plan(curve, view, pick_point):
     side_vec = pick_point - on_curve
     side_vec = side_vec - y_axis.Multiply(side_vec.DotProduct(y_axis))
 
-    # keeps same side behavior as your fab-part version
     if side_vec.GetLength() > 1e-6 and side_vec.DotProduct(z_guess) > 0:
         z_axis = z_guess.Negate()
     else:
@@ -228,7 +227,13 @@ try:
     try:
         t.Start()
         section_view = DB.ViewSection.CreateSection(doc, section_type.Id, box)
-        section_view.DetailLevel = DB.ViewDetailLevel.Fine
+        
+        # Safely attempt to set detail level, skipping if it fails
+        try:
+            section_view.DetailLevel = DB.ViewDetailLevel.Fine
+        except:
+            pass
+            
         t.Commit()
     except:
         if t.HasStarted():
