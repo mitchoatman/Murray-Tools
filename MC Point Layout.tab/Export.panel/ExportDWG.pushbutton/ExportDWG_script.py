@@ -24,6 +24,30 @@ from Autodesk.Revit.UI import (
 # Get the current Revit document
 doc = __revit__.ActiveUIDocument.Document
 
+# Settings storage configuration (shared with your points exporter)
+SETTINGS_FOLDER = r"C:\Temp"
+SETTINGS_FILE = os.path.join(SETTINGS_FOLDER, "Ribbon_ExportPoints.txt")
+
+
+def load_dwg_output_path(default_fallback_path):
+    """Loads the previously saved output path from settings if available."""
+    try:
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, "r") as f:
+                for line in f.readlines():
+                    line = line.strip()
+                    if line.startswith("output_path="):
+                        path_val = line.split("=", 1)[1].strip()
+                        if path_val:
+                            # Swap extension to .dwg if the setting pointed to a .csv
+                            base_dir = os.path.dirname(path_val)
+                            file_name = os.path.splitext(os.path.basename(default_fallback_path))[0] + ".dwg"
+                            if base_dir and os.path.exists(base_dir):
+                                return os.path.join(base_dir, file_name)
+    except:
+        pass
+    return default_fallback_path
+
 
 def show_export_success_dialog(filepath):
     try:
@@ -85,7 +109,7 @@ def export_to_dwg(view, output_path):
 
 def main():
     """
-    Main function to export the active floor plan view to DWG.
+    Main function to export the active floor plan view to DWG using saved paths.
     """
     active_view = doc.ActiveView
     if not active_view:
@@ -102,7 +126,16 @@ def main():
 
     # Sanitize the view name for the default file name
     default_file_name = active_view.Name.replace(":", "_").replace("/", "_").replace("\\", "_") + ".dwg"
-    default_folder = os.path.join(os.environ['USERPROFILE'], 'Desktop')
+    
+    # Fallback to Desktop if settings folder/file doesn't exist yet
+    desktop_folder = os.path.join(os.path.expanduser("~"), "Desktop")
+    fallback_path = os.path.join(desktop_folder, default_file_name)
+
+    # Retrieve path from settings if available, keeping the target folder preference
+    target_path = load_dwg_output_path(fallback_path)
+    default_folder = os.path.dirname(target_path)
+    if not os.path.exists(default_folder):
+        default_folder = desktop_folder
 
     # File save dialog for DWG export using .NET
     save_dialog = SaveFileDialog()

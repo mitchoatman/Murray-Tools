@@ -38,19 +38,37 @@ def safe_set_parameter(element, param_name, new_value):
     if element is None:
         return
     try:
-        # Get current value using the most appropriate getter
+        param = element.LookupParameter(param_name)
+        if not param:
+            return
+            
+        # Get current value based on storage type to ensure accurate comparison
         current = None
-        try:
-            current = get_parameter_value_by_name_AsString(element, param_name)
-        except:
-            try:
-                current = get_parameter_value_by_name_AsValueString(element, param_name)
-            except:
-                pass
-        if str(current) != str(new_value):
-            set_parameter_by_name(element, param_name, new_value)
-    except:
-        # Fallback to original behavior
+        storage_type = param.StorageType
+        
+        from Autodesk.Revit.DB import StorageType
+        if storage_type == StorageType.String:
+            current = param.AsString() or ""
+            new_value_str = str(new_value) if new_value is not None else ""
+            if current != new_value_str:
+                set_parameter_by_name(element, param_name, new_value)
+        elif storage_type == StorageType.Double:
+            current = param.AsDouble()
+            new_val_float = float(new_value) if new_value is not None else 0.0
+            if current is None or abs(current - new_val_float) > 1e-6:
+                set_parameter_by_name(element, param_name, new_value)
+        elif storage_type == StorageType.Integer:
+            current = param.AsInteger()
+            new_val_int = int(new_value) if new_value is not None else 0
+            if current != new_val_int:
+                set_parameter_by_name(element, param_name, new_value)
+        else:
+            # Fallback for other types
+            current = param.AsValueString() or ""
+            if str(current) != str(new_value):
+                set_parameter_by_name(element, param_name, new_value)
+    except Exception:
+        # Fallback to original behavior if inspection fails
         try:
             set_parameter_by_name(element, param_name, new_value)
         except:

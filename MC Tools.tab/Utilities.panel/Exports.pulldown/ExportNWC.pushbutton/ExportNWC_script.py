@@ -133,28 +133,35 @@ def get_or_update_material(doc, material_name, color):
             needs_update = mat_color.Red != color.Red or mat_color.Green != color.Green or mat_color.Blue != color.Blue
             is_insulation = material_name.lower() in ['insulation_material', 'fp_insulation', 'insulation', 'mp insulation']
             if needs_update or (is_insulation and mat.Transparency != 50):
+                trans = Transaction(doc, "Update Material Color")
+                trans.Start()
                 try:
-                    with revit.Transaction("Update Material Color"):
-                        mat.Color = color
-                        if is_insulation:
-                            mat.Transparency = 50
+                    mat.Color = color
+                    if is_insulation:
+                        mat.Transparency = 50
+                    trans.Commit()
                     return mat.Id
                 except Exception as e:
+                    trans.RollBack()
                     TaskDialog.Show("Error", "Failed to update material {}: {}".format(material_name, str(e)))
                     continue
             return mat.Id
+
+    trans = Transaction(doc, "Create Material")
+    trans.Start()
     try:
-        with revit.Transaction("Create Material"):
-            new_mat_id = Material.Create(doc, material_name)
-            new_mat = doc.GetElement(new_mat_id)
-            if new_mat:
-                new_mat.Color = color
-                if material_name.lower() in ['insulation_material', 'fp_insulation', 'insulation', 'mp insulation']:
-                    new_mat.Transparency = 50
-                new_mat.SurfaceForegroundPatternId = DB.ElementId.InvalidElementId
-                new_mat.SurfaceBackgroundPatternId = DB.ElementId.InvalidElementId
-            return new_mat_id
+        new_mat_id = Material.Create(doc, material_name)
+        new_mat = doc.GetElement(new_mat_id)
+        if new_mat:
+            new_mat.Color = color
+            if material_name.lower() in ['insulation_material', 'fp_insulation', 'insulation', 'mp insulation']:
+                new_mat.Transparency = 50
+            new_mat.SurfaceForegroundPatternId = DB.ElementId.InvalidElementId
+            new_mat.SurfaceBackgroundPatternId = DB.ElementId.InvalidElementId
+        trans.Commit()
+        return new_mat_id
     except Exception as e:
+        trans.RollBack()
         TaskDialog.Show("Error", "Failed to create material {}: {}".format(material_name, str(e)))
         return None
 
@@ -163,12 +170,12 @@ for view, file_name in view_file_mapping:
     filter_material_mapping = {}
     elements_to_update = {}
 
-    with revit.Transaction("Analyze View Filters"):
+    # Read-only view analysis (No transaction needed here)
+    try:
         filters = view.GetFilters()
         for filter_id in filters:
             filter_element = doc.GetElement(filter_id)
             filter_name = filter_element.Name
-            # Skip filters with insulation-related names
             if filter_name.lower() in ['insulation_material', 'fp_insulation', 'insulation', 'mp insulation']:
                 continue
             override_settings = view.GetFilterOverrides(filter_id)
@@ -188,6 +195,9 @@ for view, file_name in view_file_mapping:
                     fab_parts = FilteredElementCollector(doc, view.Id).OfClass(FabricationPart).WherePasses(filter_rules).ToElements()
                     for element in fab_parts:
                         elements_to_update[element.Id] = material_id
+    except Exception as e:
+        TaskDialog.Show("Error", "Error analyzing view filters: {}".format(str(e)))
+        continue
 
     categories = doc.Settings.Categories
     pipe_insulation_category = categories.get_Item(BuiltInCategory.OST_FabricationPipeworkInsulation)
@@ -197,54 +207,60 @@ for view, file_name in view_file_mapping:
     try:
         tg.Start()
         
-        with revit.Transaction("Assign Materials to Parts"):
-            assigned_count = 0
-            element_assignment_errors = []
+        assign_trans = Transaction(doc, "Assign Materials to Parts")
+        assign_trans.Start()
+        assigned_count = 0
+        element_assignment_errors = []
+        
+        for element_id, material_id in elements_to_update.items():
+            element = doc.GetElement(element_id)
+            if element is None or element.Id == ElementId.InvalidElementId:
+                element_assignment_errors.append("Element ID {} is invalid.".format(element_id.IntegerValue))
+                continue
             
-            for element_id, material_id in elements_to_update.items():
-                element = doc.GetElement(element_id)
-                if element is None or element.Id == ElementId.InvalidElementId:
-                    element_assignment_errors.append("Element ID {} is invalid.".format(element_id.IntegerValue))
-                    continue
-                
-                param = element.LookupParameter(SHARED_PARAM_NAME)
-                if param is None:
-                    element_assignment_errors.append("Element {} in view {} does not have parameter {}.".format(element_id.IntegerValue, view.Name, SHARED_PARAM_NAME))
-                    continue
-                
-                try:
-                    current_material_id = param.AsElementId()
-                    current_material_name = doc.GetElement(current_material_id).Name if current_material_id and current_material_id != ElementId.InvalidElementId else "None"
-                    new_material_name = doc.GetElement(material_id).Name if material_id else "None"
-                    
-                    if current_material_id != material_id:
-                        param.Set(material_id)
-                        assigned_count += 1
-                except Exception as e:
-                    element_assignment_errors.append("Failed to assign material {} to element {} in view {}: {}".format(new_material_name, element_id.IntegerValue, view.Name, str(e)))            
-                    if element_assignment_errors:
-                        TaskDialog.Show("Error", "Element material assignment errors in view {}:\n{}".format(view.Name, "\n".join(element_assignment_errors)))
+            param = element.LookupParameter(SHARED_PARAM_NAME)
+            if param is None:
+                element_assignment_errors.append("Element {} in view {} does not have parameter {}.".format(element_id.IntegerValue, view.Name, SHARED_PARAM_NAME))
+                continue
             
-            default_color = DB.Color(128, 128, 128)
-            insulation_material_id = get_or_update_material(doc, "Insulation_Material", default_color)
-            if insulation_material_id:
-                if pipe_insulation_category:
-                    current_material = pipe_insulation_category.Material
-                    if current_material is None or current_material.Id != insulation_material_id:
-                        try:
-                            pipe_insulation_category.Material = doc.GetElement(insulation_material_id)
-                        except Exception as e:
-                            TaskDialog.Show("Error", "Failed to set material for OST_FabricationPipeworkInsulation: {}".format(str(e)))
+            try:
+                current_material_id = param.AsElementId()
+                new_material_name = doc.GetElement(material_id).Name if material_id else "None"
                 
-                if duct_insulation_category:
-                    current_material = duct_insulation_category.Material
-                    if current_material is None or current_material.Id != insulation_material_id:
-                        try:
-                            duct_insulation_category.Material = doc.GetElement(insulation_material_id)
-                        except Exception as e:
-                            TaskDialog.Show("Error", "Failed to set material for OST_FabricationDuctworkInsulation: {}".format(str(e)))
-            else:
-                TaskDialog.Show("Error", "Failed to create or retrieve material 'Insulation_Material'.")
+                if current_material_id != material_id:
+                    param.Set(material_id)
+                    assigned_count += 1
+            except Exception as e:
+                element_assignment_errors.append("Failed to assign material to element {} in view {}: {}".format(element_id.IntegerValue, view.Name, str(e)))
+        
+        if element_assignment_errors:
+            TaskDialog.Show("Error", "Element material assignment errors in view {}:\n{}".format(view.Name, "\n".join(element_assignment_errors)))
+        
+        assign_trans.Commit()
+        
+        ins_trans = Transaction(doc, "Assign Insulation Materials")
+        ins_trans.Start()
+        default_color = DB.Color(128, 128, 128)
+        insulation_material_id = get_or_update_material(doc, "Insulation_Material", default_color)
+        if insulation_material_id:
+            if pipe_insulation_category:
+                current_material = pipe_insulation_category.Material
+                if current_material is None or current_material.Id != insulation_material_id:
+                    try:
+                        pipe_insulation_category.Material = doc.GetElement(insulation_material_id)
+                    except Exception as e:
+                        TaskDialog.Show("Error", "Failed to set material for OST_FabricationPipeworkInsulation: {}".format(str(e)))
+            
+            if duct_insulation_category:
+                current_material = duct_insulation_category.Material
+                if current_material is None or current_material.Id != insulation_material_id:
+                    try:
+                        duct_insulation_category.Material = doc.GetElement(insulation_material_id)
+                    except Exception as e:
+                        TaskDialog.Show("Error", "Failed to set material for OST_FabricationDuctworkInsulation: {}".format(str(e)))
+        else:
+            TaskDialog.Show("Error", "Failed to create or retrieve material 'Insulation_Material'.")
+        ins_trans.Commit()
         
         tg.Assimilate()
         

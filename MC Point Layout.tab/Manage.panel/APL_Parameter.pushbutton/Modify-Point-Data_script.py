@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 from Autodesk.Revit.DB import Transaction, FilteredElementCollector, BuiltInCategory
-from Autodesk.Revit.UI import TaskDialog
+from Autodesk.Revit.UI import TaskDialog, UIThemeManager, UITheme
 from Autodesk.Revit.UI.Selection import ObjectType
 from Parameters.Get_Set_Params import (
     set_parameter_by_name,
@@ -25,6 +25,7 @@ from System.Windows.Controls import (
     Button, TextBox, CheckBox, Grid,
     RowDefinition, ColumnDefinition, Label
 )
+from System.Windows.Media import SolidColorBrush, Color as MediaColor
 
 Shared_Params()
 
@@ -184,6 +185,8 @@ class UpdateAPLForm(object):
         self._window.WindowStartupLocation = WindowStartupLocation.CenterScreen
         self.values = {}
 
+        self.apply_revit_theme()
+
         grid = Grid()
         grid.Margin = Thickness(12)
 
@@ -211,6 +214,7 @@ class UpdateAPLForm(object):
         label_pre = Label()
         label_pre.Content = "Prefix:"
         label_pre.Margin = row_margin
+        label_pre.SetResourceReference(Label.ForegroundProperty, "TextForegroundBrush")
         Grid.SetRow(label_pre, 0)
         Grid.SetColumn(label_pre, 0)
         grid.Children.Add(label_pre)
@@ -221,6 +225,9 @@ class UpdateAPLForm(object):
         self.textbox_pre.Width = 135
         self.textbox_pre.IsEnabled = False
         self.textbox_pre.Margin = row_margin
+        self.textbox_pre.SetResourceReference(TextBox.BackgroundProperty, "ControlBackgroundBrush")
+        self.textbox_pre.SetResourceReference(TextBox.ForegroundProperty, "TextForegroundBrush")
+        self.textbox_pre.SetResourceReference(TextBox.BorderBrushProperty, "BorderColorBrush")
         Grid.SetRow(self.textbox_pre, 0)
         Grid.SetColumn(self.textbox_pre, 1)
         grid.Children.Add(self.textbox_pre)
@@ -231,6 +238,9 @@ class UpdateAPLForm(object):
         enable_pre.Height = 22
         enable_pre.Margin = row_margin
         enable_pre.HorizontalAlignment = HorizontalAlignment.Center
+        enable_pre.SetResourceReference(Button.BackgroundProperty, "ButtonBackgroundBrush")
+        enable_pre.SetResourceReference(Button.ForegroundProperty, "TextForegroundBrush")
+        enable_pre.SetResourceReference(Button.BorderBrushProperty, "BorderColorBrush")
         enable_pre.Click += lambda sender, args: self.ToggleTextBox(self.textbox_pre, enable_pre)
         Grid.SetRow(enable_pre, 0)
         Grid.SetColumn(enable_pre, 2)
@@ -240,6 +250,7 @@ class UpdateAPLForm(object):
         label_desc = Label()
         label_desc.Content = "Description:"
         label_desc.Margin = row_margin
+        label_desc.SetResourceReference(Label.ForegroundProperty, "TextForegroundBrush")
         Grid.SetRow(label_desc, 1)
         Grid.SetColumn(label_desc, 0)
         grid.Children.Add(label_desc)
@@ -250,6 +261,9 @@ class UpdateAPLForm(object):
         self.textbox_desc.Width = 135
         self.textbox_desc.IsEnabled = False
         self.textbox_desc.Margin = row_margin
+        self.textbox_desc.SetResourceReference(TextBox.BackgroundProperty, "ControlBackgroundBrush")
+        self.textbox_desc.SetResourceReference(TextBox.ForegroundProperty, "TextForegroundBrush")
+        self.textbox_desc.SetResourceReference(TextBox.BorderBrushProperty, "BorderColorBrush")
         Grid.SetRow(self.textbox_desc, 1)
         Grid.SetColumn(self.textbox_desc, 1)
         grid.Children.Add(self.textbox_desc)
@@ -260,6 +274,9 @@ class UpdateAPLForm(object):
         enable_desc.Height = 22
         enable_desc.Margin = row_margin
         enable_desc.HorizontalAlignment = HorizontalAlignment.Center
+        enable_desc.SetResourceReference(Button.BackgroundProperty, "ButtonBackgroundBrush")
+        enable_desc.SetResourceReference(Button.ForegroundProperty, "TextForegroundBrush")
+        enable_desc.SetResourceReference(Button.BorderBrushProperty, "BorderColorBrush")
         enable_desc.Click += lambda sender, args: self.ToggleTextBox(self.textbox_desc, enable_desc)
         Grid.SetRow(enable_desc, 1)
         Grid.SetColumn(enable_desc, 2)
@@ -269,6 +286,7 @@ class UpdateAPLForm(object):
         self.checkbox_slv = CheckBox()
         self.checkbox_slv.Content = "Add Size and Length to Sleeve Description"
         self.checkbox_slv.Margin = checkbox_margin
+        self.checkbox_slv.SetResourceReference(CheckBox.ForegroundProperty, "TextForegroundBrush")
         Grid.SetRow(self.checkbox_slv, 2)
         Grid.SetColumn(self.checkbox_slv, 0)
         Grid.SetColumnSpan(self.checkbox_slv, 3)
@@ -278,6 +296,7 @@ class UpdateAPLForm(object):
         self.checkbox_familydesc = CheckBox()
         self.checkbox_familydesc.Content = "Use Family Name for Description"
         self.checkbox_familydesc.Margin = checkbox_margin
+        self.checkbox_familydesc.SetResourceReference(CheckBox.ForegroundProperty, "TextForegroundBrush")
         Grid.SetRow(self.checkbox_familydesc, 3)
         Grid.SetColumn(self.checkbox_familydesc, 0)
         Grid.SetColumnSpan(self.checkbox_familydesc, 3)
@@ -290,6 +309,9 @@ class UpdateAPLForm(object):
         button_ok.Height = 25
         button_ok.Margin = Thickness(0, 6, 0, 0)
         button_ok.HorizontalAlignment = HorizontalAlignment.Center
+        button_ok.SetResourceReference(Button.BackgroundProperty, "ButtonBackgroundBrush")
+        button_ok.SetResourceReference(Button.ForegroundProperty, "TextForegroundBrush")
+        button_ok.SetResourceReference(Button.BorderBrushProperty, "BorderColorBrush")
         Grid.SetRow(button_ok, 4)
         Grid.SetColumn(button_ok, 0)
         Grid.SetColumnSpan(button_ok, 3)
@@ -297,6 +319,30 @@ class UpdateAPLForm(object):
         grid.Children.Add(button_ok)
 
         self._window.Content = grid
+
+    def apply_revit_theme(self):
+        try:
+            current_theme = UIThemeManager.CurrentTheme
+            is_dark = (current_theme == UITheme.Dark)
+
+            bg_hex = "#FF3B4453" if is_dark else "#FFF5F5F5"
+            text_hex = "#FFDFDFDF" if is_dark else "#FF333333"
+            subtext_hex = "#FF999999" if is_dark else "#FF666666"
+            ctrl_bg_hex = "#FF222933" if is_dark else "#FFFFFFFF"
+            btn_bg_hex = "#FF222933" if is_dark else "#FFEFEFEF"
+            border_hex = "#FF363B40" if is_dark else "#FFD0D0D0"
+
+            res = self._window.Resources
+            res["PageBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["TextForegroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(text_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["SubTextForegroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(subtext_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["ControlBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(ctrl_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["ButtonBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(btn_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["BorderColorBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(border_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+
+            self._window.Background = res["PageBackgroundBrush"]
+        except Exception:
+            pass
 
     def ToggleTextBox(self, textbox, button):
         textbox.IsEnabled = not textbox.IsEnabled

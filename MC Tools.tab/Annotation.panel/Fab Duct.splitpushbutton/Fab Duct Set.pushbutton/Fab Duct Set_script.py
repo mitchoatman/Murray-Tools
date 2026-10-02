@@ -1,7 +1,4 @@
 
-__title__ = 'Fab Duct Set'
-__doc__ = """This will Insert the Fabrication Duct Set Tag Family into the Active View.(If the Family is already loaded into the project)"""
-
 import Autodesk
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, BuiltInCategory, FamilySymbol, Family

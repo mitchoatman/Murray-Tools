@@ -10,10 +10,11 @@ clr.AddReference('WindowsBase')
 from System.Windows import Window, Thickness, HorizontalAlignment, WindowStartupLocation, ResizeMode
 from System.Windows.Controls import Grid, RowDefinition, Label, TextBox, Button, StackPanel, Orientation, RadioButton
 from System.Windows.Interop import WindowInteropHelper
+from System.Windows.Media import SolidColorBrush, Color as MediaColor
 
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import FilteredElementCollector, Transaction, Family, ViewType
-from Autodesk.Revit.UI import TaskDialog
+from Autodesk.Revit.UI import TaskDialog, UIThemeManager, UITheme
 from Autodesk.Revit.UI.Events import TaskDialogShowingEventArgs
 from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
 
@@ -317,6 +318,8 @@ def build_point_number(mode, custom_value, y_grid_name, x_grid_name):
 
 class ControlPointWindow(Window):
     def __init__(self, revit_window_handle, default_number, default_name, default_mode):
+        Window.__init__(self)
+
         self.Title = "Set Control Point Data"
         self.Width = 320
         self.Height = 255
@@ -328,8 +331,33 @@ class ControlPointWindow(Window):
         self.naming_mode = default_mode
         self.confirmed = False
 
+        self.apply_revit_theme()
         self.InitializeComponents()
         WindowInteropHelper(self).Owner = revit_window_handle
+
+    def apply_revit_theme(self):
+        try:
+            current_theme = UIThemeManager.CurrentTheme
+            is_dark = (current_theme == UITheme.Dark)
+
+            bg_hex = "#FF3B4453" if is_dark else "#FFF5F5F5"
+            text_hex = "#FFDFDFDF" if is_dark else "#FF333333"
+            subtext_hex = "#FF999999" if is_dark else "#FF666666"
+            ctrl_bg_hex = "#FF222933" if is_dark else "#FFFFFFFF"
+            btn_bg_hex = "#FF222933" if is_dark else "#FFEFEFEF"
+            border_hex = "#FF363B40" if is_dark else "#FFD0D0D0"
+
+            res = self.Resources
+            res["PageBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["TextForegroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(text_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["SubTextForegroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(subtext_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["ControlBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(ctrl_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["ButtonBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(btn_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["BorderColorBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(border_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+
+            self.Background = res["PageBackgroundBrush"]
+        except Exception:
+            pass
 
     def InitializeComponents(self):
         grid = Grid()
@@ -349,11 +377,12 @@ class ControlPointWindow(Window):
 
         row_index = 0
 
-        label_mode = Label()
-        label_mode.Content = "Point Number Mode:"
-        label_mode.Margin = Thickness(10, 5, 10, 2)
-        Grid.SetRow(label_mode, row_index)
-        grid.Children.Add(label_mode)
+        self.label_mode = Label()
+        self.label_mode.Content = "Point Number Mode:"
+        self.label_mode.Margin = Thickness(10, 5, 10, 2)
+        self.label_mode.SetResourceReference(Label.ForegroundProperty, "TextForegroundBrush")
+        Grid.SetRow(self.label_mode, row_index)
+        grid.Children.Add(self.label_mode)
         row_index += 1
 
         radio_panel = StackPanel()
@@ -366,12 +395,14 @@ class ControlPointWindow(Window):
         self.radio_append = RadioButton()
         self.radio_append.Content = "Append Grid Names"
         self.radio_append.Margin = Thickness(0, 0, 20, 0)
+        self.radio_append.SetResourceReference(RadioButton.ForegroundProperty, "TextForegroundBrush")
         self.radio_append.Checked += self.on_mode_checked
         radio_panel.Children.Add(self.radio_append)
 
         self.radio_custom = RadioButton()
         self.radio_custom.Content = "Custom"
         self.radio_custom.Margin = Thickness(0, 0, 0, 0)
+        self.radio_custom.SetResourceReference(RadioButton.ForegroundProperty, "TextForegroundBrush")
         self.radio_custom.Checked += self.on_mode_checked
         radio_panel.Children.Add(self.radio_custom)
 
@@ -380,6 +411,7 @@ class ControlPointWindow(Window):
         self.label_number = Label()
         self.label_number.Content = "Point Number:"
         self.label_number.Margin = Thickness(10, 5, 10, 5)
+        self.label_number.SetResourceReference(Label.ForegroundProperty, "TextForegroundBrush")
         Grid.SetRow(self.label_number, row_index)
         grid.Children.Add(self.label_number)
         row_index += 1
@@ -387,6 +419,9 @@ class ControlPointWindow(Window):
         self.textbox_number = TextBox()
         self.textbox_number.Text = self.point_number
         self.textbox_number.Margin = Thickness(10, 0, 10, 5)
+        self.textbox_number.SetResourceReference(TextBox.BackgroundProperty, "ControlBackgroundBrush")
+        self.textbox_number.SetResourceReference(TextBox.ForegroundProperty, "TextForegroundBrush")
+        self.textbox_number.SetResourceReference(TextBox.BorderBrushProperty, "BorderColorBrush")
         Grid.SetRow(self.textbox_number, row_index)
         grid.Children.Add(self.textbox_number)
         row_index += 1
@@ -399,6 +434,7 @@ class ControlPointWindow(Window):
         self.label_name = Label()
         self.label_name.Content = "Point Description:"
         self.label_name.Margin = Thickness(10, 5, 10, 5)
+        self.label_name.SetResourceReference(Label.ForegroundProperty, "TextForegroundBrush")
         Grid.SetRow(self.label_name, row_index)
         grid.Children.Add(self.label_name)
         row_index += 1
@@ -406,6 +442,9 @@ class ControlPointWindow(Window):
         self.textbox_name = TextBox()
         self.textbox_name.Text = self.point_name
         self.textbox_name.Margin = Thickness(10, 0, 10, 5)
+        self.textbox_name.SetResourceReference(TextBox.BackgroundProperty, "ControlBackgroundBrush")
+        self.textbox_name.SetResourceReference(TextBox.ForegroundProperty, "TextForegroundBrush")
+        self.textbox_name.SetResourceReference(TextBox.BorderBrushProperty, "BorderColorBrush")
         Grid.SetRow(self.textbox_name, row_index)
         grid.Children.Add(self.textbox_name)
         row_index += 1
@@ -422,6 +461,9 @@ class ControlPointWindow(Window):
         self.place_button.Width = 75
         self.place_button.Height = 25
         self.place_button.Margin = Thickness(5, 0, 5, 0)
+        self.place_button.SetResourceReference(Button.BackgroundProperty, "ButtonBackgroundBrush")
+        self.place_button.SetResourceReference(Button.ForegroundProperty, "TextForegroundBrush")
+        self.place_button.SetResourceReference(Button.BorderBrushProperty, "BorderColorBrush")
         self.place_button.Click += self.on_place_click
         button_panel.Children.Add(self.place_button)
 
@@ -430,6 +472,9 @@ class ControlPointWindow(Window):
         self.close_button.Width = 75
         self.close_button.Height = 25
         self.close_button.Margin = Thickness(5, 0, 5, 0)
+        self.close_button.SetResourceReference(Button.BackgroundProperty, "ButtonBackgroundBrush")
+        self.close_button.SetResourceReference(Button.ForegroundProperty, "TextForegroundBrush")
+        self.close_button.SetResourceReference(Button.BorderBrushProperty, "BorderColorBrush")
         self.close_button.Click += self.on_close_click
         button_panel.Children.Add(self.close_button)
 

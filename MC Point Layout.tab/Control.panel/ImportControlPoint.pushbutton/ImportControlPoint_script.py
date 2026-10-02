@@ -9,7 +9,7 @@ clr.AddReference('System')
 clr.AddReference('System.Drawing')
 clr.AddReference('System.Windows.Forms')
 
-from System.Drawing import Point, Size
+from System.Drawing import Point, Size, Color
 from System.Windows.Forms import (
     Form, Label, TextBox, Button, GroupBox, RadioButton,
     OpenFileDialog, DialogResult, FormStartPosition,
@@ -26,7 +26,7 @@ from Autodesk.Revit.DB import (
     XYZ,
     Structure
 )
-from Autodesk.Revit.UI import TaskDialog
+from Autodesk.Revit.UI import TaskDialog, UIThemeManager, UITheme
 from System import Environment
 
 doc = __revit__.ActiveUIDocument.Document
@@ -545,7 +545,43 @@ class ImportControlPointsForm(Form):
         self.import_order = settings.get("import_order", DEFAULT_IMPORT_ORDER)
         self.result_ok = False
 
+        self.apply_revit_theme()
         self.init_ui()
+
+    def apply_revit_theme(self):
+        try:
+            current_theme = UIThemeManager.CurrentTheme
+            is_dark = (current_theme == UITheme.Dark)
+
+            if is_dark:
+                self.BackColor = Color.FromArgb(59, 68, 83)      # #3B4453
+                self.ForeColor = Color.FromArgb(223, 223, 223)  # #DFDFDF
+            else:
+                self.BackColor = Color.FromArgb(245, 245, 245)  # #F5F5F5
+                self.ForeColor = Color.FromArgb(51, 51, 51)     # #333333
+        except:
+            pass
+
+    def apply_control_theme(self, ctrl):
+        try:
+            current_theme = UIThemeManager.CurrentTheme
+            is_dark = (current_theme == UITheme.Dark)
+
+            bg_dark = Color.FromArgb(34, 41, 51)     # #222933
+            fg_dark = Color.FromArgb(223, 223, 223)
+            bg_light = Color.FromArgb(255, 255, 255)
+            fg_light = Color.FromArgb(51, 51, 51)
+
+            if isinstance(ctrl, (Button, TextBox)):
+                ctrl.BackColor = bg_dark if is_dark else bg_light
+                ctrl.ForeColor = fg_dark if is_dark else fg_light
+            elif isinstance(ctrl, (Label, RadioButton, GroupBox, Form)):
+                ctrl.ForeColor = fg_dark if is_dark else fg_light
+
+            for child in ctrl.Controls:
+                self.apply_control_theme(child)
+        except:
+            pass
 
     def init_ui(self):
         lbl_type = Label()
@@ -668,6 +704,8 @@ class ImportControlPointsForm(Form):
         btn_template.Size = Size(template_w, button_h)
         btn_template.Click += self.on_make_template
         self.Controls.Add(btn_template)
+
+        self.apply_control_theme(self)
 
     def on_type_changed(self, sender, args):
         try:

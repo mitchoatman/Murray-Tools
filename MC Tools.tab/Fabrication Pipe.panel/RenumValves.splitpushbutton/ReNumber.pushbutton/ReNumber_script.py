@@ -1,127 +1,106 @@
+import os
+import re
+import clr
+clr.AddReference('PresentationFramework')
+clr.AddReference('PresentationCore')
+clr.AddReference('WindowsBase')
+from System.Windows import Window, Thickness, WindowStyle, ResizeMode, WindowStartupLocation, HorizontalAlignment
+from System.Windows.Controls import Label, TextBox, Button, StackPanel
 
-from collections import OrderedDict
+from Autodesk.Revit.DB import *
+from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
 
-from pyrevit.coreutils import applocales
-from pyrevit import revit, DB
-from pyrevit import coreutils
-from pyrevit import forms
-from pyrevit import script
+# Get document and active view directly from the Revit services API
+uiapp = __revit__
+uidoc = uiapp.ActiveUIDocument
+doc = uidoc.Document
+active_view = doc.ActiveView
 
+# Setup persistence file path in C:\Temp
+folder_name = "c:\\Temp"
+filepath = os.path.join(folder_name, 'Ribbon_ValveNumber.txt')
 
-logger = script.get_logger()
-output = script.get_output()
+if not os.path.exists(folder_name):
+    os.makedirs(folder_name)
 
-# shortcut for DB.BuiltInCategory
-BIC = DB.BuiltInCategory
+if not os.path.exists(filepath):
+    with open(filepath, 'w') as f:
+        f.write('1')
 
-
-class RNOpts(object):
-    """Renumber tool option"""
-    def __init__(self, cat, by_bicat=None):
-        self.bicat = cat
-        self._cat = revit.query.get_category(self.bicat)
-        self.by_bicat = by_bicat
-        self._by_cat = revit.query.get_category(self.by_bicat) if self.by_bicat else None
-
-    @property
-    def name(self):
-        """Renumber option name derived from option categories."""
-        if self.by_bicat:
-            applocale = applocales.get_host_applocale()
-            if 'english' in applocale.lang_name.lower():
-                return '{} by {}'.format(self._cat.Name, self._by_cat.Name)
-            return '{} <- {}'.format(self._cat.Name, self._by_cat.Name)
-        return self._cat.Name
-
-
-def toggle_element_selection_handles(target_view, bicat, state=True):
-    """Toggle handles for spatial elements"""
-    with revit.Transaction("Toggle handles"):
-        if state:
-            target_view.EnableTemporaryViewPropertiesMode(target_view.Id)
-
-        rr_cat = revit.query.get_subcategory(bicat, 'Reference')
-        try:
-            if rr_cat:
-                rr_cat.Visible[target_view] = state
-        except Exception as vex:
-            logger.debug(
-                'Failed changing category visibility for "%s" to "%s" on view "%s" | %s',
-                bicat, state, target_view.Name, str(vex)
-            )
-
-        rr_int = revit.query.get_subcategory(bicat, 'Interior Fill')
-        if not rr_int:
-            rr_int = revit.query.get_subcategory(bicat, 'Interior')
-
-        try:
-            if rr_int:
-                rr_int.Visible[target_view] = state
-        except Exception as vex:
-            logger.debug(
-                'Failed changing interior fill visibility for "%s" to "%s" on view "%s" | %s',
-                bicat, state, target_view.Name, str(vex)
-            )
-
-        if not state:
-            target_view.DisableTemporaryViewMode(
-                DB.TemporaryViewMode.TemporaryViewProperties
-            )
+# Read last used/next suggested number
+with open(filepath, 'r') as f:
+    last_number = f.read().strip()
+    if not last_number:
+        last_number = "1"
 
 
-class EasilySelectableElements(object):
-    """Toggle spatial element handles for easy selection."""
-    def __init__(self, target_view, bicat):
-        self.supported_categories = [
-            BIC.OST_Rooms,
-            BIC.OST_Areas,
-            BIC.OST_MEPSpaces
-        ]
-        self.target_view = target_view
-        self.bicat = bicat
+class NumberInputForm(Window):
+    """Simple WPF input form using StackPanel for starting number."""
+    def __init__(self, initial_value="1"):
+        self.Title = "ReNumber FP_Valve Number"
+        self.Width = 300
+        self.Height = 170
+        self.WindowStyle = WindowStyle.SingleBorderWindow
+        self.ResizeMode = ResizeMode.NoResize
+        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
+        self.result_value = None
 
-    def __enter__(self):
-        if self.bicat in self.supported_categories:
-            toggle_element_selection_handles(self.target_view, self.bicat)
-        return self
+        panel = StackPanel()
+        panel.Margin = Thickness(10)
+        self.Content = panel
 
-    def __exit__(self, exception, exception_value, traceback):
-        if self.bicat in self.supported_categories:
-            toggle_element_selection_handles(self.target_view, self.bicat, state=False)
+        label = Label()
+        label.Content = "Enter starting number:"
+        label.Margin = Thickness(0, 0, 0, 5)
+        panel.Children.Add(label)
+
+        self.textbox = TextBox()
+        self.textbox.Text = str(initial_value)
+        self.textbox.Height = 26
+        self.textbox.Margin = Thickness(0, 0, 0, 10)
+        panel.Children.Add(self.textbox)
+
+        ok_button = Button()
+        ok_button.Content = "OK"
+        ok_button.Width = 75
+        ok_button.Height = 25
+        ok_button.HorizontalAlignment = HorizontalAlignment.Center
+        ok_button.Click += self.ok_clicked
+        panel.Children.Add(ok_button)
+
+        self.textbox.Focus()
+        self.textbox.SelectAll()
+
+    def ok_clicked(self, sender, args):
+        if self.textbox.Text.strip():
+            self.result_value = self.textbox.Text.strip()
+            self.DialogResult = True
+            self.Close()
+        else:
+            self.textbox.Text = "1"
 
 
-def increment(number):
-    """Increment given item number by one."""
-    return coreutils.increment_str(str(number), expand=True)
+class AnyElementFilter(ISelectionFilter):
+    """Allows picking any element."""
+    def AllowElement(self, elem):
+        return True
+
+    def AllowReference(self, reference, position):
+        return True
 
 
-def get_number(target_element):
-    """Get target element number."""
-    if hasattr(target_element, "Number"):
-        try:
-            return target_element.Number
-        except Exception as ex:
-            logger.debug("Failed reading built-in Number on element %s | %s", target_element.Id, ex)
-
-    fp_num_param = target_element.LookupParameter('FP_Valve Number')
-    if fp_num_param and fp_num_param.HasValue:
-        try:
-            if fp_num_param.StorageType == DB.StorageType.String:
-                return fp_num_param.AsString()
-            elif fp_num_param.StorageType == DB.StorageType.Integer:
-                return str(fp_num_param.AsInteger())
-        except Exception as ex:
-            logger.debug("Failed reading FP_Valve Number on element %s | %s", target_element.Id, ex)
-
-    return None
+def increment(number_str):
+    """Native string incrementer without external dependencies."""
+    match = re.search(r'\d+$', number_str)
+    if match:
+        num_str = match.group(0)
+        next_num_str = str(int(num_str) + 1).zfill(len(num_str))
+        return number_str[:match.start()] + next_num_str
+    return number_str + "1"
 
 
 def set_number(target_element, new_number):
-    """Set target element number."""
-    if hasattr(target_element, "Number"):
-        target_element.Number = str(new_number)
-        return
-
+    """Set target element FP_Valve Number."""
     fp_num_param = target_element.LookupParameter('FP_Valve Number')
     if not fp_num_param:
         logger.debug("FP_Valve Number not found on element %s", target_element.Id)
@@ -132,9 +111,9 @@ def set_number(target_element, new_number):
         return
 
     try:
-        if fp_num_param.StorageType == DB.StorageType.String:
+        if fp_num_param.StorageType == StorageType.String:
             fp_num_param.Set(str(new_number))
-        elif fp_num_param.StorageType == DB.StorageType.Integer:
+        elif fp_num_param.StorageType == StorageType.Integer:
             fp_num_param.Set(int(new_number))
         else:
             logger.debug("Unsupported storage type for FP_Valve Number on element %s", target_element.Id)
@@ -146,7 +125,7 @@ def set_number(target_element, new_number):
 def mark_element_as_renumbered(target_view, element):
     """Override element VG to transparent and halftone."""
     try:
-        ogs = DB.OverrideGraphicSettings()
+        ogs = OverrideGraphicSettings()
         ogs.SetHalftone(True)
         ogs.SetSurfaceTransparency(100)
         target_view.SetElementOverrides(element.Id, ogs)
@@ -158,141 +137,78 @@ def unmark_renamed_elements(target_view, marked_element_ids):
     """Reset element VG to default."""
     for marked_element_id in marked_element_ids:
         try:
-            ogs = DB.OverrideGraphicSettings()
+            ogs = OverrideGraphicSettings()
             target_view.SetElementOverrides(marked_element_id, ogs)
         except Exception as ex:
             logger.debug("Failed to unmark element %s | %s", marked_element_id, ex)
 
 
-def get_elements_dict(builtin_cat):
-    """Collect number:id information about target elements."""
-    all_elements = revit.query.get_elements_by_categories([builtin_cat])
-    elements_dict = {}
-    for elem in all_elements:
+def pick_and_renumber(starting_index):
+    """Main sequential renumbering loop with visual tracking using native transactions."""
+    index = str(starting_index)
+    sel_filter = AnyElementFilter()
+    renumbered_element_ids = []
+    last_written_index = starting_index
+
+    while True:
         try:
-            num = get_number(elem)
-            if num:
-                elements_dict[num] = elem.Id
-        except Exception as ex:
-            logger.debug("Failed building number map for element %s | %s", elem.Id, ex)
-    return elements_dict
+            ref = uidoc.Selection.PickObject(
+                ObjectType.Element, 
+                sel_filter, 
+                "Select element to renumber (ESC to finish)"
+            )
+            if not ref:
+                break
 
-
-def find_replacement_number(existing_number, elements_dict):
-    """Find an appropriate replacement number for conflicting numbers."""
-    replaced_number = increment(existing_number)
-    while replaced_number in elements_dict:
-        replaced_number = increment(replaced_number)
-    return replaced_number
-
-
-def renumber_element(target_element, new_number, elements_dict):
-    """Renumber given element."""
-    target_id = target_element.Id
-
-    if new_number in elements_dict:
-        element_with_same_number = revit.doc.GetElement(elements_dict[new_number])
-        if element_with_same_number and element_with_same_number.Id != target_id:
-            current_number = get_number(element_with_same_number)
-            if current_number:
-                replaced_number = find_replacement_number(current_number, elements_dict)
-                set_number(element_with_same_number, replaced_number)
-                elements_dict[replaced_number] = element_with_same_number.Id
-                if current_number in elements_dict:
-                    elements_dict.pop(current_number, None)
-
-    existing_number = get_number(target_element)
-    if existing_number in elements_dict:
-        elements_dict.pop(existing_number, None)
-
-    logger.debug('Applying %s to element %s', new_number, target_id)
-    set_number(target_element, new_number)
-    elements_dict[str(new_number)] = target_id
-
-    refreshed_element = revit.doc.GetElement(target_id)
-    if refreshed_element:
-        mark_element_as_renumbered(revit.active_view, refreshed_element)
-
-
-def ask_for_starting_number(category_name):
-    """Ask user for starting number."""
-    return forms.ask_for_string(
-        prompt="Enter starting number",
-        title="ReNumber {}".format(category_name)
-    )
-
-
-def _unmark_collected(category_name, renumbered_element_ids):
-    with revit.Transaction("Unmark {}".format(category_name)):
-        unmark_renamed_elements(revit.active_view, renumbered_element_ids)
-
-
-def pick_and_renumber(rnopts, starting_index):
-    """Main renumbering routine for elements of given category."""
-    with revit.TransactionGroup("Renumber {}".format(rnopts.name)):
-        with EasilySelectableElements(revit.active_view, rnopts.bicat):
-            index = str(starting_index)
-            existing_elements_data = get_elements_dict(rnopts.bicat)
-            renumbered_element_ids = []
-
-            for picked_element in revit.get_picked_elements_by_category(
-                    rnopts.bicat,
-                    message="Select {} in order".format(rnopts.name.lower())):
-
-                try:
-                    picked_id = picked_element.Id
-                except Exception as ex:
-                    logger.debug("Picked element became invalid before transaction | %s", ex)
-                    continue
-
-                with revit.Transaction("Renumber {}".format(rnopts.name)):
-                    fresh_element = revit.doc.GetElement(picked_id)
-                    if not fresh_element:
-                        logger.debug("Element %s is no longer valid.", picked_id)
-                        continue
-
-                    renumber_element(fresh_element, index, existing_elements_data)
+            picked_id = ref.ElementId
+            
+            # Use native Revit API Transaction directly
+            t = Transaction(doc, "Set FP_Valve Number")
+            t.Start()
+            try:
+                fresh_element = doc.GetElement(picked_id)
+                if fresh_element:
+                    set_number(fresh_element, index)
+                    mark_element_as_renumbered(active_view, fresh_element)
                     renumbered_element_ids.append(picked_id)
+                    last_written_index = index
+                t.Commit()
+            except Exception as ex:
+                if t.HasStarted():
+                    t.RollBack()
+                logger.debug("Failed transaction: %s", ex)
 
-                index = increment(index)
+            index = increment(index)
 
-            _unmark_collected(rnopts.name, renumbered_element_ids)
+        except Exception:
+            # User pressed ESC or canceled selection
+            break
+
+    # Unmark/restore elements when done using native transaction
+    if renumbered_element_ids:
+        t_unmark = Transaction(doc, "Unmark renumbered elements")
+        t_unmark.Start()
+        try:
+            unmark_renamed_elements(active_view, renumbered_element_ids)
+            t_unmark.Commit()
+        except Exception:
+            if t_unmark.HasStarted():
+                t_unmark.RollBack()
+                
+        # Save the next sequential number after the last one written
+        next_suggested_number = increment(last_written_index)
+        with open(filepath, 'w') as f:
+            f.write(str(next_suggested_number))
 
 
-# ensure active view is a model view
-if forms.check_modelview(revit.active_view):
-    renumber_options = [
-        RNOpts(cat=BIC.OST_PipeAccessory),
-        RNOpts(cat=BIC.OST_FabricationPipework),
-        RNOpts(cat=BIC.OST_FabricationDuctwork),
-        RNOpts(cat=BIC.OST_StructuralFraming)
-    ]
-
-    if revit.active_view.ViewType == DB.ViewType.AreaPlan:
-        renumber_options.insert(1, RNOpts(cat=BIC.OST_Areas))
-
-    options_dict = OrderedDict()
-    for renumber_option in renumber_options:
-        options_dict[renumber_option.name] = renumber_option
-
-    selected_option_name = forms.CommandSwitchWindow.show(
-        options_dict,
-        message='Pick element type to renumber:',
-        width=400
-    )
-
-    if selected_option_name:
-        selected_option = options_dict[selected_option_name]
-
-        if selected_option.by_bicat:
-            if selected_option.bicat == BIC.OST_Doors \
-                    and selected_option.by_bicat == BIC.OST_Rooms:
-                with forms.WarningBar(title='Pick Pairs of Door and Room. ESCAPE to end.'):
-                    door_by_room_renumber(selected_option)
-        else:
-            starting_number = ask_for_starting_number(selected_option.name)
-            if starting_number:
-                with forms.WarningBar(
-                    title='Pick {} One by One. ESCAPE to end.'.format(selected_option.name)
-                ):
-                    pick_and_renumber(selected_option, starting_number)
+# Ensure active view is a valid model view before running (using native API)
+if active_view and not active_view.IsTemplate and active_view.ViewType not in [ViewType.DrawingSheet, ViewType.Schedule, ViewType.Report]:
+    form = NumberInputForm(last_number)
+    starting_number = None
+    if form.ShowDialog() and form.DialogResult:
+        starting_number = form.result_value
+    
+    if starting_number:
+        pick_and_renumber(starting_number)
+else:
+    TaskDialog.Show("ReNumber", "Please open a valid model view to run this tool.")

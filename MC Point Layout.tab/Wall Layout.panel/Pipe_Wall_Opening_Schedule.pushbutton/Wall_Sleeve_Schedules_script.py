@@ -1,7 +1,11 @@
-import clr
-clr.AddReference('RevitAPI')
-clr.AddReference('RevitAPIUI')
-clr.AddReference('RevitServices')
+# -*- coding: utf-8 -*-
+"""
+Wall Sleeve & Blockout Schedule Automation
+pyRevit / IronPython 2.7
+Revit 2022-2025
+"""
+
+from __future__ import print_function
 
 from Autodesk.Revit.DB import (
     BuiltInCategory,
@@ -15,9 +19,9 @@ from Autodesk.Revit.DB import (
     BuiltInParameter,
     ScheduleFilter,
     ScheduleFilterType,
-    SpecTypeId,
     ScheduleSortGroupField,
-    ScheduleSortOrder
+    ScheduleSortOrder,
+    RoundingMethod
 )
 from Autodesk.Revit.UI import TaskDialog
 import System
@@ -146,6 +150,38 @@ def add_field_by_name(definition, paramName, userColumnName, parameters):
     field.ColumnHeading = userColumnName
     return field
 
+def configure_sorting_and_grouping(schedule, parameters):
+    definition = schedule.Definition
+    
+    # Sequence matching: TS_Point_Number -> Diameter -> Type -> FP_Service Abbreviation
+    sort_fields = [
+        ("TS_Point_Number", True),
+        ("Diameter", True),
+        ("Type", True),
+        ("FP_Service Abbreviation", True)
+    ]
+    
+    try:
+        definition.ClearSortGroupFields()
+    except Exception:
+        pass
+        
+    for paramName, ascending in sort_fields:
+        if paramName == "Type":
+            paramId = ElementId(BuiltInParameter.ELEM_TYPE_PARAM)
+        else:
+            parameter = next((p for p in parameters if p.Name == paramName), None)
+            if parameter is None:
+                continue
+            paramId = parameter.Id
+            
+        field = get_schedule_field_by_parameter_id(definition, paramId)
+        if field is not None:
+            order = ScheduleSortOrder.Ascending if ascending else ScheduleSortOrder.Descending
+            definition.AddSortGroupField(
+                ScheduleSortGroupField(field.FieldId, order)
+            )
+
 def configure_schedule(schedule, fieldNames, family_filter, parameters):
     definition = schedule.Definition
     definition.IsItemized = False
@@ -160,11 +196,16 @@ def configure_schedule(schedule, fieldNames, family_filter, parameters):
             continue
 
         if paramName in ["Diameter", "Width", "Height"]:
-            fmt = doc.GetUnits().GetFormatOptions(SpecTypeId.Length)
-            fmt.UseDefault = False
-            if fmt.CanSuppressLeadingZeros():
-                fmt.SuppressLeadingZeros = True
-            field.SetFormatOptions(fmt)
+            try:
+                fmt = field.GetFormatOptions()
+                if fmt is not None:
+                    fmt.UseDefault = False
+                    if fmt.CanSuppressLeadingZeros():
+                        fmt.SuppressLeadingZeros = True
+                    fmt.RoundingMethod = RoundingMethod.Nearest
+                    field.SetFormatOptions(fmt)
+            except Exception:
+                pass
 
         if paramName == "TS_Point_Number":
             ts_point_field = field
@@ -175,15 +216,8 @@ def configure_schedule(schedule, fieldNames, family_filter, parameters):
         if paramName in ["Family", "Type"]:
             family_field = field
 
-    # Sort by TS_Point_Number
-    if ts_point_field is not None:
-        try:
-            definition.ClearSortGroupFields()
-        except:
-            pass
-        definition.AddSortGroupField(
-            ScheduleSortGroupField(ts_point_field.FieldId, ScheduleSortOrder.Ascending)
-        )
+    # Apply multi-level sorting and grouping
+    configure_sorting_and_grouping(schedule, parameters)
 
     # Filter by Sheet for Revit 2023+
     if is_revit_2023_or_newer:
@@ -245,6 +279,3 @@ for schedule_info in schedules:
         last_schedule = schedule
 
 t.Commit()
-
-if last_schedule:
-    open_view(last_schedule)

@@ -1,12 +1,4 @@
 
-__title__ = "Save\nFamilies"
-__doc__ = """Saves chosen families from the project
-
-1. Run the script.
-2. Choose families from the list.
-3. Pick a folder to save the families
-"""
-
 from pyrevit import revit, script, DB, forms
 import os.path as op
 selection = revit.get_selection()

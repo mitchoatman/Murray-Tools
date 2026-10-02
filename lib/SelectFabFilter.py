@@ -48,7 +48,7 @@ FAB_ONLY_SCAN_PROPS = [
     'Item Number', 'Bundle Number', 'REF BS Designation', 'REF Line Number',
     'Specification', 'Insulation Specification', 'Hanger Rod Size',
     'Valve Number', 'Beam Hanger', 'Product Entry', 'Alias', 'Cut Type',
-    'Part Material'
+    'Part Material', 'Pointload'
 ]
 
 ALL_SCAN_PROPS = [
@@ -373,6 +373,7 @@ PROPERTY_MAP = {
         get_param_value_string_instance_or_type(x, 'Insulation Specification') or
         (get_cached_insul_spec_abbrev(c, x.InsulationSpecification)
          if getattr(x, 'InsulationSpecification', 0) else None),
+    'Pointload': lambda x, c: get_param_value_string_instance_or_type(x, 'FP_Pointload') or get_param_string_instance_or_type(x, 'FP_Pointload'),
 }
 
 
@@ -1168,6 +1169,7 @@ def get_parameter_id(property_name):
         'TS_Point_Description': 'TS_Point_Description',
         'Alias': 'Alias',
         'Insulation Specification': 'Insulation Specification',
+        'FP_Pointload': 'FP_Pointload',
     }
     return param_map.get(property_name)
 

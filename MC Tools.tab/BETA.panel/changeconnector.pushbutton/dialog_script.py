@@ -1,22 +1,35 @@
 # -*- coding: utf-8 -*-
+
 from Autodesk.Revit.DB import (
     Transaction, SubTransaction, FabricationPart, FabricationConfiguration,
     TransactionStatus, ConnectorDomainType, ConnectorProfileType
 )
 from Autodesk.Revit.UI.Selection import ObjectType
-from Autodesk.Revit.UI import TaskDialog
+from Autodesk.Revit.UI import TaskDialog, TaskDialogCommonButtons, TaskDialogResult
 from System import Array
 
 import clr
 clr.AddReference('PresentationFramework')
 clr.AddReference('PresentationCore')
 clr.AddReference('WindowsBase')
-from System.Windows import Window, Thickness, WindowStyle, ResizeMode, WindowStartupLocation, HorizontalAlignment
-from System.Windows.Controls import Label, ComboBox, Button, Grid, RowDefinition, TextBox
+from System.Windows import (
+    Window, Thickness, WindowStyle, ResizeMode, WindowStartupLocation,
+    HorizontalAlignment, GridLength, GridUnitType
+)
+from System.Windows.Controls import (
+    Label, ComboBox, Button, Grid, RowDefinition, ColumnDefinition,
+    ScrollViewer, StackPanel, Orientation
+)
 
 uidoc = __revit__.ActiveUIDocument
 doc = uidoc.Document
 
+NO_CHANGE_LABEL = "-- No Change --"
+
+
+# ---------------------------------------------------------------------------
+# Fabrication connector helpers (unchanged from prior version)
+# ---------------------------------------------------------------------------
 
 def get_fabrication_connectors(part):
     results = []
@@ -46,11 +59,6 @@ def get_connector_name(config, connector_id):
 
 
 def get_candidate_connector_ids(config, fab_info):
-    """
-    Older-version-safe connector list:
-    use config.GetAllFabricationConnectorDefinitions(domain, shape)
-    based on the current connector's fabrication connector id.
-    """
     try:
         current_id = fab_info.BodyConnectorId
         if current_id and current_id > 0:
@@ -66,123 +74,150 @@ def get_candidate_connector_ids(config, fab_info):
         return []
 
 
-class SelectFromListForm(Window):
-    def __init__(self, title_text, label_text, item_names, button_text="OK"):
-        self.Title = title_text
-        self.Width = 420
-        self.Height = 170
+def get_connected_partner(conn):
+    """
+    [CONFIRM] see module docstring.
+    """
+    try:
+        if not conn.IsConnected:
+            return None
+        for other in conn.AllRefs:
+            try:
+                if other.Owner is not None and other.Owner.Id != conn.Owner.Id:
+                    return other
+            except:
+                pass
+    except:
+        pass
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Dialog: one row per connector end, each with its own new-type dropdown
+# ---------------------------------------------------------------------------
+
+class MultiEndConnectorForm(Window):
+    """
+    end_defs: list of dicts, one per connector end on the sample part, sorted
+    by FabricationIndex. Each dict:
+        {
+            'fab_index':   int,
+            'display':     "C1",
+            'current_id':  int,
+            'current_name':str,
+            'state':       "Connected" | "Open",
+            'label_to_id': {label_string: connector_id_or_None, ...}
+        }
+    Result after ShowDialog(): self.result = {fab_index: new_connector_id}
+    containing ONLY the ends where the user picked something other than
+    "No Change".
+    """
+
+    def __init__(self, end_defs, sample_part_name):
+        self.end_defs = end_defs
+        self.combos = {}
+        self.result = None
+
+        self.Title = "Update Fabrication Connectors"
+        self.Width = 640
+        row_height = 44
+        self.Height = 400
         self.WindowStyle = WindowStyle.SingleBorderWindow
         self.ResizeMode = ResizeMode.NoResize
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
-        self.result = None
 
-        grid = Grid()
-        grid.Margin = Thickness(12)
-        for _ in range(3):
-            grid.RowDefinitions.Add(RowDefinition())
-        self.Content = grid
+        outer = Grid()
+        outer.Margin = Thickness(12)
+        outer.RowDefinitions.Add(RowDefinition())               # header
+        rows_host_row = RowDefinition()
+        rows_host_row.Height = GridLength(1, GridUnitType.Star)
+        outer.RowDefinitions.Add(rows_host_row)                 # scrollable rows
+        outer.RowDefinitions.Add(RowDefinition())                # button row
+        self.Content = outer
 
-        label = Label()
-        label.Content = label_text
-        label.Margin = Thickness(0, -2, 0, 4)
-        Grid.SetRow(label, 0)
-        grid.Children.Add(label)
+        header = Label()
+        header.Content = (
+            "Ends and current values shown are from: {}\n"
+            "Set a new type only for the end(s) you want to change; leave "
+            "others as 'No Change'.".format(sample_part_name)
+        )
+        header.Margin = Thickness(0, 0, 0, 6)
+        Grid.SetRow(header, 0)
+        outer.Children.Add(header)
 
-        self.combo = ComboBox()
-        self.combo.ItemsSource = Array[object](item_names)
-        self.combo.SelectedIndex = 0 if item_names else -1
-        self.combo.Height = 25
-        self.combo.Margin = Thickness(0, 0, 0, 10)
-        Grid.SetRow(self.combo, 1)
-        grid.Children.Add(self.combo)
+        scroll = ScrollViewer()
+        scroll.VerticalScrollBarVisibility = 0
+        rows_panel = StackPanel()
+        rows_panel.Orientation = Orientation.Vertical
+        scroll.Content = rows_panel
+        Grid.SetRow(scroll, 1)
+        outer.Children.Add(scroll)
+
+        for end_def in self.end_defs:
+            row = Grid()
+            row.Margin = Thickness(0, 4, 0, 4)
+            col_label = ColumnDefinition()
+            col_label.Width = GridLength(260)
+            col_combo = ColumnDefinition()
+            col_combo.Width = GridLength(1, GridUnitType.Star)
+            row.ColumnDefinitions.Add(col_label)
+            row.ColumnDefinitions.Add(col_combo)
+
+            lbl = Label()
+            lbl.Content = "{} | Current: {} [{}] | {}".format(
+                end_def['display'], end_def['current_name'],
+                end_def['current_id'], end_def['state']
+            )
+            Grid.SetColumn(lbl, 0)
+            row.Children.Add(lbl)
+
+            combo = ComboBox()
+            labels = sorted(end_def['label_to_id'].keys())
+            # Keep "No Change" pinned first regardless of sort.
+            labels = [NO_CHANGE_LABEL] + [l for l in labels if l != NO_CHANGE_LABEL]
+            combo.ItemsSource = Array[object](labels)
+            combo.SelectedIndex = 0  # default to No Change
+            combo.Height = 25
+            combo.Margin = Thickness(6, 0, 0, 0)
+            Grid.SetColumn(combo, 1)
+            row.Children.Add(combo)
+
+            self.combos[end_def['fab_index']] = (combo, end_def)
+            rows_panel.Children.Add(row)
 
         ok_button = Button()
-        ok_button.Content = button_text
-        ok_button.Width = 140
+        ok_button.Content = "Apply"
+        ok_button.Width = 160
         ok_button.Height = 28
+        ok_button.Margin = Thickness(0, 10, 0, 0)
         ok_button.HorizontalAlignment = HorizontalAlignment.Center
         ok_button.Click += self.on_ok
         Grid.SetRow(ok_button, 2)
-        grid.Children.Add(ok_button)
-
-        self.combo.Focus()
+        outer.Children.Add(ok_button)
 
     def on_ok(self, sender, args):
-        self.result = self.combo.SelectedItem
+        chosen = {}
+        for fab_index, (combo, end_def) in self.combos.items():
+            selected_label = combo.SelectedItem
+            if not selected_label or selected_label == NO_CHANGE_LABEL:
+                continue
+            new_id = end_def['label_to_id'].get(selected_label)
+            if new_id:
+                chosen[fab_index] = new_id
+        self.result = chosen
         self.DialogResult = True
         self.Close()
 
 
-class SearchableSelectForm(Window):
-    def __init__(self, title_text, label_text, item_names, button_text="OK"):
-        self.Title = title_text
-        self.Width = 420
-        self.Height = 210
-        self.WindowStyle = WindowStyle.SingleBorderWindow
-        self.ResizeMode = ResizeMode.NoResize
-        self.WindowStartupLocation = WindowStartupLocation.CenterScreen
-        self.result = None
-        self.all_items = list(item_names)
-
-        grid = Grid()
-        grid.Margin = Thickness(12)
-        for _ in range(4):
-            grid.RowDefinitions.Add(RowDefinition())
-        self.Content = grid
-
-        label = Label()
-        label.Content = label_text
-        label.Margin = Thickness(0, -2, 0, 4)
-        Grid.SetRow(label, 0)
-        grid.Children.Add(label)
-
-        self.search_box = TextBox()
-        self.search_box.Height = 25
-        self.search_box.Margin = Thickness(0, 0, 0, 6)
-        self.search_box.TextChanged += self.on_search_changed
-        Grid.SetRow(self.search_box, 1)
-        grid.Children.Add(self.search_box)
-
-        self.combo = ComboBox()
-        self.combo.ItemsSource = Array[object](self.all_items)
-        self.combo.SelectedIndex = 0 if self.all_items else -1
-        self.combo.Height = 25
-        self.combo.Margin = Thickness(0, 0, 0, 10)
-        Grid.SetRow(self.combo, 2)
-        grid.Children.Add(self.combo)
-
-        ok_button = Button()
-        ok_button.Content = button_text
-        ok_button.Width = 140
-        ok_button.Height = 28
-        ok_button.HorizontalAlignment = HorizontalAlignment.Center
-        ok_button.Click += self.on_ok
-        Grid.SetRow(ok_button, 3)
-        grid.Children.Add(ok_button)
-
-        self.search_box.Focus()
-
-    def on_search_changed(self, sender, args):
-        search_text = self.search_box.Text.lower().strip()
-        if not search_text:
-            filtered = self.all_items
-        else:
-            filtered = [x for x in self.all_items if search_text in x.lower()]
-
-        self.combo.ItemsSource = Array[object](filtered)
-        self.combo.SelectedIndex = 0 if filtered else -1
-
-    def on_ok(self, sender, args):
-        self.result = self.combo.SelectedItem
-        self.DialogResult = True
-        self.Close()
-
+# ---------------------------------------------------------------------------
+# Main routine
+# ---------------------------------------------------------------------------
 
 def change_fab_part_connectors():
     try:
         references = uidoc.Selection.PickObjects(
             ObjectType.Element,
-            "Select Fabrication Parts to update connector"
+            "Select Fabrication Parts to update connector(s)"
         )
         if not references:
             return
@@ -204,139 +239,185 @@ def change_fab_part_connectors():
             TaskDialog.Show("Error", "No valid fabrication connectors found on the sample part.")
             return
 
-        connector_choice_map = {}
-        sorted_sample_connectors = sorted(sample_connectors, key=lambda x: x[1].FabricationIndex)
+        sample_connectors = sorted(sample_connectors, key=lambda x: x[1].FabricationIndex)
 
-        for conn, fab_info in sorted_sample_connectors:
+        # Build one end_def per connector on the sample part.
+        end_defs = []
+        for conn, fab_info in sample_connectors:
             current_id = fab_info.BodyConnectorId
             current_name = get_connector_name(config, current_id)
             state = "Connected" if conn.IsConnected else "Open"
-            display_connector = "C{}".format(fab_info.FabricationIndex + 1)
-            label = "{} | Current: {} [{}] | {}".format(
-                display_connector, current_name, current_id, state
+
+            candidate_ids = get_candidate_connector_ids(config, fab_info)
+            label_to_id = {NO_CHANGE_LABEL: None}
+            for cid in candidate_ids:
+                cname = get_connector_name(config, cid)
+                label_to_id["{} [{}]".format(cname, cid)] = cid
+
+            end_defs.append({
+                'fab_index': fab_info.FabricationIndex,
+                'display': "C{}".format(fab_info.FabricationIndex + 1),
+                'current_id': current_id,
+                'current_name': current_name,
+                'state': state,
+                'label_to_id': label_to_id,
+            })
+
+        try:
+            sample_name = sample_part.get_Parameter(
+                __import__("Autodesk.Revit.DB", fromlist=["BuiltInParameter"]).BuiltInParameter.ALL_MODEL_TYPE_NAME
+            ).AsString() or "Selected part 1"
+        except:
+            sample_name = "Selected part 1"
+
+        form = MultiEndConnectorForm(end_defs, sample_name)
+        if not (form.ShowDialog() and form.DialogResult):
+            return
+
+        end_changes = form.result  # {fab_index: new_connector_id}
+        if not end_changes:
+            TaskDialog.Show("Nothing To Do", "No connector ends were changed from 'No Change'.")
+            return
+
+        # --- Determine, per targeted end, how many parts have a connected joint there ---
+        connected_count_by_end = {}
+        for fab_index in end_changes:
+            count = 0
+            for fab_part in fab_parts:
+                for conn, fab_info in get_fabrication_connectors(fab_part):
+                    if fab_info.FabricationIndex == fab_index and conn.IsConnected:
+                        count += 1
+                        break
+            connected_count_by_end[fab_index] = count
+
+        any_connected = any(c > 0 for c in connected_count_by_end.values())
+
+        # --- Required confirmation before disconnecting anything ---
+        if any_connected:
+            confirm = TaskDialog("Confirm Disconnect")
+            confirm.MainInstruction = "This will change {} connector end(s) across {} selected part(s).".format(
+                len(end_changes), len(fab_parts)
             )
-            connector_choice_map[label] = fab_info.FabricationIndex
-
-        connector_labels = sorted(connector_choice_map.keys())
-
-        end_form = SelectFromListForm(
-            "Select Connector End",
-            "Choose which fabrication connector/end to update:",
-            connector_labels,
-            "Next"
-        )
-
-        if not (end_form.ShowDialog() and end_form.DialogResult):
-            return
-
-        selected_end_label = end_form.result
-        if not selected_end_label:
-            return
-
-        selected_fab_index = connector_choice_map[selected_end_label]
-
-        sample_connector = None
-        sample_fab_info = None
-        for conn, fab_info in sample_connectors:
-            if fab_info.FabricationIndex == selected_fab_index:
-                sample_connector = conn
-                sample_fab_info = fab_info
-                break
-
-        if not sample_connector or not sample_fab_info:
-            TaskDialog.Show("Error", "Could not resolve the selected connector/end.")
-            return
-
-        valid_connector_ids = get_candidate_connector_ids(config, sample_fab_info)
-
-        connector_def_map = {}
-        for conn_id in valid_connector_ids:
-            conn_name = get_connector_name(config, conn_id)
-            display = "{} [{}]".format(conn_name, conn_id)
-            connector_def_map[display] = conn_id
-
-        connector_def_labels = sorted(connector_def_map.keys())
-        if not connector_def_labels:
-            TaskDialog.Show("Error", "No compatible fabrication connector definitions found.")
-            return
-
-        current_body_id = sample_fab_info.BodyConnectorId
-        current_display = None
-        for k, v in connector_def_map.items():
-            if v == current_body_id:
-                current_display = k
-                break
-
-        select_form = SearchableSelectForm(
-            "Select Connector Type",
-            "Current connector on {}: {}".format(
-                "C{}".format(selected_fab_index + 1),
-                get_connector_name(config, current_body_id)
-            ),
-            connector_def_labels,
-            "Update Connector"
-        )
-
-        if current_display and current_display in connector_def_labels:
-            select_form.combo.SelectedItem = current_display
-
-        if select_form.ShowDialog() and select_form.DialogResult:
-            selected_connector_label = select_form.result
-            if not selected_connector_label:
-                return
-
-            new_connector_id = connector_def_map[selected_connector_label]
-
-            success_count = 0
-            failed_count = 0
-
-            main_t = Transaction(doc, "Batch Update Fabrication Connectors")
-            try:
-                main_t.Start()
-
-                for fab_part in fab_parts:
-                    sub_t = SubTransaction(doc)
-                    sub_t.Start()
-                    try:
-                        target_connector = None
-                        target_fab_info = None
-
-                        for conn, fab_info in get_fabrication_connectors(fab_part):
-                            if fab_info.FabricationIndex == selected_fab_index:
-                                target_connector = conn
-                                target_fab_info = fab_info
-                                break
-
-                        if not target_connector or not target_fab_info:
-                            sub_t.RollBack()
-                            failed_count += 1
-                            continue
-
-                        target_fab_info.BodyConnectorId = new_connector_id
-                        sub_t.Commit()
-                        success_count += 1
-
-                    except:
-                        sub_t.RollBack()
-                        failed_count += 1
-
-                main_t.Commit()
-
-                TaskDialog.Show(
-                    "Batch Complete",
-                    "Updated connector on {} to '{}' for {} part(s).{}".format(
-                        "C{}".format(selected_fab_index + 1),
-                        get_connector_name(config, new_connector_id),
-                        success_count,
-                        "\n({} part(s) skipped due to connectivity/compatibility limits)".format(failed_count)
-                        if failed_count > 0 else ""
+            detail_lines = []
+            for fab_index, new_id in sorted(end_changes.items()):
+                detail_lines.append(
+                    "  C{}: -> {}  ({} connected joint(s) will be disconnected/reconnected)".format(
+                        fab_index + 1, get_connector_name(config, new_id),
+                        connected_count_by_end.get(fab_index, 0)
                     )
                 )
+            confirm.MainContent = (
+                "The fabrication connector type on a connected end cannot be changed directly "
+                "through the API. For each connected end above, this tool will:\n\n"
+                "  1. Disconnect the joint\n"
+                "  2. Change the connector type\n"
+                "  3. Attempt to reconnect to the original mating part\n\n"
+                "Reconnection is not guaranteed if the new connector type has a different "
+                "shape or size than the mating connector. Any end that fails to reconnect "
+                "will be left OPEN and reported at the end.\n\n"
+                + "\n".join(detail_lines) +
+                "\n\nDo you want to continue?"
+            )
+            confirm.CommonButtons = TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No
+            confirm.DefaultButton = TaskDialogResult.No
 
-            except Exception as trans_ex:
-                if main_t.GetStatus() == TransactionStatus.Started:
-                    main_t.RollBack()
-                TaskDialog.Show("Transaction Failed", "Reason: {}".format(trans_ex))
+            if confirm.Show() != TaskDialogResult.Yes:
+                return
+
+        # --- Apply ---
+        success_by_end = {}
+        reconnected_by_end = {}
+        left_open_by_end = {}
+        skipped_no_end_by_end = {}
+        failed_parts = 0
+
+        main_t = Transaction(doc, "Batch Update Fabrication Connectors")
+        try:
+            main_t.Start()
+
+            for fab_part in fab_parts:
+                sub_t = SubTransaction(doc)
+                sub_t.Start()
+                try:
+                    conn_by_index = {}
+                    for conn, fab_info in get_fabrication_connectors(fab_part):
+                        conn_by_index[fab_info.FabricationIndex] = (conn, fab_info)
+
+                    for fab_index, new_connector_id in end_changes.items():
+                        if fab_index not in conn_by_index:
+                            skipped_no_end_by_end[fab_index] = skipped_no_end_by_end.get(fab_index, 0) + 1
+                            continue
+
+                        target_connector, target_fab_info = conn_by_index[fab_index]
+                        was_connected = target_connector.IsConnected
+                        partner_conn = None
+
+                        if was_connected:
+                            partner_conn = get_connected_partner(target_connector)
+                            if partner_conn is None:
+                                # Reported connected but partner could not be resolved;
+                                # skip this end on this part rather than guess.
+                                continue
+                            target_connector.DisconnectFrom(partner_conn)
+
+                        target_fab_info.BodyConnectorId = new_connector_id
+                        success_by_end[fab_index] = success_by_end.get(fab_index, 0) + 1
+
+                        if was_connected and partner_conn is not None:
+                            try:
+                                target_connector.ConnectTo(partner_conn)
+                                if target_connector.IsConnected:
+                                    reconnected_by_end[fab_index] = reconnected_by_end.get(fab_index, 0) + 1
+                                else:
+                                    left_open_by_end[fab_index] = left_open_by_end.get(fab_index, 0) + 1
+                            except:
+                                left_open_by_end[fab_index] = left_open_by_end.get(fab_index, 0) + 1
+
+                    sub_t.Commit()
+
+                except:
+                    sub_t.RollBack()
+                    failed_parts += 1
+
+            main_t.Commit()
+
+            # --- Summary ---
+            summary_lines = []
+            for fab_index, new_id in sorted(end_changes.items()):
+                cname = get_connector_name(config, new_id)
+                n = success_by_end.get(fab_index, 0)
+                summary_lines.append("C{}: updated to '{}' on {} part(s).".format(
+                    fab_index + 1, cname, n
+                ))
+                if reconnected_by_end.get(fab_index):
+                    summary_lines.append(
+                        "    {} previously-connected joint(s) reconnected.".format(
+                            reconnected_by_end[fab_index]
+                        )
+                    )
+                if left_open_by_end.get(fab_index):
+                    summary_lines.append(
+                        "    {} joint(s) could NOT be reconnected (mismatched type/size) "
+                        "and are now OPEN.".format(left_open_by_end[fab_index])
+                    )
+                if skipped_no_end_by_end.get(fab_index):
+                    summary_lines.append(
+                        "    {} part(s) skipped: no C{} on that part.".format(
+                            skipped_no_end_by_end[fab_index], fab_index + 1
+                        )
+                    )
+
+            if failed_parts > 0:
+                summary_lines.append(
+                    "{} part(s) were skipped entirely due to an error.".format(failed_parts)
+                )
+
+            TaskDialog.Show("Batch Complete", "\n".join(summary_lines))
+
+        except Exception as trans_ex:
+            if main_t.GetStatus() == TransactionStatus.Started:
+                main_t.RollBack()
+            TaskDialog.Show("Transaction Failed", "Reason: {}".format(trans_ex))
 
     except Exception as ex:
         if "Canceled" not in str(ex):

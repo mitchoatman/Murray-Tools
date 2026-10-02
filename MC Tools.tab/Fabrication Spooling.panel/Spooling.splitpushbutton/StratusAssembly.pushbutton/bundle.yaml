@@ -1,17 +1,8 @@
-# highlight: updated
-# bundle title
-title:
-  "Stratus\nAssembly"
+tooltip: Writes User Defined Assembly Number Value to the Stratus Assembly Parameter
+engine:
+  persistent: true
+title: >-
+  Stratus
 
-# bundle tooltip
-tooltip: >-
-  Writes User Defined Assembly Number Value to the Stratus Assembly Parameter
-
-# context directives are listed under `context` key, the order does not matter
-
-
-# bundle help url
-#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
-
-# bundle author
+  Assembly
 author: Mitchell Oatman

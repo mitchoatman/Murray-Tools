@@ -1,4 +1,5 @@
 layout:
+  - SpoolManager
   - StratusAssembly
   - PinAllSpools
   - Rename_Spools

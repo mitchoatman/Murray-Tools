@@ -14,13 +14,15 @@ clr.AddReference("System.Windows.Forms")
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 
-from pyrevit import forms
+from pyrevit import forms, HOST_APP
 import Autodesk.Revit.UI as UI
+from Autodesk.Revit.UI import UIThemeManager, UITheme
 
 from System.Collections.Generic import List
 from System.Windows.Forms import FolderBrowserDialog, DialogResult
 from System.Windows.Controls import ListBoxItem
-from System.Windows.Media import VisualTreeHelper
+from System.Windows.Media import VisualTreeHelper, SolidColorBrush, Color as MediaColor
+from System.Windows.Input import Key, Keyboard
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import (
     Transaction,
@@ -65,9 +67,56 @@ PANE_XAML = """
 <Page
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Background="#FFF5F5F5">
+    x:Name="root_page"
+    Background="{DynamicResource PageBackgroundBrush}">
+
+    <Page.Resources>
+        <!-- Dynamic Theme Brushes Setup (Defaults to Light) -->
+        <SolidColorBrush x:Key="PageBackgroundBrush" Color="#FFF5F5F5"/>
+        <SolidColorBrush x:Key="TextForegroundBrush" Color="#FF333333"/>
+        <SolidColorBrush x:Key="SubTextForegroundBrush" Color="#FF666666"/>
+        <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#FFFFFFFF"/>
+        <SolidColorBrush x:Key="ButtonBackgroundBrush" Color="#FFEFEFEF"/>
+        <SolidColorBrush x:Key="BorderColorBrush" Color="#FFD0D0D0"/>
+        <SolidColorBrush x:Key="SeparatorColorBrush" Color="#FF000000"/>
+    </Page.Resources>
 
     <Grid Margin="10">
+        <Grid.Resources>
+            <Style TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource TextForegroundBrush}"/>
+            </Style>
+            <Style TargetType="TextBox">
+                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextForegroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}"/>
+                <Setter Property="Padding" Value="2,1,2,1"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="TextBox">
+                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="1">
+                                <ScrollViewer x:Name="PART_ContentHost"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style TargetType="Button">
+                <Setter Property="Background" Value="{DynamicResource ButtonBackgroundBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextForegroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="1">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </Grid.Resources>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -94,7 +143,7 @@ PANE_XAML = """
             </Grid>
         </StackPanel>
 
-        <!-- Quick Folder Buttons -->
+        <!-- Quick Folder Buttons with Safe Margins for Spacing -->
         <Grid Grid.Row="1" Margin="0,0,0,8" HorizontalAlignment="Left">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -105,10 +154,10 @@ PANE_XAML = """
                 <ColumnDefinition Width="4"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <Button x:Name="atkore_btn" Grid.Column="0" Content="Atkore Strut" Height="26" Padding="10,0,10,0"/>
-            <Button x:Name="plumbing_btn" Grid.Column="2" Content="Plumbing Fixtures" Height="26" Padding="10,0,10,0"/>
-            <Button x:Name="mechanical_btn" Grid.Column="4" Content="Mechanical Equipment" Height="26" Padding="10,0,10,0"/>
-            <Button x:Name="pipe_accessories_btn" Grid.Column="6" Content="Pipe Accessories" Height="26" Padding="10,0,10,0"/>
+            <Button x:Name="atkore_btn" Grid.Column="0" Content=" Atkore Strut " Height="26"/>
+            <Button x:Name="plumbing_btn" Grid.Column="2" Content=" Plumbing Fixtures " Height="26"/>
+            <Button x:Name="mechanical_btn" Grid.Column="4" Content=" Mechanical Equipment " Height="26"/>
+            <Button x:Name="pipe_accessories_btn" Grid.Column="6" Content=" Pipe Accessories " Height="26"/>
         </Grid>
 
         <!-- Search Filter -->
@@ -148,9 +197,9 @@ PANE_XAML = """
         <!-- Image Grid ListBox -->
         <ListBox x:Name="families_lb"
                  Grid.Row="5"
-                 BorderBrush="#FFD0D0D0"
+                 BorderBrush="{DynamicResource BorderColorBrush}"
                  BorderThickness="1"
-                 Background="White"
+                 Background="{DynamicResource ControlBackgroundBrush}"
                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.ItemsPanel>
@@ -160,10 +209,10 @@ PANE_XAML = """
             </ListBox.ItemsPanel>
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <Border Width="78" Height="90" Margin="2" Padding="2" BorderBrush="#FFCCCCCC" BorderThickness="1" Background="White">
+                    <Border Width="78" Height="90" Margin="2" Padding="2" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Background="{DynamicResource ControlBackgroundBrush}">
                         <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                             <Image Source="{Binding ImagePath}" Width="64" Height="64" Stretch="Uniform"/>
-                            <TextBlock Text="{Binding DisplayName}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" TextAlignment="Center" FontSize="10" FontWeight="SemiBold" Margin="0,3,0,0" Width="72"/>
+                            <TextBlock Text="{Binding DisplayName}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" TextAlignment="Center" FontSize="10" FontWeight="SemiBold" Margin="0,3,0,0" Width="72" Foreground="{DynamicResource TextForegroundBrush}"/>
                         </StackPanel>
                     </Border>
                 </DataTemplate>
@@ -180,7 +229,7 @@ PANE_XAML = """
         <TextBlock x:Name="status_tb"
                    Grid.Row="7"
                    Margin="0,6,0,0"
-                   Foreground="#666666"
+                   Foreground="{DynamicResource SubTextForegroundBrush}"
                    TextWrapping="Wrap"
                    Text="Select part to insert in view"/>
     </Grid>
@@ -1066,7 +1115,9 @@ class FamilyViewerPane(forms.WPFPanel):
         self.pipe_accessories_btn.Click += lambda s, e: self.set_folder_path(PIPE_ACCESSORIES_FOLDER)
         self.clear_search_btn.Click += lambda s, e: setattr(self.search_tb, 'Text', '')
         self.search_tb.TextChanged += self.on_search_changed
+        
         self.families_lb.SelectionChanged += self.on_family_selected
+        self.families_lb.PreviewMouseLeftButtonDown += self.on_families_preview_mouse_down
         self.families_lb.MouseMove += self.on_families_mouse_move
         self.families_lb.MouseLeave += self.on_families_mouse_leave
 
@@ -1076,6 +1127,64 @@ class FamilyViewerPane(forms.WPFPanel):
         self.generate_images_btn.Click += self.on_generate_images_clicked
 
         self.Loaded += self.on_loaded
+        self.Unloaded += self.on_unloaded
+
+        # Theme Initialization Logic
+        try:
+            if HOST_APP.is_newer_than(2023, True):
+                HOST_APP.uiapp.ThemeChanged += self.on_theme_changed
+                self.apply_revit_theme()
+            else:
+                self.apply_light_theme()
+        except Exception:
+            self.apply_light_theme()
+
+    def apply_light_theme(self):
+        try:
+            res = self.Resources
+            res["PageBackgroundBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 245, 245, 245))
+            res["TextForegroundBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 51, 51, 51))
+            res["SubTextForegroundBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 102, 102, 102))
+            res["ControlBackgroundBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 255, 255, 255))
+            res["ButtonBackgroundBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 239, 239, 239))
+            res["BorderColorBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 208, 208, 208))
+            res["SeparatorColorBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 0, 0, 0))
+        except Exception:
+            pass
+
+    def apply_revit_theme(self):
+        try:
+            current_theme = UIThemeManager.CurrentTheme
+            is_dark = (current_theme == UITheme.Dark)
+
+            bg_hex = "#FF3B4453" if is_dark else "#FFF5F5F5"
+            text_hex = "#FFDFDFDF" if is_dark else "#FF333333"
+            subtext_hex = "#FF999999" if is_dark else "#FF666666"
+            ctrl_bg_hex = "#FF222933" if is_dark else "#FFFFFFFF"
+            btn_bg_hex = "#FF222933" if is_dark else "#FFEFEFEF"
+            border_hex = "#FF363B40" if is_dark else "#FFD0D0D0"
+            sep_hex = "#FFFFFFFF" if is_dark else "#FF000000"
+
+            res = self.Resources
+            res["PageBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["TextForegroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(text_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["SubTextForegroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(subtext_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["ControlBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(ctrl_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["ButtonBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(btn_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["BorderColorBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(border_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["SeparatorColorBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(sep_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+        except Exception:
+            pass
+
+    def on_theme_changed(self, sender, args):
+        self.apply_revit_theme()
+
+    def on_unloaded(self, sender, args):
+        try:
+            if HOST_APP.is_newer_than(2023, True):
+                HOST_APP.uiapp.ThemeChanged -= self.on_theme_changed
+        except Exception:
+            pass
 
     def _read_saved_folder_path(self):
         try:
@@ -1196,6 +1305,24 @@ class FamilyViewerPane(forms.WPFPanel):
             except:
                 return None
         return None
+
+    def on_families_preview_mouse_down(self, sender, args):
+        is_alt_pressed = Keyboard.IsKeyDown(Key.LeftAlt) or Keyboard.IsKeyDown(Key.RightAlt)
+        if not is_alt_pressed:
+            return
+
+        src = args.OriginalSource
+        lbi = self._find_parent_listboxitem(src)
+        if lbi and lbi.DataContext:
+            fam_item = lbi.DataContext
+            if fam_item and fam_item.RfaPath and os.path.exists(fam_item.RfaPath):
+                folder_path = os.path.dirname(fam_item.RfaPath)
+                try:
+                    os.startfile(folder_path)
+                    self.set_status("Opened folder: {}".format(folder_path))
+                except Exception as ex:
+                    self.set_status("Could not open folder: {}".format(str(ex)))
+            args.Handled = True
 
     def on_families_mouse_move(self, sender, args):
         try:

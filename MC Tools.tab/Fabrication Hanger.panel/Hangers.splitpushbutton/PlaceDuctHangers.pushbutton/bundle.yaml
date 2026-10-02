@@ -17,9 +17,6 @@ tooltip: |-
   - Rectangle Duct Spacing
   - Attach to Structure
 
-  Function will always place hangers at couplings. Do not
-  optimize pipe or duct runs if you wish to populate hangers with spacing.
-
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Selection

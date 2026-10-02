@@ -303,15 +303,53 @@ class ErrorListForm(Window):
         self.listbox.MouseDoubleClick += self.select_element
 
     def select_element(self, sender, args):
-        selected_text = self.listbox.SelectedItem
-        if selected_text:
-            eid = self.element_map[selected_text]
-            element = self.doc.GetElement(eid)
-            if element:
-                self.uidoc.Selection.SetElementIds(List[ElementId]([eid]))
-                self.uidoc.ShowElements(eid)
-            else:
-                TaskDialog.Show("Error", "Element not found.")
+            selected_text = self.listbox.SelectedItem
+            if selected_text:
+                eid = self.element_map[selected_text]
+                element = self.doc.GetElement(eid)
+                if element:
+                    # Select the element
+                    self.uidoc.Selection.SetElementIds(List[ElementId]([eid]))
+                    
+                    try:
+                        active_view = self.doc.ActiveView
+                        # Get the bounding box of the element in the active view
+                        bbx = element.get_BoundingBox(active_view)
+                        
+                        if bbx:
+                            # Add a padding factor to pull the camera back (increase multiplier for wider view)
+                            padding = 2.0  
+                            min_pt = bbx.Min
+                            max_pt = bbx.Max
+                            
+                            center_x = (min_pt.X + max_pt.X) / 2.0
+                            center_y = (min_pt.Y + max_pt.Y) / 2.0
+                            center_z = (min_pt.Z + max_pt.Z) / 2.0
+                            
+                            dx = (max_pt.X - min_pt.X) * padding / 2.0
+                            dy = (max_pt.Y - max_pt.Y) * padding / 2.0 if (max_pt.Y - min_pt.Y) == 0 else (max_pt.Y - min_pt.Y) * padding / 2.0
+                            dz = (max_pt.Z - max_pt.Z) * padding / 2.0 if (max_pt.Z - max_pt.Z) == 0 else (max_pt.Z - max_pt.Z) * padding / 2.0
+                            
+                            # FallSafe minimum width if element bounds are flat
+                            dx = max(dx, 5.0)
+                            dy = max(dy, 5.0)
+                            
+                            from Autodesk.Revit.DB import XYZ
+                            pt1 = XYZ(center_x - dx, center_y - dy, center_z)
+                            pt2 = XYZ(center_x + dx, center_y + dy, center_z)
+                            
+                            ui_views = self.uidoc.GetOpenUIViews()
+                            for uv in ui_views:
+                                if uv.ViewId == active_view.Id:
+                                    uv.ZoomAndCenterRectangle(pt1, pt2)
+                                    break
+                        else:
+                            self.uidoc.ShowElements(eid)
+                    except Exception:
+                        # Fallback to standard show if bounding box calculation fails
+                        self.uidoc.ShowElements(eid)
+                else:
+                    TaskDialog.Show("Error", "Element not found.")
 
     def close_window(self, sender, args):
         self.Close()

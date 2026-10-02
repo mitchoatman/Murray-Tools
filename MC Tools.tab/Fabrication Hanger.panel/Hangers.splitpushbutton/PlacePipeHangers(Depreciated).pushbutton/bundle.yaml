@@ -1,0 +1,27 @@
+#highlight: new
+
+# bundle title
+title:
+  "Place Pipe\nHangers (Depreciated)"
+
+# bundle tooltip
+tooltip: |-
+  Populates hangers on selected pipe(s).
+    1. Run Command.
+    2. Select a fabrication pipe to specify service.
+    3. Choose group.
+    4. Choose hanger button and specify settings.
+    5. Select pipe(s) or duct(s) to populate hangers on.
+
+  Function will always place hangers at couplings. Do not
+  optimize pipe or duct runs if you wish to populate hangers with spacing.
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Selection
+
+# bundle help url
+help_url: "https://youtu.be/z014sgDpJRk"
+
+# bundle author
+author: Mitchell Oatman

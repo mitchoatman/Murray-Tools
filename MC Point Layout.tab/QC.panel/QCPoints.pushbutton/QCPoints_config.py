@@ -1,4 +1,5 @@
 # -*- coding: UTF-8 -*-
+import os
 import clr
 clr.AddReference('PresentationFramework')
 clr.AddReference('PresentationCore')
@@ -30,6 +31,32 @@ curview = doc.ActiveView
 app = doc.Application
 RevitVersion = app.VersionNumber
 RevitINT = float(RevitVersion)
+
+SETTINGS_FOLDER = r"C:\Temp"
+SETTINGS_FILE = os.path.join(SETTINGS_FOLDER, "ExportPoints.txt")
+
+
+# ── settings helper ──────────────────────────────────────────────────────────
+
+def to_bool(value):
+    return str(value).strip().lower() == "true"
+
+
+def load_beam_hanger_setting():
+    exclude_beam_hangers = True
+    try:
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, "r") as f:
+                for line in f.readlines():
+                    line = line.strip()
+                    if not line or "=" not in line:
+                        continue
+                    key, value = line.split("=", 1)
+                    if key.strip() == "exclude_beam_hangers":
+                        exclude_beam_hangers = to_bool(value)
+    except:
+        pass
+    return exclude_beam_hangers
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -184,12 +211,24 @@ def get_ts_point_number(element):
 
 
 def get_point_number_owner(element):
-    try:
-        if is_gtp_element(element) and isinstance(element, FamilyInstance) and element.SuperComponent:
-            return element.SuperComponent
-    except:
-        pass
-    return element
+    current = element
+    visited = set()
+
+    while current:
+        current_id = get_element_id_value(current)
+        if current_id in visited:
+            break
+        visited.add(current_id)
+
+        try:
+            if isinstance(current, FamilyInstance) and current.SuperComponent:
+                current = current.SuperComponent
+                continue
+        except:
+            pass
+        break
+
+    return current
 
 
 def get_all_gtps_from_element(element):
@@ -226,43 +265,31 @@ def get_all_gtps_from_element(element):
 
 # ── collect elements ──────────────────────────────────────────────────────────
 
-def collect_elements():
-    view_elements = list(
+def collect_elements(exclude_beam_hangers):
+    hangers = list(
         FilteredElementCollector(doc, curview.Id)
+        .OfCategory(BuiltInCategory.OST_FabricationHangers)
         .WhereElementIsNotElementType()
         .ToElements()
     )
 
-    temp_list = []
+    generics = list(
+        FilteredElementCollector(doc, curview.Id)
+        .OfCategory(BuiltInCategory.OST_GenericModel)
+        .WhereElementIsNotElementType()
+        .ToElements()
+    )
 
-    for el in view_elements:
-        if not el or not el.Category:
-            continue
+    gtps = [el for el in generics if is_gtp_element(el)]
+    selected_elements = list(hangers) + gtps
 
-        try:
-            cat_id = get_id_value(el.Category.Id)
-            if cat_id == int(BuiltInCategory.OST_FabricationHangers):
-                temp_list.append(el)
-            else:
-                temp_list.extend(get_all_gtps_from_element(el))
-        except:
-            pass
+    if exclude_beam_hangers:
+        selected_elements = [
+            el for el in selected_elements
+            if not (is_fab_hanger(el) and is_beam_hanger(el))
+        ]
 
-    seen = set()
-    all_elements = []
-    for el in temp_list:
-        el_id = get_element_id_value(el)
-        if el_id in seen:
-            continue
-        seen.add(el_id)
-        all_elements.append(el)
-
-    filtered = [
-        el for el in all_elements
-        if not (is_fab_hanger(el) and is_beam_hanger(el))
-    ]
-
-    return sorted(filtered, key=lambda el: get_element_id_value(el))
+    return sorted(selected_elements, key=lambda el: get_element_id_value(el))
 
 
 # ── build point lines ─────────────────────────────────────────────────────────
@@ -426,7 +453,8 @@ class PointDisplayWindow(Window):
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
-elements = collect_elements()
+exclude_beam_hangers = load_beam_hanger_setting()
+elements = collect_elements(exclude_beam_hangers)
 
 if not elements:
     TaskDialog.Show("No Elements", "No fabrication hangers or GTP points found in the active view.")

@@ -11,6 +11,13 @@ tooltip: |-
     2. Select Fabrication Hangers.
     3. Click Finish.
 
+  [Shift]+Click:  
+  Re-connects selected hangers to a host.
+    1. Run Command.
+    2. Select Fabrication Hangers.
+    3. Click Finish.
+    4. Select Fabrication Part to re-host.
+
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Selection

@@ -7,6 +7,9 @@ title:
 # bundle tooltip
 tooltip: |-
   Creates a section based on fabrication part selection.
+
+  [Shift]+Click:    
+  Allows selection of multiple elements to define section.
   
 
 # bundle author

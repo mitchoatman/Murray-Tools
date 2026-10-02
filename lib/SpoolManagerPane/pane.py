@@ -12,10 +12,13 @@ clr.AddReference("WindowsBase")
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 
-from pyrevit import forms
+from pyrevit import forms, HOST_APP
 import Autodesk.Revit.UI as UI
+from Autodesk.Revit.UI import UIThemeManager, UITheme
 
 from System.Collections.Generic import List
+from System.Windows.Data import CollectionViewSource
+from System.Windows.Media import SolidColorBrush, Color as MediaColor
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import (
     Transaction,
@@ -34,9 +37,17 @@ from Autodesk.Revit.DB import (
     IndependentTag,
     TagOrientation,
     Family,
-    FamilySymbol
+    FamilySymbol,
+    XYZ
 )
 from Autodesk.Revit.UI import IExternalEventHandler, ExternalEvent
+from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+
+from System.Windows import Window, Thickness, WindowStartupLocation, ResizeMode, FontWeights
+from System.Windows.Controls import Button, TextBox, Label, Grid, RowDefinition, ColumnDefinition, ListBox, StackPanel, Orientation
+from System.Windows.Media import FontFamily
+from System.Windows.Interop import WindowInteropHelper
+from System.Windows.Forms import MessageBox
 
 try:
     from Parameters.Add_SharedParameters import Shared_Params
@@ -63,10 +74,59 @@ PANE_XAML = """
 <Page
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Background="#FFF5F5F5">
+    xmlns:scm="clr-namespace:System.ComponentModel;assembly=WindowsBase"
+    x:Name="root_page"
+    Background="{DynamicResource PageBackgroundBrush}">
+
+    <Page.Resources>
+        <!-- Dynamic Theme Brushes Setup (Defaults to Light) -->
+        <SolidColorBrush x:Key="PageBackgroundBrush" Color="#FFF5F5F5"/>
+        <SolidColorBrush x:Key="TextForegroundBrush" Color="#FF333333"/>
+        <SolidColorBrush x:Key="SubTextForegroundBrush" Color="#FF666666"/>
+        <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#FFFFFFFF"/>
+        <SolidColorBrush x:Key="ButtonBackgroundBrush" Color="#FFEFEFEF"/>
+        <SolidColorBrush x:Key="BorderColorBrush" Color="#FFD0D0D0"/>
+        <SolidColorBrush x:Key="SeparatorColorBrush" Color="#FF000000"/>
+    </Page.Resources>
 
     <Grid Margin="10">
+        <Grid.Resources>
+            <Style TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource TextForegroundBrush}"/>
+            </Style>
+            <Style TargetType="TextBox">
+                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextForegroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}"/>
+                <Setter Property="Padding" Value="2,1,2,1"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="TextBox">
+                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="1">
+                                <ScrollViewer x:Name="PART_ContentHost"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style TargetType="Button">
+                <Setter Property="Background" Value="{DynamicResource ButtonBackgroundBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextForegroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="1">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </Grid.Resources>
+
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -82,30 +142,63 @@ PANE_XAML = """
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,6">
-            <TextBlock Text="Spool Name:"
-                       Margin="0,0,0,2"/>
-            <TextBox x:Name="spool_input_tb"
-                     Height="22"/>
-        </StackPanel>
+        <!-- Two-Column Top Layout Matching User Reference -->
+        <Grid Grid.Row="0" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-        <StackPanel Grid.Row="1" Margin="0,0,0,6">
-            <TextBlock Text="Map Name:"
-                       Margin="0,0,0,2"/>
-            <TextBox x:Name="map_input_tb"
-                     Height="22"/>
-            <Button x:Name="apply_btn"
-                    Content="Set Spool Data"
-                    Height="24"
-                    Margin="0,4,0,0"/>
-        </StackPanel>
+            <!-- Left Column: Set Spool Data Workflow -->
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Spool Name:" Margin="0,0,0,2"/>
+                <TextBox x:Name="spool_input_tb" Height="22" Margin="0,0,0,6"/>
+                <TextBlock Text="Map Name:" Margin="0,0,0,2"/>
+                <TextBox x:Name="map_input_tb" Height="22" Margin="0,0,0,4"/>
+                <Button x:Name="apply_btn" Content="Set Spool Data" Height="24"/>
+            </StackPanel>
 
-        <Separator Grid.Row="2"
+            <!-- Right Column: Auto Spool Workflow -->
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="Spool Length (ft):" Margin="0,0,0,2"/>
+                <TextBox x:Name="length_input_tb" Height="22" Margin="0,0,0,6"/>
+                <TextBlock Text="Spool Width (ft):" Margin="0,0,0,2"/>
+                <TextBox x:Name="width_input_tb" Height="22" Margin="0,0,0,4"/>
+                <Button x:Name="auto_spool_btn" Content="Auto Spool" Height="24"/>
+            </StackPanel>
+        </Grid>
+
+        <Separator Grid.Row="1"
                    Margin="0,4,0,8"
-                   Background="#FF000000"
+                   Background="{DynamicResource SeparatorColorBrush}"
                    Height="1"/>
 
-        <StackPanel Grid.Row="3" Margin="0,0,0,6">
+        <!-- Package Assignment Section Mirroring Two-Column Widths -->
+        <Grid Grid.Row="2" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Package Name:" Margin="0,0,0,2"/>
+                <TextBox x:Name="package_input_tb" Height="22"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="" Margin="0,0,0,2" Height="14"/>
+                <Button x:Name="assign_package_btn" Content="Assign Package" Height="24"/>
+            </StackPanel>
+        </Grid>
+
+        <Separator Grid.Row="3"
+                   Margin="0,4,0,8"
+                   Background="{DynamicResource SeparatorColorBrush}"
+                   Height="1"/>
+
+        <StackPanel Grid.Row="4" Margin="0,0,0,6">
             <TextBlock Text="Search List:"
                        Margin="0,0,0,2"/>
             <Grid>
@@ -124,47 +217,56 @@ PANE_XAML = """
             </Grid>
         </StackPanel>
 
-        <TextBlock Grid.Row="4"
-                   Text="Spools in View (Double Click to Zoom)"
+        <TextBlock Grid.Row="5"
+                   Text="Packages &amp; Spools in View (Ctrl/Shift for Multi-Select, Double Click to Zoom)"
                    FontWeight="SemiBold"
                    Margin="0,0,0,4"/>
 
-        <ScrollViewer Grid.Row="6"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      MinHeight="220"
-                      BorderBrush="#FFD0D0D0"
-                      BorderThickness="1"
-                      Background="White">
-            <ListBox x:Name="line_numbers_lb"
-                     SelectionMode="Extended"
-                     BorderThickness="0"/>
-        </ScrollViewer>
+        <!-- Grouped ListBox with Nested Package Headers -->
+        <ListBox x:Name="spool_list_box"
+                 Grid.Row="7"
+                 SelectionMode="Extended"
+                 DisplayMemberPath="spool_name"
+                 MinHeight="200"
+                 BorderBrush="{DynamicResource BorderColorBrush}"
+                 BorderThickness="1"
+                 Background="{DynamicResource ControlBackgroundBrush}"
+                 Foreground="{DynamicResource TextForegroundBrush}">
+            <ListBox.GroupStyle>
+                <GroupStyle>
+                    <GroupStyle.HeaderTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" Margin="2,4,2,2" Foreground="{DynamicResource TextForegroundBrush}"/>
+                        </DataTemplate>
+                    </GroupStyle.HeaderTemplate>
+                </GroupStyle>
+            </ListBox.GroupStyle>
+        </ListBox>
 
-        <!-- Select All (3/4) and Pin All (1/4) Side-by-Side -->
-        <Grid Grid.Row="7" Margin="0,4,0,0">
+        <!-- Balanced 50/50 Side-by-Side Buttons -->
+        <Grid Grid.Row="8" Margin="0,4,0,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="3*"/>
+                <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="4"/>
-                <ColumnDefinition Width="1*"/>
+                <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <Button x:Name="select_all_btn"
                     Grid.Column="0"
-                    Content="Select All"
+                    Content="Select all in List"
                     Height="22"/>
             <Button x:Name="pin_all_btn"
                     Grid.Column="2"
-                    Content="Pin All"
+                    Content="Pin Spools in View"
                     Height="22"/>
         </Grid>
 
-        <Separator Grid.Row="8"
+        <Separator Grid.Row="9"
                    Margin="0,8,0,8"
-                   Background="#FF000000"
+                   Background="{DynamicResource SeparatorColorBrush}"
                    Height="1"/>
 
-        <StackPanel Grid.Row="9" Margin="0,0,0,6">
-            <TextBlock Text="Find / Replace (Rename):"
+        <StackPanel Grid.Row="10" Margin="0,0,0,6">
+            <TextBlock Text="Find / Replace (From selected spools in list):"
                        Margin="0,0,0,2"/>
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -191,13 +293,13 @@ PANE_XAML = """
                     Margin="0,4,0,0"/>
         </StackPanel>
 
-        <Separator Grid.Row="10"
+        <Separator Grid.Row="11"
                    Margin="0,8,0,8"
-                   Background="#FF000000"
+                   Background="{DynamicResource SeparatorColorBrush}"
                    Height="1"/>
 
         <!-- Bottom Row Buttons Side-by-Side -->
-        <Grid Grid.Row="11" Margin="0,0,0,0">
+        <Grid Grid.Row="12" Margin="0,0,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="4"/>
@@ -214,9 +316,9 @@ PANE_XAML = """
         </Grid>
 
         <TextBlock x:Name="status_tb"
-                   Grid.Row="12"
+                   Grid.Row="13"
                    Margin="0,6,0,0"
-                   Foreground="#666666"
+                   Foreground="{DynamicResource SubTextForegroundBrush}"
                    TextWrapping="Wrap"
                    Text="Ready."/>
     </Grid>
@@ -225,12 +327,33 @@ PANE_XAML = """
 
 
 PARAM_NAME = "STRATUS Assembly"
+PACKAGE_PARAM_NAME = "STRATUS Package"
 MAP_PARAM_NAME = "FP_Spool Map"
 FOLDER_NAME = r"C:\Temp"
 FILE_PATH = os.path.join(FOLDER_NAME, "Ribbon_StratusAssembly.txt")
+AUTOSPOOL_FILE_PATH = os.path.join(FOLDER_NAME, "Ribbon_StratusAssembly_AutoSpool.txt")
+
+DEFAULT_SPOOL = "L1-A1-CW-01"
+DEFAULT_MAP = "L1-A1-HGR-MAP"
+DEFAULT_LENGTH = "20"
+DEFAULT_WIDTH = "10"
 
 state = UI.DockablePaneState()
 state.DockPosition = UI.DockPosition.Right
+
+
+class SpoolDisplayItem(System.Object):
+    def __init__(self, package_name, spool_name):
+        self._package_name = package_name
+        self._spool_name = spool_name
+
+    @property
+    def package_name(self):
+        return self._package_name
+
+    @property
+    def spool_name(self):
+        return self._spool_name
 
 
 def natural_key(value):
@@ -248,6 +371,10 @@ def ensure_input_file():
                 "L1-A1-CW-01\n",
                 "L1-A1-HGR-MAP\n"
             ])
+            
+    if not os.path.exists(AUTOSPOOL_FILE_PATH):
+        with open(AUTOSPOOL_FILE_PATH, "w") as f:
+            f.writelines([DEFAULT_SPOOL + "\n", DEFAULT_MAP + "\n", DEFAULT_LENGTH + "\n", DEFAULT_WIDTH + "\n"])
 
 
 def read_previous_input():
@@ -271,10 +398,34 @@ def write_previous_input(spool_name, map_name):
         ])
 
 
+def read_autospool_defaults():
+    ensure_input_file()
+    try:
+        with open(AUTOSPOOL_FILE_PATH, 'r') as f:
+            lines = [x.rstrip() for x in f.readlines()]
+        while len(lines) < 4:
+            lines.append("")
+        return lines[0] or DEFAULT_SPOOL, lines[1] or DEFAULT_MAP, lines[2] or DEFAULT_LENGTH, lines[3] or DEFAULT_WIDTH
+    except Exception:
+        return DEFAULT_SPOOL, DEFAULT_MAP, DEFAULT_LENGTH, DEFAULT_WIDTH
+
+
+def write_autospool_defaults(spool_name, map_name, length_str, width_str):
+    ensure_input_file()
+    with open(AUTOSPOOL_FILE_PATH, 'w') as f:
+        f.writelines([spool_name + "\n", map_name + "\n", str(length_str) + "\n", str(width_str) + "\n"])
+
+
 def increment_spool_name(value):
     if not value:
         return value
     
+    parts = value.rsplit('-', 1)
+    if len(parts) == 2 and parts[1].isdigit():
+        width = len(parts[1])
+        next_num = int(parts[1]) + 1
+        return "{}-{}".format(parts[0], str(next_num).zfill(width))
+
     match = list(re.finditer(r'\d+', value))
     if not match:
         return value
@@ -290,10 +441,159 @@ def increment_spool_name(value):
     return value[:start] + next_num_str + value[end:]
 
 
+def get_connectors(el):
+    try:
+        cm = el.ConnectorManager or el.MEPModel.ConnectorManager
+        return list(cm.Connectors) if cm else []
+    except:
+        return []
+
+
+def get_element_dimensions(el):
+    try:
+        bbox = el.get_BoundingBox(None)
+        if bbox:
+            min_pt = bbox.Min
+            max_pt = bbox.Max
+            dx = abs(max_pt.X - min_pt.X)
+            dy = abs(max_pt.Y - min_pt.Y)
+            dz = abs(max_pt.Z - min_pt.Z)
+            dims = sorted([dx, dy, dz], reverse=True)
+            return dims[0], dims[1], dims[2]
+    except:
+        pass
+    
+    try:
+        val = el.CenterlineLength
+        if val:
+            return float(val), 0.0, 0.0
+    except:
+        pass
+        
+    return 0.0, 0.0, 0.0
+
+
+def dot(v1, v2):
+    return v1.X * v2.X + v1.Y * v2.Y + v1.Z * v2.Z
+
+
+def find_connection_in_set(conn, run_id_set, exclude_el_id):
+    try:
+        for rc in conn.AllRefs:
+            owner = rc.Owner
+            if owner and owner.Id.IntegerValue != exclude_el_id.IntegerValue and owner.Id.IntegerValue in run_id_set:
+                return owner, rc
+    except:
+        pass
+    return None, None
+
+
+class RunWalkError(Exception):
+    pass
+
+
+def walk_run(doc, run_id_set, start_id):
+    order = []
+    branch_stubs = []
+    visited = set()
+    current_id = start_id
+    incoming_connector = None
+
+    while True:
+        el = doc.GetElement(current_id)
+        visited.add(current_id.IntegerValue)
+        connectors = get_connectors(el)
+
+        outgoing_candidates = [c for c in connectors if c is not incoming_connector] if incoming_connector else list(connectors)
+
+        viable = []
+        for c in outgoing_candidates:
+            other_el, other_conn = find_connection_in_set(c, run_id_set, current_id)
+            if other_el is None or other_el.Id.IntegerValue in visited:
+                continue
+            score = dot(incoming_connector.CoordinateSystem.BasisZ, c.CoordinateSystem.BasisZ) if incoming_connector else None
+            viable.append((c, other_el, other_conn, score))
+
+        length_dim, width_dim, _ = get_element_dimensions(el)
+        order.append({'element': el, 'length': length_dim, 'width': width_dim})
+
+        if not viable:
+            break
+
+        chosen = None
+        if incoming_connector is None:
+            if len(viable) == 1:
+                chosen = viable[0]
+            else:
+                raise RunWalkError("Starting element has multiple directions. Pick an element at the physical end of the run.")
+        elif len(connectors) >= 3:
+            scored = [v for v in viable if v[3] is not None]
+            scored.sort(key=lambda v: v[3])
+            chosen = scored[0] if scored else viable[0]
+            for v in scored[1:]:
+                branch_stubs.append("Tee/cross at element {} -> unassigned branch at {}".format(current_id.IntegerValue, v[1].Id.IntegerValue))
+        else:
+            chosen = viable[0]
+
+        if chosen is None:
+            break
+
+        current_id = chosen[1].Id
+        incoming_connector = chosen[2]
+
+    return order, branch_stubs
+
+
+def group_into_spools(order, start_spool_name, target_length, target_width):
+    groups, current_group, current_len, current_width, spool_name = [], [], 0.0, 0.0, start_spool_name
+    for item in order:
+        current_group.append(item['element'])
+        current_len += item['length']
+        if item['width'] > current_width:
+            current_width = item['width']
+            
+        if current_len >= target_length or current_width >= target_width:
+            groups.append((spool_name, current_group))
+            spool_name = increment_spool_name(spool_name)
+            current_group, current_len, current_width = [], 0.0, 0.0
+            
+    if current_group:
+        groups.append((spool_name, current_group))
+    return groups
+
+
+def assign_spool_params(elements, spool_name, map_name, missing_elements):
+    for el in elements:
+        try:
+            if el.LookupParameter("Fabrication Service") or el.LookupParameter("STRATUS Assembly"):
+                set_parameter_by_name(el, "STRATUS Assembly", spool_name)
+                set_parameter_by_name(el, "FP_Spool Map", map_name)
+                set_parameter_by_name(el, "STRATUS Status", "Modeled")
+                try: el.SpoolName = spool_name
+                except: pass
+                try: el.PartStatus = 1
+                except: pass
+                try: el.Pinned = True
+                except: pass
+            else:
+                missing_elements.append(str(el.Id.IntegerValue))
+        except Exception as ex:
+            missing_elements.append("{} : {}".format(el.Id.IntegerValue, str(ex)))
+
+
+class RunSelectionFilter(ISelectionFilter):
+    def __init__(self, allowed_ids):
+        self.allowed_ids = allowed_ids
+    def AllowElement(self, elem):
+        return elem.Id.IntegerValue in self.allowed_ids
+    def AllowReference(self, ref, pos):
+        return True
+
+
 def get_spools_in_view(doc, curview):
-    values = set()
+    package_dict = {}
     if not curview:
-        return sorted(values, key=natural_key)
+        return package_dict
 
     categories = [
         BuiltInCategory.OST_FabricationPipework,
@@ -307,13 +607,28 @@ def get_spools_in_view(doc, curview):
             try:
                 param = elem.LookupParameter(PARAM_NAME)
                 if param and param.HasValue:
-                    val = param.AsString()
-                    if val and val.strip():
-                        values.add(val.strip())
+                    spool_val = param.AsString()
+                    if spool_val and spool_val.strip():
+                        spool_val = spool_val.strip()
+                        
+                        pkg_param = elem.LookupParameter(PACKAGE_PARAM_NAME)
+                        pkg_val = "Unassigned Package"
+                        if pkg_param and pkg_param.HasValue:
+                            p_str = pkg_param.AsString()
+                            if p_str and p_str.strip():
+                                pkg_val = p_str.strip()
+                                
+                        if pkg_val not in package_dict:
+                            package_dict[pkg_val] = set()
+                        package_dict[pkg_val].add(spool_val)
             except Exception:
                 pass
 
-    return sorted(values, key=natural_key)
+    sorted_package_dict = {}
+    for pkg in sorted(package_dict.keys(), key=natural_key):
+        sorted_package_dict[pkg] = sorted(list(package_dict[pkg]), key=natural_key)
+
+    return sorted_package_dict
 
 
 def get_elements_by_spool(doc, curview, spool_name):
@@ -378,6 +693,7 @@ class _SpoolManagerRequestHandler(IExternalEventHandler):
     def __init__(self):
         self.request_name = None
         self.spool_name = None
+        self.package_name = None
         self.map_name = None
         self.find_text = None
         self.replace_text = None
@@ -391,7 +707,7 @@ class _SpoolManagerRequestHandler(IExternalEventHandler):
         uidoc = uiapp.ActiveUIDocument
         if uidoc is None:
             self.pane.set_status("No active document.")
-            self.pane.set_all_spools([])
+            self.pane.set_all_spools({})
             return
 
         doc = uidoc.Document
@@ -407,6 +723,12 @@ class _SpoolManagerRequestHandler(IExternalEventHandler):
             elif self.request_name == "apply":
                 self._do_apply(uidoc, doc, curview, self.spool_name, self.map_name)
 
+            elif self.request_name == "assign_package":
+                self._do_assign_package(doc, curview, self.package_name, self.selected_items)
+
+            elif self.request_name == "auto_spool":
+                self._do_auto_spool(uiapp, uidoc, doc, curview)
+
             elif self.request_name == "rename":
                 self._do_rename(doc, curview, self.find_text, self.replace_text, self.selected_items)
 
@@ -417,7 +739,7 @@ class _SpoolManagerRequestHandler(IExternalEventHandler):
                 self._do_tag_spools(doc, curview)
 
             elif self.request_name == "pin_all":
-                self._do_pin_all(doc)
+                self._do_pin_all(doc, curview)
 
         except Exception as ex:
             self.pane.set_status("Error: {}".format(str(ex)))
@@ -425,6 +747,7 @@ class _SpoolManagerRequestHandler(IExternalEventHandler):
         finally:
             self.request_name = None
             self.spool_name = None
+            self.package_name = None
             self.map_name = None
             self.find_text = None
             self.replace_text = None
@@ -434,9 +757,10 @@ class _SpoolManagerRequestHandler(IExternalEventHandler):
         return "Spool Manager Pane External Event"
 
     def _do_refresh(self, doc, curview):
-        values = get_spools_in_view(doc, curview)
-        self.pane.set_all_spools(values)
-        self.pane.set_status("{} spool(s) found in active view.".format(len(values)))
+        packages_map = get_spools_in_view(doc, curview)
+        total_spools = sum(len(spools) for spools in packages_map.values())
+        self.pane.set_all_spools(packages_map)
+        self.pane.set_status("{} spool(s) found across {} package(s) in active view.".format(total_spools, len(packages_map)))
 
     def _do_show(self, uidoc, doc, curview, spool_name):
         if not spool_name:
@@ -530,9 +854,116 @@ class _SpoolManagerRequestHandler(IExternalEventHandler):
         self.pane.spool_input_tb.Text = new_spool_name
         self.pane.map_input_tb.Text = map_name
 
-        values = get_spools_in_view(doc, curview)
-        self.pane.set_all_spools(values)
+        packages_map = get_spools_in_view(doc, curview)
+        self.pane.set_all_spools(packages_map)
         self.pane.set_status("Applied spool data to {} element(s). Next spool incremented.".format(changed))
+
+    def _do_assign_package(self, doc, curview, package_name, selected_spools):
+        package_name = (package_name or "").strip()
+        if not package_name:
+            self.pane.set_status("Enter a Package Name first.")
+            return
+        if not selected_spools:
+            self.pane.set_status("Select one or more spools in the list.")
+            return
+
+        categories = [
+            BuiltInCategory.OST_FabricationPipework,
+            BuiltInCategory.OST_FabricationDuctwork,
+            BuiltInCategory.OST_FabricationHangers,
+            BuiltInCategory.OST_FabricationContainment
+        ]
+
+        elements_to_process = []
+        for cat in categories:
+            collector = FilteredElementCollector(doc, curview.Id).OfCategory(cat).OfClass(FabricationPart)
+            for elem in collector:
+                try:
+                    asm_val = get_parameter_value_by_name_AsString(elem, PARAM_NAME)
+                    if asm_val and asm_val in selected_spools:
+                        elements_to_process.append(elem)
+                except Exception:
+                    pass
+
+        if not elements_to_process:
+            self.pane.set_status("No fabrication parts matched the selected spools.")
+            return
+
+        changed = 0
+        t = Transaction(doc, "Assign STRATUS Package")
+        t.Start()
+        try:
+            for elem in elements_to_process:
+                set_parameter_by_name(elem, PACKAGE_PARAM_NAME, package_name)
+                changed += 1
+            t.Commit()
+        except Exception as ex:
+            if t.HasStarted():
+                t.RollBack()
+            self.pane.set_status("Assign package error: {}".format(str(ex)))
+            return
+
+        packages_map = get_spools_in_view(doc, curview)
+        self.pane.set_all_spools(packages_map)
+        self.pane.set_status("Assigned package '{}' to {} element(s).".format(package_name, changed))
+
+    def _do_auto_spool(self, uiapp, uidoc, doc, curview):
+        run_ids = list(uidoc.Selection.GetElementIds())
+        if not run_ids:
+            self.pane.set_status("No elements selected. Multi-select the pipe run first.")
+            return
+
+        run_id_set = set(eid.IntegerValue for eid in run_ids)
+
+        spool_name = self.pane.spool_input_tb.Text.strip()
+        map_name = self.pane.map_input_tb.Text.strip()
+        length_text = self.pane.length_input_tb.Text.strip()
+        width_text = self.pane.width_input_tb.Text.strip()
+
+        if not spool_name or not map_name or not length_text or not width_text:
+            self.pane.set_status("Enter Spool Name, Map Name, Length, and Width.")
+            return
+
+        try:
+            target_length = float(length_text)
+            target_width = float(width_text)
+            if target_length <= 0 or target_width <= 0:
+                raise ValueError()
+        except ValueError:
+            self.pane.set_status("Length and Width must be positive numbers.")
+            return
+
+        try:
+            ref = uidoc.Selection.PickObject(ObjectType.Element, RunSelectionFilter(run_id_set), "Pick starting element at physical end of run.")
+        except:
+            self.pane.set_status("Auto spool selection cancelled.")
+            return
+
+        order, branch_stubs = walk_run(doc, run_id_set, ref.ElementId)
+
+        if not order:
+            self.pane.set_status("Could not walk run.")
+            return
+
+        groups = group_into_spools(order, spool_name, target_length, target_width)
+
+        missing_elements = []
+        t = Transaction(doc, "Auto Spool Run")
+        t.Start()
+        for gname, gelements in groups:
+            assign_spool_params(gelements, gname, map_name, missing_elements)
+        t.Commit()
+
+        next_spool = increment_spool_name(groups[-1][0]) if groups else spool_name
+        write_autospool_defaults(next_spool, map_name, length_text, width_text)
+        write_previous_input(next_spool, map_name)
+
+        self.pane.spool_input_tb.Text = next_spool
+        self.pane.map_input_tb.Text = map_name
+
+        packages_map = get_spools_in_view(doc, curview)
+        self.pane.set_all_spools(packages_map)
+        self.pane.set_status("Auto spool complete: Assigned {} spool(s).".format(len(groups)))
 
     def _do_rename(self, doc, curview, find, replace, selected_items):
         if not find or replace is None:
@@ -586,8 +1017,8 @@ class _SpoolManagerRequestHandler(IExternalEventHandler):
             self.pane.set_status("Rename error: {}".format(str(ex)))
             return
 
-        values = get_spools_in_view(doc, curview)
-        self.pane.set_all_spools(values)
+        packages_map = get_spools_in_view(doc, curview)
+        self.pane.set_all_spools(packages_map)
         self.pane.set_status("Renamed spools on {} element(s).".format(changed))
 
     def _do_make_filters(self, doc, curview):
@@ -597,8 +1028,8 @@ class _SpoolManagerRequestHandler(IExternalEventHandler):
             view_to_modify = get_target_view_or_template(doc)
 
             part_collector = FilteredElementCollector(doc, curview.Id).OfClass(FabricationPart) \
-                                 .WhereElementIsNotElementType() \
-                                 .ToElements()
+                                        .WhereElementIsNotElementType() \
+                                        .ToElements()
 
             existing_filters = FilteredElementCollector(doc).OfClass(ParameterFilterElement).ToElements()
             existing_filter_names = {filter.Name for filter in existing_filters}
@@ -668,7 +1099,6 @@ class _SpoolManagerRequestHandler(IExternalEventHandler):
                     cats = List[ElementId]([ElementId(cat) for cat in filter_props["categories"]])
                     color = Color(*filter_props["color"])
 
-                    # 1. Create or get the filter element globally in the document
                     if filter_name in existing_filter_names:
                         filter_id = existing_filter_dict[filter_name]
                     else:
@@ -695,7 +1125,6 @@ class _SpoolManagerRequestHandler(IExternalEventHandler):
                         filter_id = filter_elem.Id
                         existing_filter_dict[filter_name] = filter_id
 
-                    # 2. Add only if it is missing from the view, then update overrides/visibility
                     if not applied_filter_ids.Contains(filter_id):
                         view_to_modify.AddFilter(filter_id)
 
@@ -834,22 +1263,25 @@ class _SpoolManagerRequestHandler(IExternalEventHandler):
 
         self.pane.set_status("Successfully tagged {} spool(s).".format(tagged_count))
 
-    def _do_pin_all(self, doc):
-        all_elements = FilteredElementCollector(doc).OfClass(FabricationPart) \
-                             .WhereElementIsNotElementType() \
-                             .ToElements()
+    def _do_pin_all(self, doc, curview):
+        all_elements = FilteredElementCollector(doc, curview.Id).OfClass(FabricationPart) \
+                                   .WhereElementIsNotElementType() \
+                                   .ToElements()
 
         pinned_count = 0
-        with Transaction(doc, 'Pin All Spools') as t:
+        with Transaction(doc, 'Pin All Spools in View') as t:
             t.Start()
             for i in all_elements:
                 param_exist = i.LookupParameter("STRATUS Assembly")
                 if param_exist and param_exist.HasValue:
-                    i.Pinned = True
-                    pinned_count += 1
+                    try:
+                        i.Pinned = True
+                        pinned_count += 1
+                    except:
+                        pass
             t.Commit()
 
-        self.pane.set_status("Pinned {} fabrication part(s).".format(pinned_count))
+        self.pane.set_status("Pinned {} fabrication part(s) in active view.".format(pinned_count))
 
 
 class SpoolManagerPane(forms.WPFPanel):
@@ -865,13 +1297,19 @@ class SpoolManagerPane(forms.WPFPanel):
         self._handler.pane = self
         self._ext_event = ExternalEvent.Create(self._handler)
 
-        self._all_spools = []
+        self._all_packages_map = {}
 
         spool_def, map_def = read_previous_input()
+        auto_spool_def, auto_map_def, auto_len_def, auto_width_def = read_autospool_defaults()
+        
         self.spool_input_tb.Text = spool_def
         self.map_input_tb.Text = map_def
+        self.length_input_tb.Text = auto_len_def
+        self.width_input_tb.Text = auto_width_def
 
         self.apply_btn.Click += self.on_apply_clicked
+        self.assign_package_btn.Click += self.on_assign_package_clicked
+        self.auto_spool_btn.Click += self.on_auto_spool_clicked
         self.rename_btn.Click += self.on_rename_clicked
         self.make_filters_btn.Click += self.on_make_filters_clicked
         self.tag_spools_btn.Click += self.on_tag_spools_clicked
@@ -882,9 +1320,8 @@ class SpoolManagerPane(forms.WPFPanel):
         self.select_all_btn.Click += self.on_select_all_clicked
 
         self.search_tb.TextChanged += self.on_search_changed
-        self.line_numbers_lb.SelectionChanged += self.on_spool_selected
-        self.line_numbers_lb.MouseDoubleClick += self.on_spool_double_clicked
-        self.line_numbers_lb.PreviewMouseWheel += self.on_list_mouse_wheel
+        self.spool_list_box.SelectionChanged += self.on_list_item_selected
+        self.spool_list_box.MouseDoubleClick += self.on_list_double_clicked
         
         self.Loaded += self.on_loaded
         self.Unloaded += self.on_unloaded
@@ -892,8 +1329,58 @@ class SpoolManagerPane(forms.WPFPanel):
         try:
             from pyrevit import HOST_APP
             HOST_APP.uiapp.ViewActivated += self.on_view_activated
+            app = HOST_APP.app
+            app.DocumentChanged += self.on_document_changed
+
+            # Check Revit version for 2024+ native dark theme support
+            if HOST_APP.is_newer_than(2023, True):
+                HOST_APP.uiapp.ThemeChanged += self.on_theme_changed
+                self.apply_revit_theme()
+            else:
+                # Force strictly to Light Mode palette for Revit 2023 and older
+                self.apply_light_theme()
+        except Exception:
+            self.apply_light_theme()
+
+    def apply_light_theme(self):
+        try:
+            res = self.Resources
+            res["PageBackgroundBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 245, 245, 245))
+            res["TextForegroundBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 51, 51, 51))
+            res["SubTextForegroundBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 102, 102, 102))
+            res["ControlBackgroundBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 255, 255, 255))
+            res["ButtonBackgroundBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 239, 239, 239))
+            res["BorderColorBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 208, 208, 208))
+            res["SeparatorColorBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 0, 0, 0))
         except Exception:
             pass
+
+    def apply_revit_theme(self):
+        try:
+            current_theme = UIThemeManager.CurrentTheme
+            is_dark = (current_theme == UITheme.Dark)
+
+            bg_hex = "#FF3B4453" if is_dark else "#FFF5F5F5"
+            text_hex = "#FFDFDFDF" if is_dark else "#FF333333"
+            subtext_hex = "#FF999999" if is_dark else "#FF666666"
+            ctrl_bg_hex = "#FF222933" if is_dark else "#FFFFFFFF"
+            btn_bg_hex = "#FF222933" if is_dark else "#FFEFEFEF"
+            border_hex = "#FF363B40" if is_dark else "#FFD0D0D0"
+            sep_hex = "#FFFFFFFF" if is_dark else "#FF000000"
+
+            res = self.Resources
+            res["PageBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["TextForegroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(text_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["SubTextForegroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(subtext_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["ControlBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(ctrl_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["ButtonBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(btn_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["BorderColorBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(border_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+            res["SeparatorColorBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(sep_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
+        except Exception:
+            pass
+
+    def on_theme_changed(self, sender, args):
+        self.apply_revit_theme()
 
     def on_loaded(self, sender, args):
         self.request_refresh()
@@ -902,44 +1389,53 @@ class SpoolManagerPane(forms.WPFPanel):
         try:
             from pyrevit import HOST_APP
             HOST_APP.uiapp.ViewActivated -= self.on_view_activated
+            app = HOST_APP.app
+            app.DocumentChanged -= self.on_document_changed
+            if HOST_APP.is_newer_than(2023, True):
+                HOST_APP.uiapp.ThemeChanged -= self.on_theme_changed
         except Exception:
             pass
 
     def on_view_activated(self, sender, args):
         self.request_refresh()
 
-    def on_spool_selected(self, sender, args):
-        selected = self.line_numbers_lb.SelectedItem
-        if selected:
-            self.spool_input_tb.Text = str(selected)
+    def on_document_changed(self, sender, args):
+        self.request_refresh()
 
-    def on_spool_double_clicked(self, sender, args):
-        selected = self.line_numbers_lb.SelectedItem
-        if not selected:
-            self.set_status("Select a spool first.")
-            return
-        self.request_show(str(selected))
+    def on_list_item_selected(self, sender, args):
+        selected = self.spool_list_box.SelectedItem
+        if selected and isinstance(selected, SpoolDisplayItem):
+            self.spool_input_tb.Text = selected.spool_name
+            if selected.package_name and selected.package_name != "Unassigned Package":
+                self.package_input_tb.Text = selected.package_name
 
-    def on_list_mouse_wheel(self, sender, args):
-        parent = System.Windows.Media.VisualTreeHelper.GetParent(sender)
-        while parent and not isinstance(parent, System.Windows.Controls.ScrollViewer):
-            parent = System.Windows.Media.VisualTreeHelper.GetParent(parent)
-        if parent:
-            if args.Delta > 0:
-                parent.LineUp()
-            else:
-                parent.LineDown()
-            args.Handled = True
+    def on_list_double_clicked(self, sender, args):
+        selected = self.spool_list_box.SelectedItem
+        if selected and isinstance(selected, SpoolDisplayItem):
+            self.request_show(selected.spool_name)
 
     def on_apply_clicked(self, sender, args):
         self.request_apply(self.spool_input_tb.Text, self.map_input_tb.Text)
 
+    def on_assign_package_clicked(self, sender, args):
+        selected_spools = []
+        for item in self.spool_list_box.SelectedItems:
+            if isinstance(item, SpoolDisplayItem):
+                selected_spools.append(item.spool_name)
+        self.request_assign_package(self.package_input_tb.Text, selected_spools)
+
+    def on_auto_spool_clicked(self, sender, args):
+        self.request_auto_spool()
+
     def on_rename_clicked(self, sender, args):
-        selected = [str(item) for item in self.line_numbers_lb.SelectedItems]
-        self.request_rename(self.find_tb.Text, self.replace_tb.Text, selected)
+        selected_spools = []
+        for item in self.spool_list_box.SelectedItems:
+            if isinstance(item, SpoolDisplayItem):
+                selected_spools.append(item.spool_name)
+        self.request_rename(self.find_tb.Text, self.replace_tb.Text, selected_spools)
 
     def on_select_all_clicked(self, sender, args):
-        self.line_numbers_lb.SelectAll()
+        self.spool_list_box.SelectAll()
 
     def on_pin_all_clicked(self, sender, args):
         self.request_pin_all()
@@ -956,6 +1452,7 @@ class SpoolManagerPane(forms.WPFPanel):
     def request_refresh(self):
         self._handler.request_name = "refresh"
         self._handler.spool_name = None
+        self._handler.package_name = None
         self._handler.map_name = None
         try:
             self._ext_event.Raise()
@@ -965,6 +1462,7 @@ class SpoolManagerPane(forms.WPFPanel):
     def request_show(self, spool_name):
         self._handler.request_name = "show"
         self._handler.spool_name = spool_name
+        self._handler.package_name = None
         self._handler.map_name = None
         self._ext_event.Raise()
 
@@ -972,6 +1470,19 @@ class SpoolManagerPane(forms.WPFPanel):
         self._handler.request_name = "apply"
         self._handler.spool_name = spool_name
         self._handler.map_name = map_name
+        self._ext_event.Raise()
+
+    def request_assign_package(self, package_name, selected_items):
+        self._handler.request_name = "assign_package"
+        self._handler.package_name = package_name
+        self._handler.selected_items = selected_items
+        self._ext_event.Raise()
+
+    def request_auto_spool(self):
+        self._handler.request_name = "auto_spool"
+        self._handler.spool_name = None
+        self._handler.package_name = None
+        self._handler.map_name = None
         self._ext_event.Raise()
 
     def request_rename(self, find_text, replace_text, selected_items):
@@ -984,37 +1495,42 @@ class SpoolManagerPane(forms.WPFPanel):
     def request_make_filters(self):
         self._handler.request_name = "make_filters"
         self._handler.spool_name = None
+        self._handler.package_name = None
         self._handler.map_name = None
         self._ext_event.Raise()
 
     def request_tag_spools(self):
         self._handler.request_name = "tag_spools"
         self._handler.spool_name = None
+        self._handler.package_name = None
         self._handler.map_name = None
         self._ext_event.Raise()
 
     def request_pin_all(self):
         self._handler.request_name = "pin_all"
         self._handler.spool_name = None
+        self._handler.package_name = None
         self._handler.map_name = None
         self._ext_event.Raise()
 
-    def set_all_spools(self, values):
-        self._all_spools = list(values)
+    def set_all_spools(self, packages_map):
+        self._all_packages_map = packages_map
         self.apply_search_filter()
 
     def apply_search_filter(self):
         current_text = self.spool_input_tb.Text
         search_text = (self.search_tb.Text or "").strip().lower()
 
-        if search_text:
-            filtered = [x for x in self._all_spools if search_text in x.lower()]
-        else:
-            filtered = list(self._all_spools)
+        items_list = []
+        for package_name, spools in sorted(self._all_packages_map.items(), key=lambda x: natural_key(x[0])):
+            for spool in spools:
+                if not search_text or search_text in spool.lower() or search_text in package_name.lower():
+                    items_list.append(SpoolDisplayItem(package_name, spool))
 
-        self.line_numbers_lb.Items.Clear()
-        for value in filtered:
-            self.line_numbers_lb.Items.Add(value)
+        cvs = CollectionViewSource()
+        cvs.Source = items_list
+        cvs.GroupDescriptions.Add(System.Windows.Data.PropertyGroupDescription("package_name"))
+        self.spool_list_box.ItemsSource = cvs.View
 
         self.spool_input_tb.Text = current_text
 

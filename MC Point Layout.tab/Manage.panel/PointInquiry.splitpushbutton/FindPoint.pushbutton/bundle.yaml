@@ -1,20 +1,21 @@
-# highlight: new
+#highlight: new
 
 # bundle title
 title:
-  "Tag Point\n Number"
+  "Find\nPoint"
 
 # bundle tooltip
 tooltip: |-
-  Adds tags to selected families with TS_Point_Number Parameter.
-
+  A search tool that only looks for:
+  TS_Point_Number
+  TS_Point_Description
 
 # context directives are listed under `context` key, the order does not matter
 #context:
 #  - Selection
 
 # bundle help url
-#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+help_url: "https://youtu.be/lSqrnCQ3Hng"
 
 # bundle author
 author: Mitchell Oatman

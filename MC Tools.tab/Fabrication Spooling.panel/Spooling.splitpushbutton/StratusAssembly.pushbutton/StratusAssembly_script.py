@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-__persistentengine__ = True
 
 import os
 import clr

@@ -204,10 +204,3 @@ try:
 except NameError:
     script_dir = os.getcwd()
 
-img0_file = os.path.join(script_dir, "image0.png")
-img1_file = os.path.join(script_dir, "image1.png")
-
-# Launch the WPF window with multiple images
-msg = "Schedules created. Reference stickers below for necessary fields."
-dialog = MultiImageDialog(img0_file, img1_file, msg)
-dialog.ShowDialog()
