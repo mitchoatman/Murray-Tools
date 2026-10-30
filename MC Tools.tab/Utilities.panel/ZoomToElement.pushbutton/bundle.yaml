@@ -12,8 +12,5 @@ tooltip: |-
   2. Navigate to a corresponding view.
   3. Run command and you will be navigated to element.
 
-# bundle help url
-help_url: "https://youtu.be/AvDcEcJ7OFk"
-
 # bundle author
 author: Mitchell Oatman

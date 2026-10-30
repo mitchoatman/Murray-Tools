@@ -5,10 +5,11 @@ title:
   "Fab Duct Elev"
 
 # bundle tooltip
-tooltip: >-
-  This will Insert the Fabrication Duct Elevation Tag Family into the Active View.(If the Family is already loaded into the project)
+tooltip: |-
+  Places elevation tag on user selected duct. (Loads family if not already in project.)
 
-
+  [Shift]+Click:    
+  Places elevation tag on 'multi-selected' ducts.
 
 # context directives are listed under `context` key, the order does not matter
 #context:

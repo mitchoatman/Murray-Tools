@@ -1,0 +1,17 @@
+title: Copy View
+  Templates
+
+tooltip: >-
+  Copies selected View Templates from another open Revit project
+  into the active project.
+
+  The active project is the DESTINATION.
+
+  Select one or more templates from another open project.
+
+  Existing same-name templates can be skipped or safely replaced.
+
+  When replacing a template, views using the existing template
+  are automatically reassigned to the copied replacement.
+
+author: LGarduno

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<!-- GENERATED FILE. Do not edit. Edit help.md and click the Build Help button. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create Carrier Views</title>
+<meta name="murray-topic-id" content="CarrierViews">
+<meta name="murray-content-hash" content="902f9158d7c0575b">
+<style>
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.55}
+.band{background:#FFE716;border-bottom:2px solid #000}
+.band-inner{display:flex;align-items:center;gap:20px;padding:16px 28px}
+.band-logo{height:56px;width:auto;flex:none}
+.band small{display:block;font-size:14px;font-weight:bold;margin-bottom:4px}
+.band small a{text-decoration:none}
+.band small a:hover{text-decoration:underline}
+.band h1{margin:0;font-size:30px;line-height:1.2}
+.layout{display:flex;align-items:flex-start}
+.side{flex:none;width:300px;position:sticky;top:0;max-height:100vh;overflow:auto;padding:18px 0 24px}
+.side input{display:block;width:calc(100% - 40px);margin:0 20px 12px;padding:7px 10px;font:inherit;font-size:14px;border:1px solid #000;border-radius:0}
+.side ul{list-style:none;margin:0;padding:0}
+.side li{margin:0}
+.side a{display:block;padding:7px 20px 7px 16px;border-left:4px solid transparent;text-decoration:none;font-size:15px;line-height:1.3}
+.side a:hover{border-left-color:#000;text-decoration:underline}
+.side a[aria-current="page"]{background:#FFE716;border-left-color:#000;font-weight:bold}
+.side .home-link{font-weight:bold;border-bottom:1px solid #000;margin-bottom:6px;padding-bottom:10px}
+.side .none{display:none;padding:7px 20px;font-size:14px}
+.content{flex:1;min-width:0;min-height:100vh;padding:24px 36px 0;border-left:1px solid #000;margin-left:-1px}
+.content>.page{max-width:900px}
+h2{font-size:22px;margin:32px 0 10px;padding-bottom:4px;border-bottom:2px solid #FFE716;line-height:1.25}
+h3{font-size:18px;margin:24px 0 8px;line-height:1.25}
+p{margin:8px 0}
+ul,ol{margin:4px 0;padding-left:26px}
+li{margin:3px 0}
+.page>ul>li,.page>ol>li{margin-top:12px}
+a{color:#000;text-decoration:underline}
+a:focus-visible,img:focus-visible,button:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid #000;outline-offset:2px}
+figure{margin:12px 0}
+figure img{display:block;max-width:100%;height:auto;border:1px solid #000;cursor:zoom-in}
+.note{background:#FFE716;padding:6px 12px;margin:6px 0;border-left:4px solid #000}
+.missing{border:2px dashed #000;padding:8px 12px;font-weight:bold}
+code{font-family:Consolas,monospace;font-size:14px;border:1px solid #000;padding:0 4px}
+hr{border:0;border-top:1px solid #000;margin:20px 0}
+.home{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:40px;max-width:1200px}
+.home>.page>h2:first-child{margin-top:8px}
+.feedback{border:1px solid #000;padding:4px 20px 20px;align-self:start;position:sticky;top:24px}
+.feedback h2{margin-top:16px}
+.feedback textarea{display:block;width:100%;min-height:140px;margin:10px 0;padding:8px;font:inherit;font-size:15px;border:1px solid #000;border-radius:0;resize:vertical}
+.feedback button{font:inherit;font-weight:bold;background:#FFE716;color:#000;border:2px solid #000;padding:8px 22px;cursor:pointer}
+.feedback button:hover{background:#000;color:#fff}
+.feedback .small{font-size:13px}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;z-index:10}
+.lightbox.open{display:flex}
+.lightbox img{max-width:100%;max-height:100%;background:#fff}
+.wn{margin:12px 0 8px}
+.wn-head{font-weight:bold;margin:16px 0 4px}
+.wn-card{border:1px solid #000;border-top:4px solid #FFE716;padding:4px 16px 10px;margin:10px 0}
+.wn-card h3{margin:8px 0 2px;font-size:17px}
+.wn-card .meta{font-size:13px;margin:0 0 4px}
+.wn-card p{margin:4px 0}
+.wn-note{font-size:13px}
+.badge{display:inline-block;font-size:12px;font-weight:bold;padding:1px 8px;margin-left:8px;border:1px solid #000;background:#FFE716;color:#000;vertical-align:middle}
+.badge.upd{background:#fff}
+.btn{font:inherit;font-weight:bold;background:#FFE716;color:#000;border:2px solid #000;padding:6px 16px;margin:8px 10px 6px 0;cursor:pointer}
+.btn:hover{background:#000;color:#fff}
+footer{max-width:900px;margin:48px 0 0;padding:12px 0 28px;font-size:12px;border-top:1px solid #000}
+@media (max-width:1100px){.home{grid-template-columns:1fr}.feedback{position:static}}
+@media (max-width:760px){.layout{display:block}.side{position:static;width:auto;max-height:none;border-bottom:1px solid #000}.content{padding:20px;border-left:0;margin-left:0;min-height:0}}
+@media print{.side,.feedback,.lightbox{display:none!important}figure img{cursor:auto}.content{padding:0}}
+</style>
+</head>
+<body>
+<header class="band"><div class="band-inner"><img class="band-logo" src="../../murray_logo.png" alt="Murray Company"><div><small><a href="../../help.html">Murray Help</a></small><h1>Create Carrier Views</h1></div></div></header>
+<div class="layout">
+<nav class="side" aria-label="Help topics">
+<input id="topic-filter" type="search" placeholder="Filter topics" aria-label="Filter topics">
+<ul id="topics-home">
+<li><a class="home-link" href="../../help.html">Home</a></li>
+</ul><ul id="topics">
+<li><a href="../ChangeRodSize/help.html">Change Rod Size</a></li>
+<li><a href="../ChromeShortcuts/help.html">Chrome Shortcuts</a></li>
+<li><a href="../ControlPoint/help.html">Control Point</a></li>
+<li><a href="../CarrierViews/help.html" aria-current="page">Create Carrier Views</a></li>
+<li><a href="../FabricationHangersInRevit/help.html">Fabrication Hangers in Revit</a></li>
+<li><a href="../FabricationPartBOMExcel/help.html">Fabrication Part BOM (Excel)</a></li>
+<li><a href="../FamilyNavigator/help.html">Family Navigator Pane</a></li>
+<li><a href="../HideIsolate/help.html">Hide / Isolate Service</a></li>
+<li><a href="../MakeSchedule/help.html">Make Schedule</a></li>
+<li><a href="../MCPointloadDuct/help.html">MC Pointload (Duct)</a></li>
+<li><a href="../MCPointloadPipe/help.html">MC Pointload (Pipe)</a></li>
+<li><a href="../PipeLabels/help.html">Pipe Labels</a></li>
+<li><a href="../PointLayoutMC/help.html">Point Layout (MC)</a></li>
+<li><a href="../PointLayoutUG/help.html">Point Layout (UG)</a></li>
+<li><a href="../QCPoints/help.html">QC Points</a></li>
+<li><a href="../RenameSheetsViews/help.html">Rename Sheets and Views</a></li>
+<li><a href="../RevitFamilyLibraryAndCreatingFamiliesFromImports/help.html">Revit Family Library and Creating Families (From Imports)</a></li>
+<li><a href="../RevitRevisions/help.html">Revit Revisions</a></li>
+<li><a href="../RoughInDrawings/help.html">Rough In Drawings</a></li>
+<li><a href="../StiffyBOMWIP/help.html">Stiffy BOM (WIP)</a></li>
+<li><a href="../TaggingRoomNames/help.html">Tagging Room Names</a></li>
+<li><a href="../FindPoint/help.html">TS Point Number Locator</a></li>
+<li><a href="../ValveNumbering/help.html">Valve Numbering</a></li>
+<li><a href="../WallTrimbleRevit/help.html">Wall Trimble Revit</a></li>
+</ul><p class="none" id="no-topics">No matching topics.</p></nav>
+<main class="content">
+<div class="page"><p><strong>Why and when do we create carrier views?</strong></p>
+<p><strong>Why</strong> - Builds a Floor Plan, an Elevation View, and a 3D Isometric View around a selected carrier and its runs, names them, and can place them on a sheet. This replaces creating each section and 3D view by hand.</p>
+<p><strong>When</strong> - As requested, when a carrier, rack, or trapeze needs views for coordination, a spool package, or a sheet.</p>
+<p><strong>DRAFT: this tool has not been tested on a live model. Try it in a test project first. Your PM or PE must check the views and sheet before anything is issued.</strong></p>
+<p>You get three views, named from the text you type:</p>
+<ul><li>
+<strong>Your name - Floor Plan</strong> (1/2" = 1'-0")
+</li><li>
+<strong>Your name - Elevation View</strong> (1/2" = 1'-0")
+</li><li>
+<strong>Your name - 3D Isometric View</strong> (1-1/2" = 1'-0")
+</li></ul>
+<figure><img src="images/img-01.png" alt=""></figure>
+<h2><strong>1. Select the elements:</strong></h2>
+<p>This method requires the least setup. Work from a plan view, because the tool uses the bottom of the plan as "front."</p>
+<p>Select the parts you want shown in the views.</p>
+<ul><li>
+Select fabrication parts and/or family instances (the carrier, the pipe runs on it, hangers, and so on).
+<ul><li>
+Other element types are ignored.
+</li></ul>
+</li><li>
+Include at least one straight pipe run if you can. The views line up to the longest straight pipe in your selection.
+</li></ul>
+<figure><img src="images/img-02.png" alt=""></figure>
+<hr>
+<h2><strong>2. Open the tool and name the views:</strong></h2>
+<ul><li>
+Click the <strong>Create Carrier Views</strong> button on the Murray Ribbon.
+</li><li>
+A small window opens. It stays open, so you can still change your selection, use Properties, and move around in Revit.
+</li><li>
+Type the view name. Example: <code>L1-A1-WV_WTR-01</code>.
+<ul><li>
+Do not type "Floor Plan" or "Elevation View." The tool adds the view type.
+</li><li>
+These characters are not allowed: <code>\ : { } [ ] | ; &lt; &gt; ? </code> ~`
+</li><li>
+If the name is already used, the tool adds (2), (3), and so on.
+</li></ul>
+</li><li>
+Click <strong>Update selection info</strong> after you change your selection.
+</li></ul>
+<figure><img src="images/img-03.png" alt=""></figure>
+<hr>
+<h2><strong>3. Choose a sheet option:</strong></h2>
+<ul><li>
+<strong>Do not place on a sheet</strong> creates the three views only.
+</li><li>
+<strong>Place on an existing sheet</strong> lets you pick a sheet from the list.
+</li><li>
+<strong>Create a new sheet</strong> needs a title block, a sheet number, and a sheet name. The sheet number must not already exist.
+</li></ul>
+<p>Click <strong>Create</strong>. The window hides while Revit works. Do not click in Revit until the next window appears.</p>
+<hr>
+<h2><strong>4. Choose the face for the Elevation View:</strong></h2>
+<p>A <strong>Choose the face</strong> window shows four previews: <strong>Front</strong>, <strong>Back</strong>, <strong>Right end</strong>, and <strong>Left end</strong>.</p>
+<ul><li>
+Select the side that shows the face of the carrier and its runs.
+</li><li>
+Click <strong>Use this face</strong>.
+</li><li>
+Click <strong>Cancel</strong> to stop. Nothing is created.
+</li><li>
+The previews are temporary and are removed. They do not change your model.
+</li></ul>
+<figure><img src="images/img-04.png" alt=""></figure>
+<hr>
+<h2><strong>5. Check the result:</strong></h2>
+<ul><li>
+The window shows one line, for example: Created 3 views for L1-A1-WV_WTR-01. Elevation face: Front.
+</li><li>
+If you chose a sheet, the views are placed automatically and the sheet opens. The Floor Plan is on top of the Elevation View on the left, and the 3D Isometric View is on the right.
+</li><li>
+Click <strong>Close</strong> when you are done, or change the selection and run it again.
+</li></ul>
+<p class="missing">Missing image: images/img-05.png</p>
+<p><strong>ONE THING TO NOTE: EACH RUN CREATES A NEW SET OF THREE VIEWS.</strong></p>
+<p><strong>DELETE OLD SETS YOU NO LONGER NEED, AND CHECK EVERY VIEW AND THE SHEET BEFORE IT GOES OUT.</strong></p>
+<hr>
+<h2><strong>What the tool does for you:</strong></h2>
+<ul><li>
+<strong>Hides what you did not select.</strong> If your selection has a STRATUS Assembly value, other fabrication parts and model families outside that assembly are hidden in the new views. Your selected elements always stay.
+</li><li>
+<strong>Hides clutter.</strong> Scope boxes, section lines, section heads, and Revit links are hidden in every new view.
+</li><li>
+<strong>Aligns to the pipe.</strong> Views line up to the longest straight pipe in your selection, or in the same assembly if your selection has none.
+</li><li>
+<strong>Sets the details.</strong> Fine detail level, view scale, and the Title on Sheet text are set for you.
+</li></ul>
+<hr>
+<h2><strong>If something goes wrong:</strong></h2>
+<ul><li>
+<strong>"Select fabrication parts and/or family instances..."</strong> Nothing usable is selected. Select the elements, then click Create again.
+</li><li>
+<strong>"Sheet number ... already exists."</strong> Enter a different sheet number, or use an existing sheet.
+</li><li>
+<strong>"No STRATUS Assembly value was found."</strong> The views were created, but nothing was hidden by assembly. Check the STRATUS Assembly parameter on the selected elements.
+</li><li>
+<strong>"No straight run was found."</strong> The views follow the plan orientation instead of a pipe. Add a straight pipe run to the selection to align to it.
+</li><li>
+<strong>"Views are larger than the sheet area."</strong> Change the view scales or crop, then move the viewports on the sheet.
+</li><li>
+<strong>The wrong side shows in the Elevation View.</strong> Run the tool again and pick a different face.
+</li><li>
+<strong>The sheet or placement failed.</strong> The three views are still in the Project Browser. Drag them onto a sheet yourself.
+</li></ul>
+<p>[CONFIRM: Egnyte link for the training video or the template, if one exists]</p>
+<p>&lt;!-- OPEN ITEMS (remove before posting to the Help Hub)</p>
+<ol><li>
+[CONFIRM: Revit and pyRevit versions. Script is marked DRAFT, untested.]
+</li><li>
+[CONFIRM: exact Murray Ribbon tab and panel for the button.]
+</li><li>
+[CONFIRM: default scales match Murray standards.]
+</li><li>
+[CONFIRM: STRATUS Assembly parameter name matches the project parameter.]
+</li><li>
+Screenshots needed, saved in images/ with these names:
+<p>img-01.png  finished Floor Plan, Elevation View, and 3D Isometric View (or a sheet with all three) img-02.png  a carrier and runs selected in a plan view img-03.png  the Create Carrier Views window with a name typed img-04.png  the Choose the face window img-05.png  the result line and the finished sheet</p>
+</li></ol>
+<p>--&gt;</p></div>
+<footer>Last built 2026-10-27. Click any image to enlarge; press Esc to close.</footer>
+</main>
+</div>
+<div class="lightbox" id="lb" role="dialog" aria-label="Enlarged image"><img alt=""></div>
+<script>
+(function(){
+  var box=document.getElementById('lb'), big=box.querySelector('img');
+  document.querySelectorAll('figure img').forEach(function(im){
+    im.tabIndex=0;
+    function open(){big.src=im.src;box.classList.add('open');}
+    im.addEventListener('click',open);
+    im.addEventListener('keydown',function(e){if(e.key==='Enter'){open();}});
+  });
+  function close(){box.classList.remove('open');big.removeAttribute('src');}
+  box.addEventListener('click',close);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){close();}});
+
+  var f=document.getElementById('topic-filter');
+  if(f){
+    var items=document.querySelectorAll('#topics li'), none=document.getElementById('no-topics');
+    f.addEventListener('input',function(){
+      var q=f.value.toLowerCase().trim(), shown=0;
+      items.forEach(function(li){var hit=li.textContent.toLowerCase().indexOf(q)>-1;li.style.display=hit?'':'none';if(hit)shown++;});
+      none.style.display=shown?'none':'block';
+    });
+  }
+  var cur=document.querySelector('.side a[aria-current="page"]');
+  if(cur&&cur.scrollIntoView){cur.scrollIntoView({block:'nearest'});}
+
+  var send=document.getElementById('fb-send');
+  if(send){
+    send.addEventListener('click',function(){
+      var t=document.getElementById('fb-text'), msg=t.value.trim();
+      if(!msg){t.focus();return;}
+      window.location.href='mailto:'+send.getAttribute('data-to')
+        +'?cc='+encodeURIComponent(send.getAttribute('data-cc'))
+        +'&subject='+encodeURIComponent('Murray Help feedback')
+        +'&body='+encodeURIComponent(msg);
+    });
+  }
+})();
+
+(function(){
+  var KEY='murrayHelpSeen_v1';
+  function load(){
+    var r;
+    try{r=window.localStorage.getItem(KEY);}catch(e){return null;}
+    if(!r){return {};}
+    try{var o=JSON.parse(r);return (o&&typeof o==='object')?o:{};}catch(e2){return {};}
+  }
+  function save(s){try{window.localStorage.setItem(KEY,JSON.stringify(s));return true;}catch(e){return false;}}
+
+  var idm=document.querySelector('meta[name="murray-topic-id"]');
+  var hm=document.querySelector('meta[name="murray-content-hash"]');
+  if(idm&&hm){var s0=load();if(s0){s0[idm.content]=hm.content;save(s0);}}
+
+  var box=document.getElementById('whats-new'), dm=document.getElementById('topics-data');
+  if(!box||!dm){return;}
+  var data=JSON.parse(dm.textContent);
+  var seen=load(), canSave=(seen!==null);
+  if(seen===null){seen={};}
+  var showAll=!canSave;
+  var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function el(tag,cls,text){var e=document.createElement(tag);if(cls){e.className=cls;}if(text!==undefined){e.textContent=text;}return e;}
+  function fmt(d){var p=(d||'').split('-');if(p.length!==3){return d||'';}return MON[parseInt(p[1],10)-1]+' '+parseInt(p[2],10)+', '+p[0];}
+  function status(t){if(!(t.id in seen)){return 'new';}if(seen[t.id]!==t.hash){return 'upd';}return 'seen';}
+  function card(t,st){
+    var c=el('div','wn-card'), h=el('h3'), a=el('a',null,t.title);
+    a.href=t.href;h.appendChild(a);
+    if(st==='new'){h.appendChild(el('span','badge','NEW'));}
+    else if(st==='upd'){h.appendChild(el('span','badge upd','IMPROVED'));}
+    c.appendChild(h);
+    c.appendChild(el('div','meta',[fmt(t.date),t.type].filter(Boolean).join(' \u00b7 ')));
+    if(t.summary){c.appendChild(el('p',null,t.summary));}
+    return c;
+  }
+  function render(){
+    box.textContent='';
+    var items=data.slice().sort(function(a,b){return a.date<b.date?1:(a.date>b.date?-1:0);});
+    var fresh=[], upd=[];
+    items.forEach(function(t){var s=status(t);if(s==='new'){fresh.push(t);}else if(s==='upd'){upd.push(t);}});
+    var anyNew=(fresh.length+upd.length)>0;
+    if(!canSave){box.appendChild(el('p','wn-note','This browser is not saving which topics you have read, so every topic is listed.'));}
+    if(!showAll){
+      if(!anyNew){
+        box.appendChild(el('p','wn-head','You are all caught up.'));
+        box.appendChild(el('p',null,'No new or improved topics since you last checked.'));
+      }else{
+        if(fresh.length){box.appendChild(el('p','wn-head','New ('+fresh.length+')'));fresh.forEach(function(t){box.appendChild(card(t,'new'));});}
+        if(upd.length){box.appendChild(el('p','wn-head','Improved ('+upd.length+')'));upd.forEach(function(t){box.appendChild(card(t,'upd'));});}
+      }
+    }else{
+      box.appendChild(el('p','wn-head','All topics ('+items.length+')'));
+      items.forEach(function(t){box.appendChild(card(t,status(t)));});
+    }
+    var bar=el('div');
+    if(canSave&&anyNew){
+      var b1=el('button','btn','Mark all as read');b1.type='button';
+      b1.onclick=function(){data.forEach(function(t){seen[t.id]=t.hash;});save(seen);showAll=false;render();};
+      bar.appendChild(b1);
+    }
+    if(canSave){
+      var b2=el('button','btn',showAll?'Show only new':'Show all topics');b2.type='button';
+      b2.onclick=function(){showAll=!showAll;render();};
+      bar.appendChild(b2);
+    }
+    box.appendChild(bar);
+  }
+  render();
+  window.addEventListener('pageshow',function(e){if(e.persisted){var s=load();if(s){seen=s;}render();}});
+})();
+</script>
+</body>
+</html>

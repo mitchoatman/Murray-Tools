@@ -1,0 +1,20 @@
+# highlight: updated
+#highlight: new
+
+# bundle title
+title:
+  "Mark\nExported"
+
+# bundle tooltip
+tooltip: |-
+  Colors and or comments exported points.
+
+
+
+# context directives are listed under `context` key, the order does not matter
+#context:
+#  - Walls
+#  - Text Notes
+
+# bundle author
+author: Mitchell Oatman

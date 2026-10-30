@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<!-- GENERATED FILE. Do not edit. Edit help.md and click the Build Help button. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Import Control Points</title>
+<meta name="murray-topic-id" content="ImportControlPoint">
+<meta name="murray-content-hash" content="7d540386f561ce9e">
+<style>
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.55}
+.band{background:#FFE716;border-bottom:2px solid #000}
+.band-inner{display:flex;align-items:center;gap:20px;padding:16px 28px}
+.band-logo{height:56px;width:auto;flex:none}
+.band small{display:block;font-size:14px;font-weight:bold;margin-bottom:4px}
+.band small a{text-decoration:none}
+.band small a:hover{text-decoration:underline}
+.band h1{margin:0;font-size:30px;line-height:1.2}
+.layout{display:flex;align-items:flex-start}
+.side{flex:none;width:300px;position:sticky;top:0;max-height:100vh;overflow:auto;padding:18px 0 24px}
+.side input{display:block;width:calc(100% - 40px);margin:0 20px 12px;padding:7px 10px;font:inherit;font-size:14px;border:1px solid #000;border-radius:0}
+.side ul{list-style:none;margin:0;padding:0}
+.side li{margin:0}
+.side a{display:block;padding:7px 20px 7px 16px;border-left:4px solid transparent;text-decoration:none;font-size:15px;line-height:1.3}
+.side a:hover{border-left-color:#000;text-decoration:underline}
+.side a[aria-current="page"]{background:#FFE716;border-left-color:#000;font-weight:bold}
+.side .home-link{font-weight:bold;border-bottom:1px solid #000;margin-bottom:6px;padding-bottom:10px}
+.side .none{display:none;padding:7px 20px;font-size:14px}
+.content{flex:1;min-width:0;min-height:100vh;padding:24px 36px 0;border-left:1px solid #000;margin-left:-1px}
+.content>.page{max-width:900px}
+h2{font-size:22px;margin:32px 0 10px;padding-bottom:4px;border-bottom:2px solid #FFE716;line-height:1.25}
+h3{font-size:18px;margin:24px 0 8px;line-height:1.25}
+p{margin:8px 0}
+ul,ol{margin:4px 0;padding-left:26px}
+li{margin:3px 0}
+.page>ul>li,.page>ol>li{margin-top:12px}
+a{color:#000;text-decoration:underline}
+a:focus-visible,img:focus-visible,button:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid #000;outline-offset:2px}
+figure{margin:12px 0}
+figure img{display:block;max-width:100%;height:auto;border:1px solid #000;cursor:zoom-in}
+.note{background:#FFE716;padding:6px 12px;margin:6px 0;border-left:4px solid #000}
+.missing{border:2px dashed #000;padding:8px 12px;font-weight:bold}
+code{font-family:Consolas,monospace;font-size:14px;border:1px solid #000;padding:0 4px}
+hr{border:0;border-top:1px solid #000;margin:20px 0}
+.home{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:40px;max-width:1200px}
+.home>.page>h2:first-child{margin-top:8px}
+.feedback{border:1px solid #000;padding:4px 20px 20px;align-self:start;position:sticky;top:24px}
+.feedback h2{margin-top:16px}
+.feedback textarea{display:block;width:100%;min-height:140px;margin:10px 0;padding:8px;font:inherit;font-size:15px;border:1px solid #000;border-radius:0;resize:vertical}
+.feedback button{font:inherit;font-weight:bold;background:#FFE716;color:#000;border:2px solid #000;padding:8px 22px;cursor:pointer}
+.feedback button:hover{background:#000;color:#fff}
+.feedback .small{font-size:13px}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;z-index:10}
+.lightbox.open{display:flex}
+.lightbox img{max-width:100%;max-height:100%;background:#fff}
+.wn{margin:12px 0 8px}
+.wn-head{font-weight:bold;margin:16px 0 4px}
+.wn-card{border:1px solid #000;border-top:4px solid #FFE716;padding:4px 16px 10px;margin:10px 0}
+.wn-card h3{margin:8px 0 2px;font-size:17px}
+.wn-card .meta{font-size:13px;margin:0 0 4px}
+.wn-card p{margin:4px 0}
+.wn-note{font-size:13px}
+.badge{display:inline-block;font-size:12px;font-weight:bold;padding:1px 8px;margin-left:8px;border:1px solid #000;background:#FFE716;color:#000;vertical-align:middle}
+.badge.upd{background:#fff}
+.btn{font:inherit;font-weight:bold;background:#FFE716;color:#000;border:2px solid #000;padding:6px 16px;margin:8px 10px 6px 0;cursor:pointer}
+.btn:hover{background:#000;color:#fff}
+footer{max-width:900px;margin:48px 0 0;padding:12px 0 28px;font-size:12px;border-top:1px solid #000}
+@media (max-width:1100px){.home{grid-template-columns:1fr}.feedback{position:static}}
+@media (max-width:760px){.layout{display:block}.side{position:static;width:auto;max-height:none;border-bottom:1px solid #000}.content{padding:20px;border-left:0;margin-left:0;min-height:0}}
+@media print{.side,.feedback,.lightbox{display:none!important}figure img{cursor:auto}.content{padding:0}}
+</style>
+</head>
+<body>
+<header class="band"><div class="band-inner"><img class="band-logo" src="../../murray_logo.png" alt="Murray Company"><div><small><a href="../../help.html">Murray Help</a></small><h1>Import Control Points</h1></div></div></header>
+<div class="layout">
+<nav class="side" aria-label="Help topics">
+<input id="topic-filter" type="search" placeholder="Filter topics" aria-label="Filter topics">
+<ul id="topics-home">
+<li><a class="home-link" href="../../help.html">Home</a></li>
+</ul><ul id="topics">
+<li><a href="../ChangeRodSize/help.html">Change Rod Size</a></li>
+<li><a href="../ChromeShortcuts/help.html">Chrome Shortcuts</a></li>
+<li><a href="../ControlPoint/help.html">Control Point</a></li>
+<li><a href="../CarrierViews/help.html">Create Carrier Views</a></li>
+<li><a href="../FabricationHangersInRevit/help.html">Fabrication Hangers in Revit</a></li>
+<li><a href="../FabricationPartBOMExcel/help.html">Fabrication Part BOM (Excel)</a></li>
+<li><a href="../FamilyNavigator/help.html">Family Navigator Pane</a></li>
+<li><a href="../HideIsolate/help.html">Hide / Isolate Service</a></li>
+<li><a href="../ImportControlPoint/help.html" aria-current="page">Import Control Points</a></li>
+<li><a href="../MakeSchedule/help.html">Make Schedule</a></li>
+<li><a href="../MCPointloadDuct/help.html">MC Pointload (Duct)</a></li>
+<li><a href="../MCPointloadPipe/help.html">MC Pointload (Pipe)</a></li>
+<li><a href="../PipeLabels/help.html">Pipe Labels</a></li>
+<li><a href="../PointLayoutMC/help.html">Point Layout (MC)</a></li>
+<li><a href="../PointLayoutUG/help.html">Point Layout (UG)</a></li>
+<li><a href="../QCPoints/help.html">QC Points</a></li>
+<li><a href="../RenameSheetsViews/help.html">Rename Sheets and Views</a></li>
+<li><a href="../RevitFamilyLibraryAndCreatingFamiliesFromImports/help.html">Revit Family Library and Creating Families (From Imports)</a></li>
+<li><a href="../RevitRevisions/help.html">Revit Revisions</a></li>
+<li><a href="../RoughInDrawings/help.html">Rough In Drawings</a></li>
+<li><a href="../StiffyBOMWIP/help.html">Stiffy BOM (WIP)</a></li>
+<li><a href="../TaggingRoomNames/help.html">Tagging Room Names</a></li>
+<li><a href="../FindPoint/help.html">TS Point Number Locator</a></li>
+<li><a href="../ValveNumbering/help.html">Valve Numbering</a></li>
+<li><a href="../WallTrimbleRevit/help.html">Wall Trimble Revit</a></li>
+</ul><p class="none" id="no-topics">No matching topics.</p></nav>
+<main class="content">
+<div class="page"><p><strong>Why and when do we import control points?</strong></p>
+<p><strong>Why</strong> - Places Control Point families in the model from a CSV file of coordinates, and fills in each point's Point Number and Point Description. This replaces placing and numbering each point by hand.</p>
+<p><strong>When</strong> - As requested, when you have a list of points (for example from a survey or layout file) that needs to go into the model.</p>
+<p>This tool places points from a file. To place points by hand or at grid intersections, use the <strong>Control Point</strong> tool instead.</p>
+<h2><strong>1. Prepare the CSV file:</strong></h2>
+<p>The CSV needs a header row and one row per point. The first row is always treated as the header.</p>
+<ul><li>
+Click <strong>Make Template</strong> in the tool window to create a blank CSV on your Desktop.
+<ul><li>
+The file is named <code>CONTROL_POINT_TEMPLATE.csv</code>.
+</li><li>
+It has these columns: POINT NUMBER, Y, X, Z, DESCRIPTION.
+</li><li>
+The tool offers to open it for you.
+</li></ul>
+</li><li>
+Fill in one row per point.
+</li><li>
+Coordinates must be numbers. Use decimal feet. [CONFIRM: units of the survey data used by the team]
+</li><li>
+Rows with a missing or non-numeric X, Y, or Z are skipped and reported in the result.
+</li><li>
+The file can be separated by commas, semicolons, tabs, or pipes.
+</li></ul>
+<p><strong>Columns and accepted header names (Auto order):</strong></p>
+<ul><li>
+<strong>X:</strong> X, E, EAST, EASTING
+</li><li>
+<strong>Y:</strong> Y, N, NORTH, NORTHING
+</li><li>
+<strong>Z:</strong> Z, H, EL, ELEV, ELEVATION, HEIGHT
+</li><li>
+<strong>Point number:</strong> POINT NUMBER, POINT NO, POINT NUM, POINT ID, NUMBER, PT NO, PT NUM, TS_Point_Number
+</li><li>
+<strong>Description:</strong> DESCRIPTION, DESC, POINT DESCRIPTION, POINT DESC, TS_Point_Description
+</li></ul>
+<p>Capital letters, spaces, and underscores in the header do not matter. Point number and description columns are optional. If they are missing, those fields are left blank.</p>
+<hr>
+<h2><strong>2. Open the tool and choose the settings:</strong></h2>
+<ul><li>
+Click the <strong>Import Control Points</strong> button on the Murray Ribbon.
+</li><li>
+The <strong>Import Control Points from CSV</strong> window opens. It remembers the settings from last time.
+</li><li>
+<strong>Control Point Type:</strong> the type of the Control Point family to use. The default is <strong>CP</strong>. If the type does not exist in the project, the tool creates it. Letters are changed to capitals as you type.
+</li><li>
+<strong>CSV Coordinate System:</strong> choose one.
+<ul><li>
+<strong>Shared</strong> (default) means the CSV values are in the project's shared coordinates (easting, northing, elevation). The tool converts them to the model's position.
+</li><li>
+<strong>Project Internal</strong> means the CSV values are in the model's own coordinates and are used as they are.
+</li></ul>
+</li><li>
+<strong>Import Order:</strong> choose one.
+<ul><li>
+<strong>Auto</strong> (default) finds the X, Y, and Z columns by their header names (section 1).
+</li><li>
+<strong>(Y,X,Z : N,E,H)</strong> ignores the header names and reads the columns by position, with Y first.
+</li><li>
+<strong>(X,Y,Z : E,N,H)</strong> ignores the header names and reads the columns by position, with X first.
+</li></ul>
+</li><li>
+<strong>CSV File:</strong> type the path or click <strong>Browse...</strong> to find the file.
+</li></ul>
+<p><strong>Column positions when you choose Y,X,Z or X,Y,Z:</strong></p>
+<ul><li>
+<strong>4 or 5 columns:</strong> column 1 is the Point Number, columns 2 to 4 are the coordinates in the order you chose, and column 5 (if present) is the Description.
+</li><li>
+<strong>3 columns:</strong> the columns are the coordinates only, in the order you chose.
+</li><li>
+<strong>Fewer than 3 columns:</strong> the tool stops with a message.
+</li></ul>
+<hr>
+<h2><strong>3. Import:</strong></h2>
+<ul><li>
+Click <strong>Import</strong>.
+</li><li>
+If the Control Point family is not in the project, the tool loads it for you.
+</li><li>
+The tool places one Control Point for every valid row and writes the Point Number to <code>TS_Point_Number</code> and the Description to <code>TS_Point_Description</code>.
+</li><li>
+If a point cannot be placed in 3D, the tool places it on the nearest level instead.
+</li><li>
+All the points go in as a single step, so one Undo removes them all.
+</li><li>
+Click <strong>Cancel</strong> to close the window without importing.
+</li></ul>
+<p>When it finishes, a <strong>CSV Import Result</strong> message shows:</p>
+<ul><li>
+How many points were placed and how many failed.
+</li><li>
+How many CSV rows were skipped before placement.
+</li><li>
+The coordinate system, import order, family, type, and file that were used.
+</li><li>
+A parameter warning, if the Point Number or Description could not be written.
+</li><li>
+The first 10 skipped rows and the first 10 placement failures, with their row numbers.
+</li></ul>
+<p><strong>CHECK THE RESULT MESSAGE EVERY TIME. ONE BAD ROW DOES NOT STOP THE REST, SO A PARTIAL IMPORT IS POSSIBLE.</strong></p>
+<p><strong>CHECK THE PLACED POINTS AGAINST THE SURVEY OR LAYOUT DATA BEFORE THEY ARE USED IN THE FIELD OR SENT TO ANOTHER TRADE.</strong></p>
+<hr>
+<h2><strong>If something goes wrong:</strong></h2>
+<ul><li>
+<strong>"Please select a CSV file."</strong> Browse to the file, or type its path.
+</li><li>
+<strong>"File Not Found."</strong> The path in the CSV File box is wrong. Browse to the file again.
+</li><li>
+<strong>"Please enter a control point type."</strong> The Control Point Type box is empty. Enter CP or your type name.
+</li><li>
+<strong>"CSV file is empty" or "CSV header row is empty."</strong> The file has no header row. Add one.
+</li><li>
+<strong>"Could not detect X/Y/Z columns."</strong> The header names are not on the accepted list in section 1. Rename the headers, or choose Y,X,Z or X,Y,Z so the tool reads by position.
+</li><li>
+<strong>"CSV must contain at least 3 columns for hard-set import order."</strong> The file has fewer than 3 columns.
+</li><li>
+<strong>"No valid point rows found in CSV."</strong> Every row was skipped. The message lists the first issues. Check that X, Y, and Z are numbers.
+</li><li>
+<strong>"Family file not found."</strong> The Control Point family file is missing from the tool folder. Tell the tool owner. [CONFIRM: tool owner]
+</li><li>
+<strong>"Could not evaluate shared coordinates."</strong> The project's shared coordinates are not set up correctly. Check the project location, or use Project Internal.
+</li><li>
+<strong>A Parameter warning.</strong> The points were placed, but <code>TS_Point_Number</code> or <code>TS_Point_Description</code> was not written on some of them. Check that both parameters exist on the Control Point family as text parameters and are not read-only.
+</li><li>
+<strong>Points land in the wrong place.</strong> Check the coordinate system choice (Shared or Project Internal) and the import order (X first or Y first). Undo, then run it again with the right settings.
+</li></ul>
+<p>[CONFIRM: Egnyte link for the training video or the family file, if one exists]</p>
+<p>&lt;!-- OPEN ITEMS (remove before posting to the Help Hub)</p>
+<ol><li>
+[CONFIRM: tool title, tooltip, and author from bundle.yaml. Not provided.]
+</li><li>
+[CONFIRM: exact Murray Ribbon tab and panel and the button name.]
+</li><li>
+[CONFIRM: units of the survey CSVs. The script reads values as decimal feet. Decimal commas are not supported.]
+</li><li>
+[CONFIRM: tool owner name for the support lines.]
+</li><li>
+[CONFIRM: add the buttons: line in this help.md, using the same format as the other topics. Format not provided.]
+</li><li>
+Topic folder and topic.txt name not provided. Other topics use names like MCPointloadDuct or ChangeRodSize.
+</li><li>
+No images are referenced in this file by request. The page is text only.
+</li></ol>
+<p>--&gt;</p></div>
+<footer>Last built 2026-10-27. Click any image to enlarge; press Esc to close.</footer>
+</main>
+</div>
+<div class="lightbox" id="lb" role="dialog" aria-label="Enlarged image"><img alt=""></div>
+<script>
+(function(){
+  var box=document.getElementById('lb'), big=box.querySelector('img');
+  document.querySelectorAll('figure img').forEach(function(im){
+    im.tabIndex=0;
+    function open(){big.src=im.src;box.classList.add('open');}
+    im.addEventListener('click',open);
+    im.addEventListener('keydown',function(e){if(e.key==='Enter'){open();}});
+  });
+  function close(){box.classList.remove('open');big.removeAttribute('src');}
+  box.addEventListener('click',close);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){close();}});
+
+  var f=document.getElementById('topic-filter');
+  if(f){
+    var items=document.querySelectorAll('#topics li'), none=document.getElementById('no-topics');
+    f.addEventListener('input',function(){
+      var q=f.value.toLowerCase().trim(), shown=0;
+      items.forEach(function(li){var hit=li.textContent.toLowerCase().indexOf(q)>-1;li.style.display=hit?'':'none';if(hit)shown++;});
+      none.style.display=shown?'none':'block';
+    });
+  }
+  var cur=document.querySelector('.side a[aria-current="page"]');
+  if(cur&&cur.scrollIntoView){cur.scrollIntoView({block:'nearest'});}
+
+  var send=document.getElementById('fb-send');
+  if(send){
+    send.addEventListener('click',function(){
+      var t=document.getElementById('fb-text'), msg=t.value.trim();
+      if(!msg){t.focus();return;}
+      window.location.href='mailto:'+send.getAttribute('data-to')
+        +'?cc='+encodeURIComponent(send.getAttribute('data-cc'))
+        +'&subject='+encodeURIComponent('Murray Help feedback')
+        +'&body='+encodeURIComponent(msg);
+    });
+  }
+})();
+
+(function(){
+  var KEY='murrayHelpSeen_v1';
+  function load(){
+    var r;
+    try{r=window.localStorage.getItem(KEY);}catch(e){return null;}
+    if(!r){return {};}
+    try{var o=JSON.parse(r);return (o&&typeof o==='object')?o:{};}catch(e2){return {};}
+  }
+  function save(s){try{window.localStorage.setItem(KEY,JSON.stringify(s));return true;}catch(e){return false;}}
+
+  var idm=document.querySelector('meta[name="murray-topic-id"]');
+  var hm=document.querySelector('meta[name="murray-content-hash"]');
+  if(idm&&hm){var s0=load();if(s0){s0[idm.content]=hm.content;save(s0);}}
+
+  var box=document.getElementById('whats-new'), dm=document.getElementById('topics-data');
+  if(!box||!dm){return;}
+  var data=JSON.parse(dm.textContent);
+  var seen=load(), canSave=(seen!==null);
+  if(seen===null){seen={};}
+  var showAll=!canSave;
+  var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function el(tag,cls,text){var e=document.createElement(tag);if(cls){e.className=cls;}if(text!==undefined){e.textContent=text;}return e;}
+  function fmt(d){var p=(d||'').split('-');if(p.length!==3){return d||'';}return MON[parseInt(p[1],10)-1]+' '+parseInt(p[2],10)+', '+p[0];}
+  function status(t){if(!(t.id in seen)){return 'new';}if(seen[t.id]!==t.hash){return 'upd';}return 'seen';}
+  function card(t,st){
+    var c=el('div','wn-card'), h=el('h3'), a=el('a',null,t.title);
+    a.href=t.href;h.appendChild(a);
+    if(st==='new'){h.appendChild(el('span','badge','NEW'));}
+    else if(st==='upd'){h.appendChild(el('span','badge upd','IMPROVED'));}
+    c.appendChild(h);
+    c.appendChild(el('div','meta',[fmt(t.date),t.type].filter(Boolean).join(' \u00b7 ')));
+    if(t.summary){c.appendChild(el('p',null,t.summary));}
+    return c;
+  }
+  function render(){
+    box.textContent='';
+    var items=data.slice().sort(function(a,b){return a.date<b.date?1:(a.date>b.date?-1:0);});
+    var fresh=[], upd=[];
+    items.forEach(function(t){var s=status(t);if(s==='new'){fresh.push(t);}else if(s==='upd'){upd.push(t);}});
+    var anyNew=(fresh.length+upd.length)>0;
+    if(!canSave){box.appendChild(el('p','wn-note','This browser is not saving which topics you have read, so every topic is listed.'));}
+    if(!showAll){
+      if(!anyNew){
+        box.appendChild(el('p','wn-head','You are all caught up.'));
+        box.appendChild(el('p',null,'No new or improved topics since you last checked.'));
+      }else{
+        if(fresh.length){box.appendChild(el('p','wn-head','New ('+fresh.length+')'));fresh.forEach(function(t){box.appendChild(card(t,'new'));});}
+        if(upd.length){box.appendChild(el('p','wn-head','Improved ('+upd.length+')'));upd.forEach(function(t){box.appendChild(card(t,'upd'));});}
+      }
+    }else{
+      box.appendChild(el('p','wn-head','All topics ('+items.length+')'));
+      items.forEach(function(t){box.appendChild(card(t,status(t)));});
+    }
+    var bar=el('div');
+    if(canSave&&anyNew){
+      var b1=el('button','btn','Mark all as read');b1.type='button';
+      b1.onclick=function(){data.forEach(function(t){seen[t.id]=t.hash;});save(seen);showAll=false;render();};
+      bar.appendChild(b1);
+    }
+    if(canSave){
+      var b2=el('button','btn',showAll?'Show only new':'Show all topics');b2.type='button';
+      b2.onclick=function(){showAll=!showAll;render();};
+      bar.appendChild(b2);
+    }
+    box.appendChild(bar);
+  }
+  render();
+  window.addEventListener('pageshow',function(e){if(e.persisted){var s=load();if(s){seen=s;}render();}});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<!-- GENERATED FILE. Do not edit. Edit help.md and click the Build Help button. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Family Navigator Pane</title>
+<meta name="murray-topic-id" content="FamilyNavigator">
+<meta name="murray-content-hash" content="ccd09b077c5b3b5c">
+<style>
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.55}
+.band{background:#FFE716;border-bottom:2px solid #000}
+.band-inner{display:flex;align-items:center;gap:20px;padding:16px 28px}
+.band-logo{height:56px;width:auto;flex:none}
+.band small{display:block;font-size:14px;font-weight:bold;margin-bottom:4px}
+.band small a{text-decoration:none}
+.band small a:hover{text-decoration:underline}
+.band h1{margin:0;font-size:30px;line-height:1.2}
+.layout{display:flex;align-items:flex-start}
+.side{flex:none;width:300px;position:sticky;top:0;max-height:100vh;overflow:auto;padding:18px 0 24px}
+.side input{display:block;width:calc(100% - 40px);margin:0 20px 12px;padding:7px 10px;font:inherit;font-size:14px;border:1px solid #000;border-radius:0}
+.side ul{list-style:none;margin:0;padding:0}
+.side li{margin:0}
+.side a{display:block;padding:7px 20px 7px 16px;border-left:4px solid transparent;text-decoration:none;font-size:15px;line-height:1.3}
+.side a:hover{border-left-color:#000;text-decoration:underline}
+.side a[aria-current="page"]{background:#FFE716;border-left-color:#000;font-weight:bold}
+.side .home-link{font-weight:bold;border-bottom:1px solid #000;margin-bottom:6px;padding-bottom:10px}
+.side .none{display:none;padding:7px 20px;font-size:14px}
+.content{flex:1;min-width:0;min-height:100vh;padding:24px 36px 0;border-left:1px solid #000;margin-left:-1px}
+.content>.page{max-width:900px}
+h2{font-size:22px;margin:32px 0 10px;padding-bottom:4px;border-bottom:2px solid #FFE716;line-height:1.25}
+h3{font-size:18px;margin:24px 0 8px;line-height:1.25}
+p{margin:8px 0}
+ul,ol{margin:4px 0;padding-left:26px}
+li{margin:3px 0}
+.page>ul>li,.page>ol>li{margin-top:12px}
+a{color:#000;text-decoration:underline}
+a:focus-visible,img:focus-visible,button:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid #000;outline-offset:2px}
+figure{margin:12px 0}
+figure img{display:block;max-width:100%;height:auto;border:1px solid #000;cursor:zoom-in}
+.note{background:#FFE716;padding:6px 12px;margin:6px 0;border-left:4px solid #000}
+.missing{border:2px dashed #000;padding:8px 12px;font-weight:bold}
+code{font-family:Consolas,monospace;font-size:14px;border:1px solid #000;padding:0 4px}
+hr{border:0;border-top:1px solid #000;margin:20px 0}
+.home{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:40px;max-width:1200px}
+.home>.page>h2:first-child{margin-top:8px}
+.feedback{border:1px solid #000;padding:4px 20px 20px;align-self:start;position:sticky;top:24px}
+.feedback h2{margin-top:16px}
+.feedback textarea{display:block;width:100%;min-height:140px;margin:10px 0;padding:8px;font:inherit;font-size:15px;border:1px solid #000;border-radius:0;resize:vertical}
+.feedback button{font:inherit;font-weight:bold;background:#FFE716;color:#000;border:2px solid #000;padding:8px 22px;cursor:pointer}
+.feedback button:hover{background:#000;color:#fff}
+.feedback .small{font-size:13px}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;z-index:10}
+.lightbox.open{display:flex}
+.lightbox img{max-width:100%;max-height:100%;background:#fff}
+.wn{margin:12px 0 8px}
+.wn-head{font-weight:bold;margin:16px 0 4px}
+.wn-card{border:1px solid #000;border-top:4px solid #FFE716;padding:4px 16px 10px;margin:10px 0}
+.wn-card h3{margin:8px 0 2px;font-size:17px}
+.wn-card .meta{font-size:13px;margin:0 0 4px}
+.wn-card p{margin:4px 0}
+.wn-note{font-size:13px}
+.badge{display:inline-block;font-size:12px;font-weight:bold;padding:1px 8px;margin-left:8px;border:1px solid #000;background:#FFE716;color:#000;vertical-align:middle}
+.badge.upd{background:#fff}
+.btn{font:inherit;font-weight:bold;background:#FFE716;color:#000;border:2px solid #000;padding:6px 16px;margin:8px 10px 6px 0;cursor:pointer}
+.btn:hover{background:#000;color:#fff}
+footer{max-width:900px;margin:48px 0 0;padding:12px 0 28px;font-size:12px;border-top:1px solid #000}
+@media (max-width:1100px){.home{grid-template-columns:1fr}.feedback{position:static}}
+@media (max-width:760px){.layout{display:block}.side{position:static;width:auto;max-height:none;border-bottom:1px solid #000}.content{padding:20px;border-left:0;margin-left:0;min-height:0}}
+@media print{.side,.feedback,.lightbox{display:none!important}figure img{cursor:auto}.content{padding:0}}
+</style>
+</head>
+<body>
+<header class="band"><div class="band-inner"><img class="band-logo" src="../../murray_logo.png" alt="Murray Company"><div><small><a href="../../help.html">Murray Help</a></small><h1>Family Navigator Pane</h1></div></div></header>
+<div class="layout">
+<nav class="side" aria-label="Help topics">
+<input id="topic-filter" type="search" placeholder="Filter topics" aria-label="Filter topics">
+<ul id="topics-home">
+<li><a class="home-link" href="../../help.html">Home</a></li>
+</ul><ul id="topics">
+<li><a href="../ChromeShortcuts/help.html">Chrome Shortcuts</a></li>
+<li><a href="../FabricationHangersInRevit/help.html">Fabrication Hangers in Revit</a></li>
+<li><a href="../FabricationPartBOMExcel/help.html">Fabrication Part BOM (Excel)</a></li>
+<li><a href="../FamilyNavigator/help.html" aria-current="page">Family Navigator Pane</a></li>
+<li><a href="../MakeSchedule/help.html">Make Schedule</a></li>
+<li><a href="../MCPointloadDuct/help.html">MC Pointload (Duct)</a></li>
+<li><a href="../MCPointloadPipe/help.html">MC Pointload (Pipe)</a></li>
+<li><a href="../PipeLabels/help.html">Pipe Labels</a></li>
+<li><a href="../PointLayoutMC/help.html">Point Layout (MC)</a></li>
+<li><a href="../PointLayoutUG/help.html">Point Layout (UG)</a></li>
+<li><a href="../RevitFamilyLibraryAndCreatingFamiliesFromImports/help.html">Revit Family Library and Creating Families (From Imports)</a></li>
+<li><a href="../RevitRevisions/help.html">Revit Revisions</a></li>
+<li><a href="../RoughInDrawings/help.html">Rough In Drawings</a></li>
+<li><a href="../StiffyBOMWIP/help.html">Stiffy BOM (WIP)</a></li>
+<li><a href="../TaggingRoomNames/help.html">Tagging Room Names</a></li>
+<li><a href="../ValveNumbering/help.html">Valve Numbering</a></li>
+<li><a href="../WallTrimbleRevit/help.html">Wall Trimble Revit</a></li>
+</ul><p class="none" id="no-topics">No matching topics.</p></nav>
+<main class="content">
+<div class="page"><h2>Summary</h2>
+<p>The Family Navigator is a dockable Revit pane for browsing the shared family library as a thumbnail grid and placing families in the active view. It also includes work plane and section tools, and a utility that generates the thumbnails.</p>
+<h3>Quick reference</h3>
+<ul><li>
+<strong>Click a tile:</strong> Loads the family if needed and starts placement. Click in the view to place.
+</li><li>
+<strong>ALT + click a tile:</strong> Opens that family's folder in Windows Explorer. Does not place the family.
+</li><li>
+<strong>Hover over a tile:</strong> Shows the full file name in the status bar.
+</li><li>
+<strong>Search box:</strong> Filters tiles as you type. Every word entered must appear in the name.
+</li><li>
+<strong>Browse / Default:</strong> Choose any folder or return to the main FAMILIES folder.
+</li><li>
+<strong>Quick folder buttons:</strong> Atkore Strut, Plumbing Fixtures, Mechanical Equipment, Pipe Accessories.
+</li><li>
+<strong>Set Work Plane:</strong> 3D or section view only. Pick a part, then choose orientation if asked.
+</li><li>
+<strong>Hide Work Plane:</strong> Turns off work plane display in the active view.
+</li><li>
+<strong>Create Section:</strong> Plan or section view only. Pick a point on a straight pipe, rod, or line-based Generic Model.
+</li><li>
+<strong>Generate Missing Images:</strong> Creates transparent PNG thumbnails for families that have none. Never overwrites.
+</li></ul>
+<h3>Good to know</h3>
+<ul><li>
+The last folder used reopens automatically next time.
+</li><li>
+Thumbnails are PNG, JPG, JPEG, or BMP files saved next to the family with the same file name.
+</li><li>
+To regenerate a thumbnail, delete its PNG, then run Generate Missing Images again.
+<ul><li>
+Cannot remove or update existing images while Revit is running.
+</li></ul>
+</li><li>
+The status bar at the bottom shows instructions, progress, and error messages. Check it first if something does not work.
+</li></ul>
+<h2>1. Choosing a Folder</h2>
+<ul><li>
+<strong>Families Folder Path:</strong> shows the folder being browsed. Subfolders are included.
+</li><li>
+<strong>Browse:</strong> pick any folder.
+</li><li>
+<strong>Default:</strong> returns to the main FAMILIES folder on the C: Egnyte BIM share.
+</li><li>
+<strong>Quick buttons:</strong> Atkore Strut, Plumbing Fixtures, Mechanical Equipment, Pipe Accessories.
+</li><li>
+The last folder used reopens automatically next time.
+</li></ul>
+<h2>2. Searching</h2>
+<ul><li>
+Type in Search Families to filter the grid as you type.
+</li><li>
+Not case sensitive. Multiple words are allowed, and a family must contain every word.
+</li><li>
+The X button clears the search.
+</li></ul>
+<h2>3. The Family Grid</h2>
+<ul><li>
+Each tile shows a thumbnail and a short name (the text before the first underscore in the file name). A tile with no image shows only the name.
+</li><li>
+Families with "channel" in the name sort first. Everything else sorts in natural number order (2 before 10).
+</li><li>
+<strong>Hover</strong> over a tile to see the full file name in the status bar.
+</li><li>
+<strong>Click</strong> a tile to place it:
+<ul><li>
+If the family is not in the project, it is loaded first. Families already in the project are not overwritten.
+</li><li>
+Placement starts with the first type in the family. Click in the view to place.
+</li><li>
+Placement is blocked in schedules, sheets, and reports.
+</li></ul>
+</li><li>
+<strong>ALT + click</strong> a tile to open that family's folder in Windows Explorer. This does not place the family.
+</li></ul>
+<h2>4. Set Work Plane and Hide Work Plane</h2>
+<ul><li>
+Run from a 3D view or section view only.
+</li><li>
+Click Set Work Plane, then pick a fabrication part, family instance, or assembly. For an assembly, you are then asked to pick the part inside it.
+</li><li>
+Depending on the element and view, you may be asked to choose orientation (vertical or horizontal) or axis (X or Y).
+</li><li>
+In a section view, the plane matches the view automatically.
+</li><li>
+The plane is shown in the view and a reference plane named TEMPORARY is created. Setting a new plane replaces the previous TEMPORARY reference plane.
+</li><li>
+Hide Work Plane turns off the work plane display in the active view.
+</li></ul>
+<h2>5. Create Section</h2>
+<ul><li>
+Run from a floor plan or section view.
+</li><li>
+<strong>Create Element Section</strong>, pick a point on a straight pipe, hanger rod, or line-based Generic Model. Pick on the side where you want the section marker.
+</li><li>
+Supported fabrication parts are limited to straight parts with the configured item IDs.
+</li><li>
+The section runs along the element with 1 ft of padding on each side and above and below, and 0.5 ft in depth. Detail level is set to Fine.
+</li><li>
+<strong>Create Section of Elements</strong>, select elements in view, then pick section marker location.
+</li><li>
+All element categories are supported.
+</li><li>
+The section runs along elements with 1 ft of padding on each side and above and below, and 0.5 ft in depth. Detail level is set to Fine.
+</li></ul>
+<h2>6. Generate Missing Images (Admin)</h2>
+<ul><li>
+Scans the current folder and subfolders for families that have no matching image.
+</li><li>
+For each one, the family is opened in the background, a 3D view is exported, and the background is made transparent.
+</li><li>
+If the export fails, a Revit type preview image is used instead.
+</li><li>
+The PNG is saved next to the RFA with the same name. Existing images are never overwritten.
+</li><li>
+To regenerate an image, delete its PNG first, then run the tool again.
+</li><li>
+Requires write access to the folder. Revit may be unresponsive while a large folder processes. Progress and failures show in the status bar.
+</li></ul>
+<h2>7. Status Bar</h2>
+<p>Shows instructions, hover names, progress, and error messages. If something does not work, read this line first.</p></div>
+<footer>Last built 2026-10-16. Click any image to enlarge; press Esc to close.</footer>
+</main>
+</div>
+<div class="lightbox" id="lb" role="dialog" aria-label="Enlarged image"><img alt=""></div>
+<script>
+(function(){
+  var box=document.getElementById('lb'), big=box.querySelector('img');
+  document.querySelectorAll('figure img').forEach(function(im){
+    im.tabIndex=0;
+    function open(){big.src=im.src;box.classList.add('open');}
+    im.addEventListener('click',open);
+    im.addEventListener('keydown',function(e){if(e.key==='Enter'){open();}});
+  });
+  function close(){box.classList.remove('open');big.removeAttribute('src');}
+  box.addEventListener('click',close);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){close();}});
+
+  var f=document.getElementById('topic-filter');
+  if(f){
+    var items=document.querySelectorAll('#topics li'), none=document.getElementById('no-topics');
+    f.addEventListener('input',function(){
+      var q=f.value.toLowerCase().trim(), shown=0;
+      items.forEach(function(li){var hit=li.textContent.toLowerCase().indexOf(q)>-1;li.style.display=hit?'':'none';if(hit)shown++;});
+      none.style.display=shown?'none':'block';
+    });
+  }
+  var cur=document.querySelector('.side a[aria-current="page"]');
+  if(cur&&cur.scrollIntoView){cur.scrollIntoView({block:'nearest'});}
+
+  var send=document.getElementById('fb-send');
+  if(send){
+    send.addEventListener('click',function(){
+      var t=document.getElementById('fb-text'), msg=t.value.trim();
+      if(!msg){t.focus();return;}
+      window.location.href='mailto:'+send.getAttribute('data-to')
+        +'?cc='+encodeURIComponent(send.getAttribute('data-cc'))
+        +'&subject='+encodeURIComponent('Murray Help feedback')
+        +'&body='+encodeURIComponent(msg);
+    });
+  }
+})();
+
+(function(){
+  var KEY='murrayHelpSeen_v1';
+  function load(){
+    var r;
+    try{r=window.localStorage.getItem(KEY);}catch(e){return null;}
+    if(!r){return {};}
+    try{var o=JSON.parse(r);return (o&&typeof o==='object')?o:{};}catch(e2){return {};}
+  }
+  function save(s){try{window.localStorage.setItem(KEY,JSON.stringify(s));return true;}catch(e){return false;}}
+
+  var idm=document.querySelector('meta[name="murray-topic-id"]');
+  var hm=document.querySelector('meta[name="murray-content-hash"]');
+  if(idm&&hm){var s0=load();if(s0){s0[idm.content]=hm.content;save(s0);}}
+
+  var box=document.getElementById('whats-new'), dm=document.getElementById('topics-data');
+  if(!box||!dm){return;}
+  var data=JSON.parse(dm.textContent);
+  var seen=load(), canSave=(seen!==null);
+  if(seen===null){seen={};}
+  var showAll=!canSave;
+  var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function el(tag,cls,text){var e=document.createElement(tag);if(cls){e.className=cls;}if(text!==undefined){e.textContent=text;}return e;}
+  function fmt(d){var p=(d||'').split('-');if(p.length!==3){return d||'';}return MON[parseInt(p[1],10)-1]+' '+parseInt(p[2],10)+', '+p[0];}
+  function status(t){if(!(t.id in seen)){return 'new';}if(seen[t.id]!==t.hash){return 'upd';}return 'seen';}
+  function card(t,st){
+    var c=el('div','wn-card'), h=el('h3'), a=el('a',null,t.title);
+    a.href=t.href;h.appendChild(a);
+    if(st==='new'){h.appendChild(el('span','badge','NEW'));}
+    else if(st==='upd'){h.appendChild(el('span','badge upd','IMPROVED'));}
+    c.appendChild(h);
+    c.appendChild(el('div','meta',[fmt(t.date),t.type].filter(Boolean).join(' \u00b7 ')));
+    if(t.summary){c.appendChild(el('p',null,t.summary));}
+    return c;
+  }
+  function render(){
+    box.textContent='';
+    var items=data.slice().sort(function(a,b){return a.date<b.date?1:(a.date>b.date?-1:0);});
+    var fresh=[], upd=[];
+    items.forEach(function(t){var s=status(t);if(s==='new'){fresh.push(t);}else if(s==='upd'){upd.push(t);}});
+    var anyNew=(fresh.length+upd.length)>0;
+    if(!canSave){box.appendChild(el('p','wn-note','This browser is not saving which topics you have read, so every topic is listed.'));}
+    if(!showAll){
+      if(!anyNew){
+        box.appendChild(el('p','wn-head','You are all caught up.'));
+        box.appendChild(el('p',null,'No new or improved topics since you last checked.'));
+      }else{
+        if(fresh.length){box.appendChild(el('p','wn-head','New ('+fresh.length+')'));fresh.forEach(function(t){box.appendChild(card(t,'new'));});}
+        if(upd.length){box.appendChild(el('p','wn-head','Improved ('+upd.length+')'));upd.forEach(function(t){box.appendChild(card(t,'upd'));});}
+      }
+    }else{
+      box.appendChild(el('p','wn-head','All topics ('+items.length+')'));
+      items.forEach(function(t){box.appendChild(card(t,status(t)));});
+    }
+    var bar=el('div');
+    if(canSave&&anyNew){
+      var b1=el('button','btn','Mark all as read');b1.type='button';
+      b1.onclick=function(){data.forEach(function(t){seen[t.id]=t.hash;});save(seen);showAll=false;render();};
+      bar.appendChild(b1);
+    }
+    if(canSave){
+      var b2=el('button','btn',showAll?'Show only new':'Show all topics');b2.type='button';
+      b2.onclick=function(){showAll=!showAll;render();};
+      bar.appendChild(b2);
+    }
+    box.appendChild(bar);
+  }
+  render();
+  window.addEventListener('pageshow',function(e){if(e.persisted){var s=load();if(s){seen=s;}render();}});
+})();
+</script>
+</body>
+</html>

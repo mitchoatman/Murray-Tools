@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Murray Company | Bulk BOM Export</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --ink:#231F20; --paper:#FFFFFF; --yellow:#FFE716; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; }
+  body { font-family:Arial, "Liberation Sans", Helvetica, sans-serif; font-size:14px; color:var(--ink); background:var(--paper); }
+  header { background:var(--yellow); color:var(--ink); padding:12px 20px; font-weight:bold; font-size:16px; border-bottom:2px solid var(--ink); }
+  main { display:grid; grid-template-columns:340px 1fr; gap:0; height:calc(100% - 47px); }
+  aside { border-right:2px solid var(--ink); padding:16px 20px; overflow:auto; }
+  section.out { display:flex; flex-direction:column; min-width:0; min-height:0; }
+  #bar { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; padding:8px 12px; border-bottom:2px solid var(--ink); }
+  #bar select { font-family:inherit; font-size:13px; padding:5px; border:2px solid var(--ink); background:var(--paper); color:var(--ink); }
+  #bar .sp { flex:1; }
+  #refreshBox { display:flex; flex-direction:column; align-items:flex-start; gap:4px; max-width:340px; }
+  #changedTag { font-size:12px; font-weight:bold; background:var(--yellow); padding:3px 8px; border:2px solid var(--ink); white-space:normal; }
+  #changedTag[hidden] { display:none; }
+  #refine[hidden] { display:none; }
+  button.attn { background:var(--yellow); font-weight:bold; }
+  #vwrap { position:relative; flex:1; min-height:200px; }
+  #gl { position:absolute; inset:0; width:100%; height:100%; display:block; background:var(--paper); }
+  #vmsg { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:30px; font-weight:bold; pointer-events:none; }
+  #vmsg[hidden], #pinfo[hidden] { display:none; }
+  #legend { position:absolute; left:10px; top:10px; background:var(--paper); border:2px solid var(--ink); padding:4px 8px; max-height:60%; overflow:auto; font-size:12px; }
+  #legend:empty { display:none; }
+  .rd { font-style:italic; }
+  #legend .lnote { font-size:11px; margin:4px 0 2px; max-width:220px; }
+  #legend button { font-size:12px; padding:3px 8px; margin-top:4px; }
+  #legend label { margin:2px 0; white-space:nowrap; }
+  #legend .sw { display:inline-block; width:12px; height:12px; border:1px solid var(--ink); margin-right:5px; vertical-align:-2px; }
+  #pinfo { position:absolute; right:10px; top:10px; background:var(--paper); border:2px solid var(--ink); padding:6px 10px; font-size:12px; max-width:320px; word-break:break-word; }
+  #pinfo div { margin:2px 0; }
+  #prog { position:absolute; left:50%; bottom:40px; transform:translateX(-50%); width:min(520px, 80%); background:var(--paper); border:2px solid var(--ink); padding:8px 12px; }
+  #prog[hidden] { display:none; }
+  #progText { font-size:13px; font-weight:bold; margin-bottom:6px; white-space:normal; }
+  #progBar { height:12px; border:2px solid var(--ink); background:var(--paper); }
+  #progFill { height:100%; width:0; background:var(--yellow); border-right:2px solid var(--ink); }
+  #progRow { display:flex; gap:10px; align-items:center; }
+  #progRow #progBar { flex:1; }
+  #hint3d { position:absolute; left:10px; bottom:8px; font-size:11px; background:var(--paper); padding:2px 6px; border:1px solid var(--ink); }
+  #expDetails { margin-top:6px; }
+  #lower:has(details[open]) { max-height:55%; }
+  #lower { border-top:2px solid var(--ink); padding:10px 16px; overflow:auto; max-height:32%; min-height:60px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; margin:18px 0 6px; padding-top:8px; border-top:2px solid var(--ink); }
+  h2:first-child { margin-top:0; border-top:0; padding-top:0; }
+  label { display:block; margin:4px 0; }
+  label.field { font-weight:bold; margin-top:8px; }
+  input[type=text] { width:100%; padding:6px; border:1px solid var(--ink); font-family:inherit; font-size:14px; color:var(--ink); background:var(--paper); }
+  input[type=checkbox] { accent-color:var(--ink); margin-right:6px; }
+  .list { border:1px solid var(--ink); max-height:150px; overflow:auto; padding:4px 8px; }
+  .row { display:flex; gap:8px; margin-top:6px; }
+  button { font-family:inherit; font-size:14px; padding:7px 12px; border:2px solid var(--ink); background:var(--paper); color:var(--ink); cursor:pointer; }
+  button:hover:not(:disabled) { background:var(--yellow); }
+  button.primary { background:var(--yellow); font-weight:bold; width:100%; padding:10px; margin-top:12px; }
+  button.primary:hover:not(:disabled) { background:var(--ink); color:var(--yellow); }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .hint { font-size:12px; margin:4px 0; }
+  .path { font-size:12px; word-break:break-all; margin:4px 0; }
+  #status { font-weight:bold; margin:0 0 8px; }
+  .card { border:2px solid var(--ink); margin:0 0 12px; }
+  .card h3 { margin:0; padding:6px 10px; background:var(--yellow); border-bottom:2px solid var(--ink); font-size:14px; }
+  .card .body { padding:8px 10px; }
+  .card ul { margin:4px 0 4px 18px; padding:0; }
+  .card li { margin:2px 0; font-size:13px; }
+  .files li { word-break:break-all; }
+  details { margin-top:14px; border-top:2px solid var(--ink); padding-top:8px; }
+  summary { cursor:pointer; font-weight:bold; }
+</style>
+</head>
+<body>
+<header>Murray Company | Bulk BOM Export</header>
+<main>
+  <aside>
+    <h2>Model</h2>
+    <div id="model">Reading model...</div>
+    <div id="selNote" class="hint"></div>
+    <div class="row"><button type="button" id="useSel" disabled>Use current selection</button></div>
+    <p class="hint">Picking in Revit does not change this window. Click the button to use the selection.</p>
+    <label id="selRow" hidden><input type="checkbox" id="selOnly"> Export the Revit selection only</label>
+
+    <label class="field" for="jobName">Job name</label>
+    <input type="text" id="jobName" autocomplete="off">
+    <label class="field" for="jobNumber">Job number</label>
+    <input type="text" id="jobNumber" autocomplete="off">
+
+    <h2>Exports</h2>
+    <div id="exportList"></div>
+    <div class="row">
+      <button type="button" id="allExp">All</button>
+      <button type="button" id="noneExp">None</button>
+    </div>
+
+    <div id="levelsBox" hidden>
+      <h2>Levels</h2>
+      <div id="levelList" class="list"></div>
+      <div class="row"><button type="button" id="allLvl">All</button><button type="button" id="noneLvl">None</button></div>
+      <p class="hint">No level ticked exports every level.</p>
+    </div>
+
+    <div id="worksetsBox">
+      <h2>Worksets</h2>
+      <div id="worksetList" class="list"></div>
+      <div class="row"><button type="button" id="allWs">All</button><button type="button" id="noneWs">None</button></div>
+      <p class="hint" id="wsHint">No workset ticked exports every workset.</p>
+    </div>
+
+    <h2>Output</h2>
+    <div class="row"><button type="button" id="browse">Choose folder</button></div>
+    <div class="path" id="folder">No folder chosen</div>
+    <p class="hint" id="svcNote" hidden></p>
+    <p class="hint" id="waitNote" hidden></p>
+    <button class="primary" id="go" disabled>Export MR forms (XLSX)</button>
+
+    <details>
+      <summary>Troubleshooting</summary>
+      <p class="hint">Saves every parameter of a few parts from each category to a text file. It contains model data, so share it only with whoever is fixing the export.</p>
+      <button type="button" id="sample" disabled>Save sample data</button>
+    </details>
+  </aside>
+  <section class="out">
+    <div id="bar">
+      <button type="button" id="refine" hidden>Continue 3D build</button>
+      <div id="refreshBox">
+        <button type="button" id="refreshModel" disabled>Refresh model</button>
+        <span id="changedTag" hidden></span>
+      </div>
+      <label style="margin:0">Color by
+        <select id="colorBy"><option value="export">Export</option><option value="service">Service</option></select>
+      </label>
+      <span class="sp"></span>
+      <button type="button" id="vFit">Fit</button>
+      <button type="button" id="vIso">Iso</button>
+      <button type="button" id="vTop">Top</button>
+      <button type="button" id="vFront">Front</button>
+    </div>
+    <div id="vwrap">
+      <canvas id="gl"></canvas>
+      <div id="vmsg">Preparing the 3D view...</div>
+      <div id="prog" hidden>
+        <div id="progText"></div>
+        <div id="progRow"><div id="progBar"><div id="progFill"></div></div><button type="button" id="progCancel" hidden>Cancel</button></div>
+      </div>
+      <div id="legend"></div>
+      <div id="pinfo" hidden></div>
+      <div id="hint3d">Drag: orbit | Right drag or Shift drag: pan | Wheel: zoom | Click: pick | Double click: fit</div>
+    </div>
+    <div id="lower">
+      <p id="status">Starting...</p>
+      <p id="timing" class="hint"></p>
+      <details id="expDetails" hidden>
+        <summary id="expSummary">Export details</summary>
+        <div id="results"></div>
+      </details>
+    </div>
+  </section>
+</main>
+<script src="systemColors.js"></script>
+<script src="viewer.js"></script>
+<script>
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  var folder = '';
+  var state = { exports: [], levels: [], worksets: [], busy: false, ready: false, sources: {} };    // sources: which data has been read
+
+  function send(cmd, data) {
+    var m = data || {}; m.cmd = cmd;
+    window.chrome.webview.postMessage(JSON.stringify(m));
+  }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; }
+  function checks(box, items, name, checked) {
+    box.innerHTML = '';
+    items.forEach(function (it) {
+      var l = el('label'), c = document.createElement('input');
+      c.type = 'checkbox'; c.name = name; c.value = it.key !== undefined ? it.key : it;
+      c.checked = Array.isArray(checked) ? checked.indexOf(c.value) >= 0 : !!checked;
+      l.appendChild(c); l.appendChild(document.createTextNode(it.label !== undefined ? it.label : it));
+      box.appendChild(l);
+    });
+  }
+  function ticked(name) {
+    return Array.prototype.slice.call(document.querySelectorAll('input[name=' + name + ']:checked')).map(function (c) { return c.value; });
+  }
+  function setAll(name, v) { document.querySelectorAll('input[name=' + name + ']').forEach(function (c) { c.checked = v; }); refresh(); schedule(); }
+  var timer = null;
+  function setBusy(b, msg) {                 // export and sample data only; the 3D view has its own progress bar
+    state.busy = b;
+    if (msg) $('#status').textContent = msg;
+    refresh();
+  }
+  // ---- clocks: page-measured, so they do not depend on anything Python reports ----
+  function now() { return window.__fakeNow || Date.now(); }          // __fakeNow lets the tests control time
+  function fmt(sec) {
+    sec = Math.max(0, Math.round(sec));
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    return (h ? h + ':' + ('0' + m).slice(-2) : m) + ':' + ('0' + s).slice(-2);
+  }
+  var clock = { readStart: null, readDur: null, sceneStart: null, sceneDur: null, stageEnd: null, stages: [], stage: '', stageStart: 0, firstDone: 0 };
+  function showTiming() {
+    var bits = [];
+    if (clock.readDur !== null) bits.push('Model read ' + fmt(clock.readDur));
+    if (clock.stages.length) bits.push('3D ' + clock.stages.map(function (s) { return s[0] + ' ' + fmt(s[1]); }).join(', '));
+    $('#timing').textContent = bits.length ? 'Timing: ' + bits.join(' | ') : '';
+  }
+  // Progress text with the time spent on this step, the speed, and a rough time left (shown once there is enough to judge by).
+  function stageClock(stage, done, total) {
+    var t = now();
+    if (stage !== clock.stage || done < clock.firstDone) { clock.stage = stage; clock.stageStart = t; clock.firstDone = done; }
+    var elapsed = (t - clock.stageStart) / 1000, bits = [fmt(elapsed) + ' elapsed'];
+    var moved = done - clock.firstDone;
+    if (total > 0 && moved > 0 && elapsed >= 3) {
+      var rate = moved / elapsed;
+      bits.push(rate.toFixed(1) + ' parts/s');
+      bits.push('about ' + fmt((total - done) / rate) + ' left');
+    }
+    return bits.join(' | ');
+  }
+  function progress(text, done, total, cancellable) {
+    $('#prog').hidden = false;
+    $('#progText').textContent = text;
+    $('#progFill').style.width = (total > 0 ? Math.min(100, Math.round(done * 100 / total)) : 100) + '%';
+    $('#progCancel').hidden = !cancellable;
+  }
+  function hideProgress() { $('#prog').hidden = true; }
+  // The 3D view follows the ticks: a change waits a moment (so several ticks make one update), then Python re-reads
+  // what is new. A newer request replaces an older one that is still running.
+  function schedule() { clearTimeout(timer); timer = setTimeout(requestScene, 600); }
+  function requestScene() {
+    if (!state.ready) return;
+    if (ticked('exp').length === 0) {
+      send('cancel'); BomViewer.clear(); $('#vmsg').hidden = false; $('#vmsg').textContent = 'Tick an export to see its parts.'; return;
+    }
+    if (!BomViewer.ready()) return;
+    clock.sceneStart = now();
+    progress('Updating the 3D view...', 0, 0, true);
+    send('scene', sceneRequest());
+  }
+  // An export turns on as soon as the data it needs has been read: the pipework exports (copper, non copper, valve) as soon as the
+  // pipework is in, the hanger export when the hangers are in.
+  function exportReady(c) { return !!state.sources[c.dataset.source]; }
+  function readyKeys() {
+    return Array.prototype.slice.call(document.querySelectorAll('input[name=exp]:checked')).filter(exportReady).map(function (c) { return c.value; });
+  }
+  function syncExports() {
+    var waiting = [];
+    document.querySelectorAll('input[name=exp]').forEach(function (c) {
+      var ok = exportReady(c), tag = c.parentNode.querySelector('.rd');
+      c.disabled = !ok;
+      if (!ok && !tag) { tag = el('span', 'rd', ' (reading...)'); c.parentNode.appendChild(tag); }
+      if (ok && tag) tag.remove();
+      if (!ok && c.checked) waiting.push(c.parentNode.firstChild.nextSibling.textContent);
+    });
+    var n = $('#waitNote');
+    n.hidden = waiting.length === 0;
+    n.textContent = waiting.join(', ') + (waiting.length === 1 ? ' turns' : ' turn') + ' on when its data has been read.';
+  }
+  function fillLists(m) {
+    var prevL = ticked('lvl'), prevW = ticked('ws');             // keep what the user ticked
+    if (m.levels.length) { $('#levelsBox').hidden = false; checks($('#levelList'), m.levels, 'lvl', prevL); }
+    checks($('#worksetList'), m.worksets, 'ws', prevW);
+    if (!m.workshared) { $('#wsHint').textContent = 'This model is not workshared, so there are no worksets to filter.'; }
+    else if (!m.worksets.length) { $('#wsHint').textContent = 'No user worksets were found in this model.'; }
+  }
+  function refresh() {
+    syncExports();
+    $('#go').disabled = state.busy || !folder || readyKeys().length === 0;
+    $('#sample').disabled = state.busy || !state.ready;
+    $('#useSel').disabled = !state.ready;
+    $('#refreshModel').disabled = !state.ready;
+    $('#browse').disabled = state.busy;
+  }
+  function serviceNote(list) {
+    var n = (list || []).length, el = $('#svcNote');
+    el.hidden = n === 0;
+    el.textContent = n + ' service' + (n === 1 ? '' : 's') + ' left out of the export (unticked in the Color by Service legend).';
+  }
+  function selectionNote(m) {
+    $('#selNote').textContent = m.selection
+      ? m.selection + ' fabrication part' + (m.selection === 1 ? '' : 's') + ' selected in Revit.' +
+        (m.selectionOther ? ' ' + m.selectionOther + ' other selected element' + (m.selectionOther === 1 ? '' : 's') + ' ignored.' : '')
+      : 'No fabrication parts selected. Select some in Revit, then click Use current selection.';
+    $('#selRow').hidden = !m.selection;
+    $('#selOnly').checked = m.selection > 0;
+  }
+  function card(title, items, cls) {
+    var c = el('div', 'card ' + (cls || '')); c.appendChild(el('h3', '', title));
+    var b = el('div', 'body'), ul = el('ul');
+    items.forEach(function (t) { ul.appendChild(el('li', '', t)); });
+    b.appendChild(ul); c.appendChild(b); return c;
+  }
+
+  var handlers = {
+    init: function (m) {
+      clock.readStart = now(); clock.readDur = null;
+      state.exports = m.exports;
+      $('#model').textContent = m.model;
+      $('#jobName').value = m.jobName || '';
+      $('#jobNumber').value = m.jobNumber || '';
+      checks($('#exportList'), m.exports, 'exp', true);
+      if (m.defaultFolder) { folder = m.defaultFolder; $('#folder').textContent = folder; }     // the Desktop until another folder is chosen
+      state.sources = {};
+      document.querySelectorAll('input[name=exp]').forEach(function (c) {
+        var e = m.exports.filter(function (x) { return x.key === c.value; })[0];
+        c.dataset.source = e ? e.source : ''; c.onchange = refresh;
+      });
+      $('#status').textContent = 'Reading the model. You can keep working in Revit.';
+      refresh();
+    },
+    sourceReady: function (m) {
+      // The pipework is read: its exports can run now, while the hangers are still being read.
+      fillLists(m);
+      state.sources[m.source] = true;
+      $('#status').textContent = m.counts;
+      refresh();
+    },
+    partsReady: function (m) {
+      if (clock.readStart !== null) { clock.readDur = (now() - clock.readStart) / 1000; showTiming(); }
+      var again = !!state.everReady;               // a refresh: keep what the user ticked
+      fillLists(m);
+      state.sources = { pipe: true, hangers: true };
+      if (!again) {
+        // No selection is read at open: the first read and view use the whole model. A selection is applied only by Use current selection.
+        $('#selNote').textContent = 'To export or preview only some parts, select fabrication parts in Revit, then click Use current selection.';
+        $('#selRow').hidden = true; $('#selOnly').checked = false;
+      }
+      state.everReady = true;
+      $('#changedTag').hidden = true; $('#refreshModel').classList.remove('attn');
+      $('#status').textContent = (again ? 'Model read again. ' : '') + m.counts;
+      state.ready = true;
+      refresh();
+      requestScene();
+    },
+    modelChanged: function (m) {
+      var bits = [];
+      if (m.added) bits.push(m.added + ' added');
+      if (m.modified) bits.push(m.modified + ' changed');
+      if (m.deleted) bits.push(m.deleted + ' deleted');
+      var t = $('#changedTag');
+      t.textContent = 'Model changed since it was read' + (bits.length ? ' (' + bits.join(', ') + ' fabrication parts)' : (m.many ? ' (many changes)' : '')) +
+        '. Click Refresh model.';
+      t.hidden = false; $('#refreshModel').classList.add('attn');
+    },
+    refreshing: function () {
+      state.sources = {};
+      clock.readStart = now(); clock.readDur = null; showTiming();
+      state.ready = false; refresh();
+      $('#changedTag').hidden = true; $('#refreshModel').classList.remove('attn');
+      $('#status').textContent = 'Reading the model again. You can keep working in Revit.';
+    },
+    selection: function (m) {
+      selectionNote(m);
+      schedule();
+    },
+    progress: function (m) {
+      var n = m.total > 0 ? ' ' + m.done.toLocaleString() + ' / ' + m.total.toLocaleString() : '';
+      progress(m.stage + n + ' | ' + stageClock(m.stage, m.done, m.total), m.done, m.total, !!m.cancel);
+    },
+    cancelled: function (m) {
+      hideProgress();
+      if (m.stage === 'build') {
+        $('#refine').hidden = !m.remaining;
+        $('#status').textContent = '3D build stopped. ' + (m.remaining || 0).toLocaleString() + ' parts have no solid yet. Click Continue 3D build to carry on.';
+      } else {
+        $('#status').textContent = '3D update cancelled. The view still shows the last update.';
+      }
+    },
+    folder: function (m) {
+      folder = m.path || folder;
+      $('#folder').textContent = folder || 'No folder chosen';
+      refresh();
+    },
+    scene: function (m) {
+      // The parts table of the view arrives first; geometry follows in build order (see geom).
+      var c = m.counts, k = c.byKind || {};
+      BomViewer.load(m);
+      clock.stageEnd = now(); clock.stages = []; $('#refine').hidden = true; showTiming();
+      $('#vmsg').hidden = m.parts.length > 0;
+      if (m.parts.length) $('#vmsg').textContent = 'Building the view...';
+      else $('#vmsg').textContent = 'No parts to show for the ticked exports and filters.';
+      var t = ['3D: ' + c.shown.toLocaleString() + ' of ' + c.included.toLocaleString() + ' included parts.'];
+      if (m.parts.length) t.push('Building in order: centerlines, straights, fittings, valves, hangers. You can work in the view meanwhile.');
+      $('#status').textContent = t.join(' ');
+      if (m.parts.length) progress('Centerlines 0 / ' + (c.shown - (k.hanger || 0)).toLocaleString(), 0, c.shown, true); else hideProgress();
+    },
+    geom: function (m) { BomViewer.geom(m); },
+    stageDone: function (m) {
+      var t = now();
+      if (clock.stageEnd !== null) { clock.stages.push([m.label, (t - clock.stageEnd) / 1000]); }
+      clock.stageEnd = t; showTiming();
+      if (m.stage === 'lines') BomViewer.stopAutoFit();        // the whole system is in: stop re-framing
+      $('#status').textContent = m.label + ' done (' + m.parts.toLocaleString() + ' parts).';
+    },
+    buildDone: function (m) {
+      hideProgress(); $('#refine').hidden = true; $('#vmsg').hidden = true;
+      $('#status').textContent = 'The 3D view is complete: ' + m.solids.toLocaleString() + ' of ' + m.total.toLocaleString() + ' parts built' +
+        (m.missing ? ', ' + m.missing.toLocaleString() + ' have no geometry to read' : '') + '.';
+    },
+    done: function (m) {
+      // Export details live in a flip-down that starts closed, so they take no room until wanted. Each export replaces
+      // the previous one, so exporting again after a mistake leaves just the latest details.
+      var r = $('#results'); r.innerHTML = '';
+      var notes = 0;
+      var later = ticked('exp').filter(function (k) { return readyKeys().indexOf(k) < 0; });
+      $('#status').textContent = (m.files.length ? 'Exported ' + m.files.length + ' file' + (m.files.length === 1 ? '' : 's') + '.' : 'Nothing was exported.') +
+        (later.length ? ' Not exported yet (still reading): ' + later.length + ' ticked export' + (later.length === 1 ? '' : 's') + '.' : '');
+      if (m.files.length) r.appendChild(card('Files saved', m.files, 'files'));
+      m.reports.forEach(function (rep) { if (rep.notes.length) { notes += rep.notes.length; r.appendChild(card(rep.label, rep.notes)); } });
+      var d = $('#expDetails'), now = new Date();
+      $('#expSummary').textContent = 'Export details: ' + m.files.length + ' file' + (m.files.length === 1 ? '' : 's') + ', ' +
+        notes + ' note' + (notes === 1 ? '' : 's') + ' (' + now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ')';
+      d.hidden = false; d.open = false;
+      setBusy(false);
+    },
+    sample: function (m) {
+      $('#status').textContent = 'Sample data saved: ' + m.path;
+      setBusy(false);
+    },
+    error: function (m) {
+      $('#status').textContent = 'Error: ' + m.message;
+      hideProgress();
+      setBusy(false);
+    }
+  };
+
+  window.chrome.webview.addEventListener('message', function (ev) {
+    var m = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+    if (handlers[m.type]) handlers[m.type](m);
+  });
+
+  $('#allExp').onclick = function () { setAll('exp', true); };
+  $('#noneExp').onclick = function () { setAll('exp', false); };
+  $('#allLvl').onclick = function () { setAll('lvl', true); };
+  $('#noneLvl').onclick = function () { setAll('lvl', false); };
+  $('#allWs').onclick = function () { setAll('ws', true); };
+  $('#noneWs').onclick = function () { setAll('ws', false); };
+  function sceneRequest() {
+    return {
+      keys: ticked('exp'), levels: ticked('lvl'), worksets: ticked('ws'),
+      selectionOnly: !!($('#selOnly') && $('#selOnly').checked)
+    };
+  }
+  // Any change to the ticked exports, levels, worksets, selection or part limit updates the 3D view.
+  document.addEventListener('change', function (e) {
+    var t = e.target || {};
+    if (/^(exp|lvl|ws)$/.test(t.name || '') || t.id === 'selOnly') schedule();
+  });
+  $('#colorBy').onchange = function () { BomViewer.setMode($('#colorBy').value); };
+  $('#vFit').onclick = BomViewer.fit; $('#vIso').onclick = BomViewer.iso; $('#vTop').onclick = BomViewer.top; $('#vFront').onclick = BomViewer.front;
+  try {
+    BomViewer.init({ canvas: $('#gl'), legend: $('#legend'), info: $('#pinfo'), onFilter: serviceNote, status: function (t) { $('#vmsg').textContent = t; } });
+  } catch (err) { $('#vmsg').textContent = '3D preview could not start: ' + err.message; }
+  $('#browse').onclick = function () { send('chooseFolder', { folder: folder }); };
+  $('#sample').onclick = function () { setBusy(true, 'Reading sample data...'); send('sample', { folder: folder }); };
+  $('#refine').onclick = function () { $('#refine').hidden = true; progress('Continuing the 3D build...', 0, 0, true); send('refine'); };
+  $('#refreshModel').onclick = function () { if (state.ready) send('refreshModel'); };
+  $('#useSel').onclick = function () { $('#status').textContent = 'Reading the Revit selection...'; send('refreshSelection'); };
+  $('#progCancel').onclick = function () { send('cancel'); };
+  $('#go').onclick = function () {
+    setBusy(true, 'Building the MR forms...');
+    send('export', {
+      keys: readyKeys(), levels: ticked('lvl'), worksets: ticked('ws'), folder: folder, excludedServices: BomViewer.excludedServices(),
+      jobName: $('#jobName').value, jobNumber: $('#jobNumber').value,
+      selectionOnly: !!($('#selOnly') && $('#selOnly').checked)
+    });
+  };
+  send('ready');
+})();
+</script>
+</body>
+</html>

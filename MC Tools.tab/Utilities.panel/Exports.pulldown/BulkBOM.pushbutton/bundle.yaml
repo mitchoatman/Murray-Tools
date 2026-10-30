@@ -1,0 +1,14 @@
+#highlight: new
+
+# bundle title
+title:
+  "Bulk\nBOM"
+
+# bundle tooltip
+tooltip: |-
+  Exports the Bulk Fab Copper, Non Copper, Valve and Hanger MR forms to Excel for the active model.
+  Preview the parts in 3D, filter by selection, level or workset, and choose the output folder.
+  The window stays open while you work in Revit.
+
+# bundle author
+author: Mitchell Oatman

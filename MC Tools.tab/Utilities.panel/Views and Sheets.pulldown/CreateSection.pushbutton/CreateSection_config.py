@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FabricationPart, FamilyInstance
+from Autodesk.Revit.DB import FabricationPart, FamilyInstance, ViewPlan, ViewSection
 from Autodesk.Revit.UI.Selection import ObjectType, ObjectSnapTypes
 from Autodesk.Revit.UI import TaskDialog
 import sys
@@ -15,9 +15,9 @@ def get_section_view_type(document):
             return vft
     return None
 
-def require_plan_view(view):
-    if not isinstance(view, DB.ViewPlan):
-        raise Exception("Run this command from a floor plan view.")
+def require_supported_view(view):
+    if not isinstance(view, (ViewPlan, ViewSection)):
+        raise Exception("Run this command from a floor plan or section view.")
 
 def bbox_corners(bbox):
     mn = bbox.Min
@@ -59,38 +59,53 @@ def build_section_transform_for_elements(elements, view, pick_point):
     n = len(all_pts)
     origin = DB.XYZ(sum_x / n, sum_y / n, sum_z / n)
 
-    # Vector from center of selection to the user's pick point
     click_vec = pick_point - origin
-    click_vec = DB.XYZ(click_vec.X, click_vec.Y, 0.0)
 
-    if click_vec.GetLength() < 1e-6:
-        raise Exception("Pick point is too close to the center of the selection.")
+    if isinstance(view, ViewSection):
+        view_dir = view.ViewDirection.Normalize()
+        up_dir = view.UpDirection.Normalize()
+        right_dir = view.RightDirection.Normalize()
 
-    # Determine whether the user clicked more horizontally (Left/Right) or vertically (Top/Bottom)
-    # Normalized check without aspect-ratio bias
-    dx = click_vec.X
-    dy = click_vec.Y
+        click_vec_screen = click_vec - view_dir.Multiply(click_vec.DotProduct(view_dir))
+        if click_vec_screen.GetLength() < 1e-6:
+            raise Exception("Pick point is too close to the center of the selection.")
 
-    y_axis = DB.XYZ.BasisZ # Vertical height axis remains Z-up
+        dx = click_vec_screen.DotProduct(right_dir)
+        dy = click_vec_screen.DotProduct(up_dir)
 
-    if abs(dx) > abs(dy):
-        # LEFT / RIGHT click: Look along the X axis (cuts a vertical profile looking down the run)
-        if dx > 0:
-            # Clicked to the RIGHT -> Look right (-X direction)
-            z_axis = DB.XYZ(-1, 0, 0)
+        y_axis = DB.XYZ.BasisZ
+
+        if abs(dx) > abs(dy):
+            if dx > 0:
+                z_axis = right_dir.Negate()
+            else:
+                z_axis = right_dir
         else:
-            # Clicked to the LEFT -> Look left (+X direction)
-            z_axis = DB.XYZ(1, 0, 0)
+            z_axis = view_dir.Negate() if dy > 0 else view_dir
+
+        x_axis = y_axis.CrossProduct(z_axis).Normalize()
+        y_axis = z_axis.CrossProduct(x_axis).Normalize()
     else:
-        # TOP / BOTTOM click: Look along the Y axis (cuts a horizontal plan looking across the runs)
-        if dy > 0:
-            # Clicked to the TOP -> Look up (-Y direction in plan view coordinates)
-            z_axis = DB.XYZ(0, -1, 0)
-        else:
-            # Clicked to the BOTTOM -> Look down (+Y direction in plan view coordinates)
-            z_axis = DB.XYZ(0, 1, 0)
+        click_vec = DB.XYZ(click_vec.X, click_vec.Y, 0.0)
+        if click_vec.GetLength() < 1e-6:
+            raise Exception("Pick point is too close to the center of the selection.")
 
-    x_axis = y_axis.CrossProduct(z_axis).Normalize()
+        dx = click_vec.X
+        dy = click_vec.Y
+        y_axis = DB.XYZ.BasisZ
+
+        if abs(dx) > abs(dy):
+            if dx > 0:
+                z_axis = DB.XYZ(-1, 0, 0)
+            else:
+                z_axis = DB.XYZ(1, 0, 0)
+        else:
+            if dy > 0:
+                z_axis = DB.XYZ(0, -1, 0)
+            else:
+                z_axis = DB.XYZ(0, 1, 0)
+
+        x_axis = y_axis.CrossProduct(z_axis).Normalize()
 
     tf = DB.Transform.Identity
     tf.Origin = origin
@@ -112,7 +127,7 @@ def get_local_bounds(points, transform):
     return DB.XYZ(min(xs), min(ys), min(zs)), DB.XYZ(max(xs), max(ys), max(zs))
 
 try:
-    require_plan_view(active_view)
+    require_supported_view(active_view)
 
     selected_ids = uidoc.Selection.GetElementIds()
     if not selected_ids:
@@ -128,7 +143,7 @@ try:
 
     pick_point = uidoc.Selection.PickPoint(
         ObjectSnapTypes.None, 
-        "Click Left, Right, Top, or Bottom relative to the group center"
+        "Click relative to the group center"
     )
 
     section_type = get_section_view_type(doc)
@@ -145,7 +160,7 @@ try:
 
     pad_x = 1.0
     pad_y = 1.0
-    pad_z = 0.5
+    pad_z = 2.0
 
     min_z = local_min.Z - pad_z
     max_z = local_max.Z + pad_z
@@ -166,7 +181,10 @@ try:
             section_view.DetailLevel = DB.ViewDetailLevel.Fine
         except:
             pass
-            
+
+        section_view.CropBoxActive = True
+        section_view.CropBoxVisible = True
+        
         t.Commit()
     except:
         if t.HasStarted():

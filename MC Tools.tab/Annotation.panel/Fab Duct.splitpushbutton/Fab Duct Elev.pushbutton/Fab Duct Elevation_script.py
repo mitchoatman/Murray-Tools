@@ -9,8 +9,8 @@ doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 
 path, filename = os.path.split(__file__)
-NewFilename1 = '\Fabrication Duct - Duct Elevation Tag - Aligned.rfa'
-NewFilename2 = '\Fabrication Duct - Duct Elevation Tag.rfa'
+NewFilename1 = r'\Fabrication Duct - Duct Elevation Tag - Aligned.rfa'
+NewFilename2 = r'\Fabrication Duct - Duct Elevation Tag.rfa'
 
 class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
     def OnFamilyFound(self, familyInUse, overwriteParameterValues):

@@ -3,6 +3,7 @@ layout:
   - HGR_Data[title:Hanger\nData]
   - FabRenumberTools
   - SetWorkPlane
+  - CarrierViews.pushbutton
   
 background:
 #  title: 'D5D5CD'

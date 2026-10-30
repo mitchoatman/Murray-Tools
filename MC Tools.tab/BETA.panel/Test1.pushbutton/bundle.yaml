@@ -1,0 +1,13 @@
+
+#highlight: new
+
+# bundle title
+title:
+  "Test1"
+
+# bundle tooltip
+tooltip: |-
+  yep
+
+# bundle author
+author: Mitchell Oatman

@@ -21,7 +21,9 @@ from Autodesk.Revit.DB import (
     ScheduleFilterType,
     ScheduleSortGroupField,
     ScheduleSortOrder,
-    RoundingMethod
+    RoundingMethod,
+    UnitTypeId,
+    FormatOptions
 )
 from Autodesk.Revit.UI import TaskDialog
 import System
@@ -197,13 +199,12 @@ def configure_schedule(schedule, fieldNames, family_filter, parameters):
 
         if paramName in ["Diameter", "Width", "Height"]:
             try:
-                fmt = field.GetFormatOptions()
-                if fmt is not None:
-                    fmt.UseDefault = False
-                    if fmt.CanSuppressLeadingZeros():
-                        fmt.SuppressLeadingZeros = True
-                    fmt.RoundingMethod = RoundingMethod.Nearest
-                    field.SetFormatOptions(fmt)
+                fmt = FormatOptions(UnitTypeId.FeetFractionalInches)
+                fmt.UseDefault = False
+                fmt.SuppressLeadingZeros = True
+                fmt.RoundingMethod = RoundingMethod.Nearest
+                fmt.Accuracy = 1.0 / 24.0
+                field.SetFormatOptions(fmt)
             except Exception:
                 pass
 

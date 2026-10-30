@@ -53,6 +53,10 @@ uiapp = UIApplication(doc.Application)
 FOLDER_NAME = r"C:\Temp"
 FILE_PATH = os.path.join(FOLDER_NAME, "Ribbon_ParamToParam.txt")
 
+# Special data type: reads an ElementId parameter (e.g. Reference Level)
+# and writes the referenced element's name into a String parameter.
+ELEMID_TO_STRING = "ElementId -> String"
+
 
 # -----------------------------------------------------------------------------
 # TXT settings helpers
@@ -196,6 +200,30 @@ def label_to_storage_type(label):
     return None
 
 
+def rule_storage_types(label):
+    """Returns (source_type, target_type) for a rule's data type label."""
+    if label == ELEMID_TO_STRING:
+        return StorageType.ElementId, StorageType.String
+    st = label_to_storage_type(label)
+    return st, st
+
+
+def element_id_to_text(param):
+    """Return the text Revit shows for an ElementId parameter (e.g. the Level name)."""
+    try:
+        txt = param.AsValueString()
+        if txt:
+            return txt
+        eid = param.AsElementId()
+        if eid and eid != ElementId.InvalidElementId:
+            e = doc.GetElement(eid)
+            if e is not None:
+                return e.Name
+    except Exception:
+        pass
+    return ""
+
+
 def parameter_has_data(param):
     if not param:
         return False
@@ -252,6 +280,9 @@ def get_available_data_types(elements, sample_size=20):
     for st in [StorageType.String, StorageType.Integer, StorageType.Double, StorageType.ElementId]:
         if st in matched:
             ordered.append(storage_type_to_label(st))
+
+    if StorageType.ElementId in source_types and StorageType.String in target_types:
+        ordered.append(ELEMID_TO_STRING)
 
     return ordered
 
@@ -336,7 +367,7 @@ class ParamsToParamConfigWindow(Window):
 
         # Top Bar: Info text + Category Add selector
         top_panel = StackPanel()
-        
+
         info = TextBlock()
         info.Text = (
             "Configure parameter-to-parameter copy rules grouped by category buckets. "
@@ -593,7 +624,7 @@ class ParamsToParamConfigWindow(Window):
 
         def update_param_combos():
             dt_label = str(datatype_combo.SelectedItem or "")
-            st = label_to_storage_type(dt_label)
+            src_st, tgt_st = rule_storage_types(dt_label)
 
             source_combo.Items.Clear()
             target_combo.Items.Clear()
@@ -602,9 +633,9 @@ class ParamsToParamConfigWindow(Window):
             source_combo.SelectedIndex = 0
             target_combo.SelectedIndex = 0
 
-            if st is not None and elements:
-                src_params = get_source_parameters_with_data_by_type(elements, st)
-                tgt_params = get_target_parameters_by_type(elements, st)
+            if src_st is not None and tgt_st is not None and elements:
+                src_params = get_source_parameters_with_data_by_type(elements, src_st)
+                tgt_params = get_target_parameters_by_type(elements, tgt_st)
                 for sp in src_params:
                     source_combo.Items.Add(sp)
                 for tp in tgt_params:
@@ -765,8 +796,8 @@ class ParamsToParamConfigWindow(Window):
                         total_invalid_rules += 1
                         continue
 
-                    st = label_to_storage_type(datatype_label)
-                    if st is None:
+                    src_st, tgt_st = rule_storage_types(datatype_label)
+                    if src_st is None or tgt_st is None:
                         invalid_for_category += 1
                         total_invalid_rules += 1
                         continue
@@ -775,7 +806,8 @@ class ParamsToParamConfigWindow(Window):
                         "datatype": datatype_label,
                         "source": source_name,
                         "target": target_name,
-                        "storage_type": st
+                        "src_type": src_st,
+                        "tgt_type": tgt_st
                     })
 
                 if not executable_rules:
@@ -807,27 +839,34 @@ class ParamsToParamConfigWindow(Window):
                                 cat_failed += 1
                                 continue
 
-                            if source_param.StorageType != rule["storage_type"]:
+                            if source_param.StorageType != rule["src_type"]:
                                 cat_failed += 1
                                 continue
 
-                            if target_param.StorageType != rule["storage_type"]:
+                            if target_param.StorageType != rule["tgt_type"]:
                                 cat_failed += 1
                                 continue
 
-                            if rule["storage_type"] == StorageType.String:
+                            src_t = rule["src_type"]
+                            tgt_t = rule["tgt_type"]
+
+                            if src_t == StorageType.ElementId and tgt_t == StorageType.String:
+                                target_param.Set(element_id_to_text(source_param))
+                                cat_updated += 1
+
+                            elif tgt_t == StorageType.String:
                                 target_param.Set(source_param.AsString() or "")
                                 cat_updated += 1
 
-                            elif rule["storage_type"] == StorageType.Integer:
+                            elif tgt_t == StorageType.Integer:
                                 target_param.Set(source_param.AsInteger())
                                 cat_updated += 1
 
-                            elif rule["storage_type"] == StorageType.Double:
+                            elif tgt_t == StorageType.Double:
                                 target_param.Set(source_param.AsDouble())
                                 cat_updated += 1
 
-                            elif rule["storage_type"] == StorageType.ElementId:
+                            elif tgt_t == StorageType.ElementId:
                                 eid = source_param.AsElementId()
                                 if eid and eid != ElementId.InvalidElementId:
                                     target_param.Set(eid)

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<!-- GENERATED FILE. Do not edit. Edit help.md and click the Build Help button. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control Point</title>
+<meta name="murray-topic-id" content="ControlPoint">
+<meta name="murray-content-hash" content="9f1790b9702f65c0">
+<style>
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.55}
+.band{background:#FFE716;border-bottom:2px solid #000}
+.band-inner{display:flex;align-items:center;gap:20px;padding:16px 28px}
+.band-logo{height:56px;width:auto;flex:none}
+.band small{display:block;font-size:14px;font-weight:bold;margin-bottom:4px}
+.band small a{text-decoration:none}
+.band small a:hover{text-decoration:underline}
+.band h1{margin:0;font-size:30px;line-height:1.2}
+.layout{display:flex;align-items:flex-start}
+.side{flex:none;width:300px;position:sticky;top:0;max-height:100vh;overflow:auto;padding:18px 0 24px}
+.side input{display:block;width:calc(100% - 40px);margin:0 20px 12px;padding:7px 10px;font:inherit;font-size:14px;border:1px solid #000;border-radius:0}
+.side ul{list-style:none;margin:0;padding:0}
+.side li{margin:0}
+.side a{display:block;padding:7px 20px 7px 16px;border-left:4px solid transparent;text-decoration:none;font-size:15px;line-height:1.3}
+.side a:hover{border-left-color:#000;text-decoration:underline}
+.side a[aria-current="page"]{background:#FFE716;border-left-color:#000;font-weight:bold}
+.side .home-link{font-weight:bold;border-bottom:1px solid #000;margin-bottom:6px;padding-bottom:10px}
+.side .none{display:none;padding:7px 20px;font-size:14px}
+.content{flex:1;min-width:0;min-height:100vh;padding:24px 36px 0;border-left:1px solid #000;margin-left:-1px}
+.content>.page{max-width:900px}
+h2{font-size:22px;margin:32px 0 10px;padding-bottom:4px;border-bottom:2px solid #FFE716;line-height:1.25}
+h3{font-size:18px;margin:24px 0 8px;line-height:1.25}
+p{margin:8px 0}
+ul,ol{margin:4px 0;padding-left:26px}
+li{margin:3px 0}
+.page>ul>li,.page>ol>li{margin-top:12px}
+a{color:#000;text-decoration:underline}
+a:focus-visible,img:focus-visible,button:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid #000;outline-offset:2px}
+figure{margin:12px 0}
+figure img{display:block;max-width:100%;height:auto;border:1px solid #000;cursor:zoom-in}
+.note{background:#FFE716;padding:6px 12px;margin:6px 0;border-left:4px solid #000}
+.missing{border:2px dashed #000;padding:8px 12px;font-weight:bold}
+code{font-family:Consolas,monospace;font-size:14px;border:1px solid #000;padding:0 4px}
+hr{border:0;border-top:1px solid #000;margin:20px 0}
+.home{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:40px;max-width:1200px}
+.home>.page>h2:first-child{margin-top:8px}
+.feedback{border:1px solid #000;padding:4px 20px 20px;align-self:start;position:sticky;top:24px}
+.feedback h2{margin-top:16px}
+.feedback textarea{display:block;width:100%;min-height:140px;margin:10px 0;padding:8px;font:inherit;font-size:15px;border:1px solid #000;border-radius:0;resize:vertical}
+.feedback button{font:inherit;font-weight:bold;background:#FFE716;color:#000;border:2px solid #000;padding:8px 22px;cursor:pointer}
+.feedback button:hover{background:#000;color:#fff}
+.feedback .small{font-size:13px}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;z-index:10}
+.lightbox.open{display:flex}
+.lightbox img{max-width:100%;max-height:100%;background:#fff}
+.wn{margin:12px 0 8px}
+.wn-head{font-weight:bold;margin:16px 0 4px}
+.wn-card{border:1px solid #000;border-top:4px solid #FFE716;padding:4px 16px 10px;margin:10px 0}
+.wn-card h3{margin:8px 0 2px;font-size:17px}
+.wn-card .meta{font-size:13px;margin:0 0 4px}
+.wn-card p{margin:4px 0}
+.wn-note{font-size:13px}
+.badge{display:inline-block;font-size:12px;font-weight:bold;padding:1px 8px;margin-left:8px;border:1px solid #000;background:#FFE716;color:#000;vertical-align:middle}
+.badge.upd{background:#fff}
+.btn{font:inherit;font-weight:bold;background:#FFE716;color:#000;border:2px solid #000;padding:6px 16px;margin:8px 10px 6px 0;cursor:pointer}
+.btn:hover{background:#000;color:#fff}
+footer{max-width:900px;margin:48px 0 0;padding:12px 0 28px;font-size:12px;border-top:1px solid #000}
+@media (max-width:1100px){.home{grid-template-columns:1fr}.feedback{position:static}}
+@media (max-width:760px){.layout{display:block}.side{position:static;width:auto;max-height:none;border-bottom:1px solid #000}.content{padding:20px;border-left:0;margin-left:0;min-height:0}}
+@media print{.side,.feedback,.lightbox{display:none!important}figure img{cursor:auto}.content{padding:0}}
+</style>
+</head>
+<body>
+<header class="band"><div class="band-inner"><img class="band-logo" src="../../murray_logo.png" alt="Murray Company"><div><small><a href="../../help.html">Murray Help</a></small><h1>Control Point</h1></div></div></header>
+<div class="layout">
+<nav class="side" aria-label="Help topics">
+<input id="topic-filter" type="search" placeholder="Filter topics" aria-label="Filter topics">
+<ul id="topics-home">
+<li><a class="home-link" href="../../help.html">Home</a></li>
+</ul><ul id="topics">
+<li><a href="../ChangeRodSize/help.html">Change Rod Size</a></li>
+<li><a href="../ChromeShortcuts/help.html">Chrome Shortcuts</a></li>
+<li><a href="../ControlPoint/help.html" aria-current="page">Control Point</a></li>
+<li><a href="../CarrierViews/help.html">Create Carrier Views</a></li>
+<li><a href="../FabricationHangersInRevit/help.html">Fabrication Hangers in Revit</a></li>
+<li><a href="../FabricationPartBOMExcel/help.html">Fabrication Part BOM (Excel)</a></li>
+<li><a href="../FamilyNavigator/help.html">Family Navigator Pane</a></li>
+<li><a href="../HideIsolate/help.html">Hide / Isolate Service</a></li>
+<li><a href="../MakeSchedule/help.html">Make Schedule</a></li>
+<li><a href="../MCPointloadDuct/help.html">MC Pointload (Duct)</a></li>
+<li><a href="../MCPointloadPipe/help.html">MC Pointload (Pipe)</a></li>
+<li><a href="../PipeLabels/help.html">Pipe Labels</a></li>
+<li><a href="../PointLayoutMC/help.html">Point Layout (MC)</a></li>
+<li><a href="../PointLayoutUG/help.html">Point Layout (UG)</a></li>
+<li><a href="../QCPoints/help.html">QC Points</a></li>
+<li><a href="../RenameSheetsViews/help.html">Rename Sheets and Views</a></li>
+<li><a href="../RevitFamilyLibraryAndCreatingFamiliesFromImports/help.html">Revit Family Library and Creating Families (From Imports)</a></li>
+<li><a href="../RevitRevisions/help.html">Revit Revisions</a></li>
+<li><a href="../RoughInDrawings/help.html">Rough In Drawings</a></li>
+<li><a href="../StiffyBOMWIP/help.html">Stiffy BOM (WIP)</a></li>
+<li><a href="../TaggingRoomNames/help.html">Tagging Room Names</a></li>
+<li><a href="../FindPoint/help.html">TS Point Number Locator</a></li>
+<li><a href="../ValveNumbering/help.html">Valve Numbering</a></li>
+<li><a href="../WallTrimbleRevit/help.html">Wall Trimble Revit</a></li>
+</ul><p class="none" id="no-topics">No matching topics.</p></nav>
+<main class="content">
+<div class="page"><p><strong>Why and when do we place control points?</strong></p>
+<p><strong>Why</strong> - Places a Control Point family in the model and fills in its Point Number and Point Description parameters, so the points can be scheduled, tagged, and exported for layout.</p>
+<p><strong>When</strong> - As requested, when control points are needed in a plan view. Place them one at a time by clicking in the view, or all at once at grid intersections.</p>
+<p>There are 2 ways to place control points:</p>
+<ul><li>
+<strong>Click</strong> the button to place points by hand (section 1).
+</li><li>
+<strong>Shift+Click</strong> the button to place points at grid intersections (section 2). [CONFIRM: Shift+Click runs the grid method]
+</li></ul>
+<p><strong>The tool does not work in a 3D view.</strong> If you try it there, a message says "Cannot use in 3D view." Open a plan view first.</p>
+<figure><img src="images/img-01.png" alt=""></figure>
+<h2><strong>1. Click: place points by hand:</strong></h2>
+<p>This method is best for a few points at chosen locations.</p>
+<ul><li>
+Open a plan view.
+</li><li>
+Click the <strong>Control Point</strong> button on the Murray Ribbon.
+</li><li>
+A <strong>Set Control Point Data</strong> window opens.
+<ul><li>
+<strong>Point Number:</strong> the number to write to the points.
+</li><li>
+<strong>Point Description:</strong> a description of the points.
+</li><li>
+Both boxes are required. The window remembers what you typed last time.
+</li></ul>
+</li></ul>
+<figure><img src="images/img-02.png" alt=""></figure>
+<ul><li>
+Click <strong>Place</strong>.
+</li><li>
+Click in the view to place each point.
+</li><li>
+Press <strong>Esc</strong> when you are done placing.
+</li><li>
+The tool then writes the Point Number and Point Description to every point you placed in that run.
+</li><li>
+If you place no points, nothing is written.
+</li></ul>
+<p><strong>ONE THING TO NOTE: EVERY POINT PLACED IN ONE RUN GETS THE SAME POINT NUMBER.</strong></p>
+<p><strong>TO GIVE POINTS DIFFERENT NUMBERS, RUN THE TOOL AGAIN FOR EACH NUMBER.</strong></p>
+<hr>
+<h2><strong>2. Shift+Click: place points at grid intersections:</strong></h2>
+<p>This method places a point at every intersection of the grid lines you select, and numbers them from the grid names.</p>
+<ul><li>
+Open a plan view.
+</li><li>
+<strong>Shift+Click</strong> the <strong>Control Point</strong> button.
+</li><li>
+Select 2 or more grid lines.
+<ul><li>
+Use a window or click each grid, then finish the selection.
+</li><li>
+The tool finds every place the selected grids cross. If none cross, a message says no intersections were found.
+</li></ul>
+</li></ul>
+<p class="missing">Missing image: images/img-03.png</p>
+<ul><li>
+A <strong>Set Control Point Data</strong> window opens. Choose the <strong>Point Number Mode</strong>:
+<ul><li>
+<strong>Append Grid Names</strong> (default) writes the number for you as <code>CP_</code> plus the two grid names. The first name is the more vertical grid and the second is the more horizontal grid. Example: <code>CP_A-3</code>. The Point Number box is not used in this mode.
+</li><li>
+<strong>Custom</strong> uses the number you type. Every point gets that same number.
+</li></ul>
+</li><li>
+Type the <strong>Point Description</strong>. It is required, and every point gets the same description.
+</li><li>
+Click <strong>Place</strong>.
+</li><li>
+A message shows how many points were placed, for example: Placed 12 control point(s).
+</li></ul>
+<p class="missing">Missing image: images/img-04.png</p>
+<p>All the points go in as a single step, so one Undo removes them all.</p>
+<hr>
+<h2><strong>What the tool does for you:</strong></h2>
+<ul><li>
+<strong>Loads the family.</strong> If the Control Point family is not in the project, the tool loads it for you. It uses the <strong>CP</strong> type.
+</li><li>
+<strong>Writes the parameters.</strong> Point Number goes to <code>TS_Point_Number</code> and Point Description goes to <code>TS_Point_Description</code>.
+</li><li>
+<strong>Remembers your entries.</strong> The last Point Number, Point Description, and mode are filled in the next time you open the window.
+</li></ul>
+<hr>
+<h2><strong>If something goes wrong:</strong></h2>
+<ul><li>
+<strong>"Cannot use in 3D view."</strong> Open a plan view and run the tool again.
+</li><li>
+<strong>"Please enter a Point Number."</strong> Custom mode and the click method need a Point Number.
+</li><li>
+<strong>"Please enter a Point Description."</strong> Type a description before you click Place.
+</li><li>
+<strong>"Please select at least 2 grid lines."</strong> Shift+Click method only. Select two or more grids.
+</li><li>
+<strong>"No intersections were found between the selected grid lines."</strong> The grids you picked do not cross. Pick grids that cross each other.
+</li><li>
+<strong>"Family file not found."</strong> The Control Point family file is missing from the tool folder. Tell the tool owner. [CONFIRM: tool owner]
+</li><li>
+<strong>"Type 'CP' was not found in family 'Control Point'."</strong> The family in the project does not have a CP type. Tell the tool owner.
+</li><li>
+<strong>A Warning that a parameter was not found, is read-only, or is not a text parameter.</strong> The points were placed, but the number or description was not written. Check that <code>TS_Point_Number</code> and <code>TS_Point_Description</code> exist on the Control Point family as text parameters.
+</li><li>
+<strong>Revit 2022 only: "Family loaded successfully. Run the command again to place the family."</strong> The first run after loading only loads the family. Run the tool again.
+</li></ul>
+<p><strong>CHECK THE POINT LOCATIONS AGAINST THE CONTROL OR LAYOUT DATA BEFORE THEY ARE USED IN THE FIELD OR SENT TO ANOTHER TRADE.</strong></p>
+<p>[CONFIRM: Egnyte link for the training video or the family file, if one exists]</p>
+<p>&lt;!-- OPEN ITEMS (remove before posting to the Help Hub)</p>
+<ol><li>
+[CONFIRM: Shift+Click runs the grid script (ControlPoint_config.py). The click script is ControlPoint_script.py. File names suggest this but the tool bundle.yaml was not provided.]
+</li><li>
+[CONFIRM: tool title, tooltip, and author from bundle.yaml. Not provided.]
+</li><li>
+[CONFIRM: exact Murray Ribbon tab and panel for the button.]
+</li><li>
+[CONFIRM: which grid direction (letters or numbers) the owner considers "Y". The tool uses the more vertical grid name first.]
+</li><li>
+[CONFIRM: Revit versions supported. The script has a Revit 2022 only workaround.]
+</li><li>
+[CONFIRM: tool owner name for the support lines.]
+</li><li>
+[CONFIRM: add the buttons: line in this help.md, using the same format as the other topics. Format not provided.]
+</li><li>
+Topic folder and topic.txt name not provided. Other topics use names like MCPointloadDuct or ChangeRodSize.
+</li><li>
+Screenshots needed, saved in images/ with these names:
+<p>img-01.png  Control Point family placed in a plan view img-02.png  the Set Control Point Data window (click method) img-03.png  grid lines selected in a plan view img-04.png  the Set Control Point Data window with the Point Number Mode options</p>
+</li></ol>
+<p>--&gt;</p></div>
+<footer>Last built 2026-10-27. Click any image to enlarge; press Esc to close.</footer>
+</main>
+</div>
+<div class="lightbox" id="lb" role="dialog" aria-label="Enlarged image"><img alt=""></div>
+<script>
+(function(){
+  var box=document.getElementById('lb'), big=box.querySelector('img');
+  document.querySelectorAll('figure img').forEach(function(im){
+    im.tabIndex=0;
+    function open(){big.src=im.src;box.classList.add('open');}
+    im.addEventListener('click',open);
+    im.addEventListener('keydown',function(e){if(e.key==='Enter'){open();}});
+  });
+  function close(){box.classList.remove('open');big.removeAttribute('src');}
+  box.addEventListener('click',close);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){close();}});
+
+  var f=document.getElementById('topic-filter');
+  if(f){
+    var items=document.querySelectorAll('#topics li'), none=document.getElementById('no-topics');
+    f.addEventListener('input',function(){
+      var q=f.value.toLowerCase().trim(), shown=0;
+      items.forEach(function(li){var hit=li.textContent.toLowerCase().indexOf(q)>-1;li.style.display=hit?'':'none';if(hit)shown++;});
+      none.style.display=shown?'none':'block';
+    });
+  }
+  var cur=document.querySelector('.side a[aria-current="page"]');
+  if(cur&&cur.scrollIntoView){cur.scrollIntoView({block:'nearest'});}
+
+  var send=document.getElementById('fb-send');
+  if(send){
+    send.addEventListener('click',function(){
+      var t=document.getElementById('fb-text'), msg=t.value.trim();
+      if(!msg){t.focus();return;}
+      window.location.href='mailto:'+send.getAttribute('data-to')
+        +'?cc='+encodeURIComponent(send.getAttribute('data-cc'))
+        +'&subject='+encodeURIComponent('Murray Help feedback')
+        +'&body='+encodeURIComponent(msg);
+    });
+  }
+})();
+
+(function(){
+  var KEY='murrayHelpSeen_v1';
+  function load(){
+    var r;
+    try{r=window.localStorage.getItem(KEY);}catch(e){return null;}
+    if(!r){return {};}
+    try{var o=JSON.parse(r);return (o&&typeof o==='object')?o:{};}catch(e2){return {};}
+  }
+  function save(s){try{window.localStorage.setItem(KEY,JSON.stringify(s));return true;}catch(e){return false;}}
+
+  var idm=document.querySelector('meta[name="murray-topic-id"]');
+  var hm=document.querySelector('meta[name="murray-content-hash"]');
+  if(idm&&hm){var s0=load();if(s0){s0[idm.content]=hm.content;save(s0);}}
+
+  var box=document.getElementById('whats-new'), dm=document.getElementById('topics-data');
+  if(!box||!dm){return;}
+  var data=JSON.parse(dm.textContent);
+  var seen=load(), canSave=(seen!==null);
+  if(seen===null){seen={};}
+  var showAll=!canSave;
+  var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function el(tag,cls,text){var e=document.createElement(tag);if(cls){e.className=cls;}if(text!==undefined){e.textContent=text;}return e;}
+  function fmt(d){var p=(d||'').split('-');if(p.length!==3){return d||'';}return MON[parseInt(p[1],10)-1]+' '+parseInt(p[2],10)+', '+p[0];}
+  function status(t){if(!(t.id in seen)){return 'new';}if(seen[t.id]!==t.hash){return 'upd';}return 'seen';}
+  function card(t,st){
+    var c=el('div','wn-card'), h=el('h3'), a=el('a',null,t.title);
+    a.href=t.href;h.appendChild(a);
+    if(st==='new'){h.appendChild(el('span','badge','NEW'));}
+    else if(st==='upd'){h.appendChild(el('span','badge upd','IMPROVED'));}
+    c.appendChild(h);
+    c.appendChild(el('div','meta',[fmt(t.date),t.type].filter(Boolean).join(' \u00b7 ')));
+    if(t.summary){c.appendChild(el('p',null,t.summary));}
+    return c;
+  }
+  function render(){
+    box.textContent='';
+    var items=data.slice().sort(function(a,b){return a.date<b.date?1:(a.date>b.date?-1:0);});
+    var fresh=[], upd=[];
+    items.forEach(function(t){var s=status(t);if(s==='new'){fresh.push(t);}else if(s==='upd'){upd.push(t);}});
+    var anyNew=(fresh.length+upd.length)>0;
+    if(!canSave){box.appendChild(el('p','wn-note','This browser is not saving which topics you have read, so every topic is listed.'));}
+    if(!showAll){
+      if(!anyNew){
+        box.appendChild(el('p','wn-head','You are all caught up.'));
+        box.appendChild(el('p',null,'No new or improved topics since you last checked.'));
+      }else{
+        if(fresh.length){box.appendChild(el('p','wn-head','New ('+fresh.length+')'));fresh.forEach(function(t){box.appendChild(card(t,'new'));});}
+        if(upd.length){box.appendChild(el('p','wn-head','Improved ('+upd.length+')'));upd.forEach(function(t){box.appendChild(card(t,'upd'));});}
+      }
+    }else{
+      box.appendChild(el('p','wn-head','All topics ('+items.length+')'));
+      items.forEach(function(t){box.appendChild(card(t,status(t)));});
+    }
+    var bar=el('div');
+    if(canSave&&anyNew){
+      var b1=el('button','btn','Mark all as read');b1.type='button';
+      b1.onclick=function(){data.forEach(function(t){seen[t.id]=t.hash;});save(seen);showAll=false;render();};
+      bar.appendChild(b1);
+    }
+    if(canSave){
+      var b2=el('button','btn',showAll?'Show only new':'Show all topics');b2.type='button';
+      b2.onclick=function(){showAll=!showAll;render();};
+      bar.appendChild(b2);
+    }
+    box.appendChild(bar);
+  }
+  render();
+  window.addEventListener('pageshow',function(e){if(e.persisted){var s=load();if(s){seen=s;}render();}});
+})();
+</script>
+</body>
+</html>

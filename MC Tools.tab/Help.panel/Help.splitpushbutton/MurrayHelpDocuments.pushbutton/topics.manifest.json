@@ -1,0 +1,85 @@
+{
+  "topics": {
+    "ChangeRodSize": {
+      "date": "2026-10-19",
+      "hash": "84718c5b3b2211d0"
+    },
+    "ChromeShortcuts": {
+      "date": "2026-10-19",
+      "hash": "cf2bc8f4326a5416"
+    },
+    "FabricationHangersInRevit": {
+      "date": "2026-10-19",
+      "hash": "b332e60033efe9aa"
+    },
+    "FabricationPartBOMExcel": {
+      "date": "2026-10-19",
+      "hash": "d507b3354574135d"
+    },
+    "FamilyNavigator": {
+      "date": "2026-10-19",
+      "hash": "ccd09b077c5b3b5c"
+    },
+    "HideIsolate": {
+      "date": "2026-10-19",
+      "hash": "b3e226ecaf67857e"
+    },
+    "MCPointloadDuct": {
+      "date": "2026-10-19",
+      "hash": "c8908f5c0692ff4c"
+    },
+    "MCPointloadPipe": {
+      "date": "2026-10-19",
+      "hash": "2deb25bee3c8e936"
+    },
+    "MakeSchedule": {
+      "date": "2026-10-19",
+      "hash": "08635709d7a65a21"
+    },
+    "PipeLabels": {
+      "date": "2026-10-19",
+      "hash": "e44e56bc8f2c01f5"
+    },
+    "PointLayoutMC": {
+      "date": "2026-10-19",
+      "hash": "edcfde7662f4982b"
+    },
+    "PointLayoutUG": {
+      "date": "2026-10-19",
+      "hash": "b1798b48a91f1b2c"
+    },
+    "QCPoints": {
+      "date": "2026-10-19",
+      "hash": "839dfe87a49343d1"
+    },
+    "RevitFamilyLibraryAndCreatingFamiliesFromImports": {
+      "date": "2026-10-19",
+      "hash": "b9051902c148b4f8"
+    },
+    "RevitRevisions": {
+      "date": "2026-10-19",
+      "hash": "0dcb387f0c0755db"
+    },
+    "RoughInDrawings": {
+      "date": "2026-10-19",
+      "hash": "9bc5eeb7a6026475"
+    },
+    "StiffyBOMWIP": {
+      "date": "2026-10-19",
+      "hash": "fcfe8d004e3947e8"
+    },
+    "TaggingRoomNames": {
+      "date": "2026-10-19",
+      "hash": "1bc7deeb55aab007"
+    },
+    "ValveNumbering": {
+      "date": "2026-10-19",
+      "hash": "785238e73bf6acbc"
+    },
+    "WallTrimbleRevit": {
+      "date": "2026-10-19",
+      "hash": "4fa8c58ab151247e"
+    }
+  },
+  "version": 1
+}

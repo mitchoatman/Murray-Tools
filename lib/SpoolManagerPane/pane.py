@@ -14,7 +14,6 @@ clr.AddReference("RevitAPIUI")
 
 from pyrevit import forms, HOST_APP
 import Autodesk.Revit.UI as UI
-from Autodesk.Revit.UI import UIThemeManager, UITheme
 
 from System.Collections.Generic import List
 from System.Windows.Data import CollectionViewSource
@@ -79,7 +78,7 @@ PANE_XAML = """
     Background="{DynamicResource PageBackgroundBrush}">
 
     <Page.Resources>
-        <!-- Dynamic Theme Brushes Setup (Defaults to Light) -->
+        <!-- Permanent Light Theme Brushes Setup -->
         <SolidColorBrush x:Key="PageBackgroundBrush" Color="#FFF5F5F5"/>
         <SolidColorBrush x:Key="TextForegroundBrush" Color="#FF333333"/>
         <SolidColorBrush x:Key="SubTextForegroundBrush" Color="#FF666666"/>
@@ -655,6 +654,32 @@ def get_elements_by_spool(doc, curview, spool_name):
     return matches
 
 
+def get_elements_by_package(doc, curview, package_name):
+    matches = []
+    if not curview:
+        return matches
+
+    categories = [
+        BuiltInCategory.OST_FabricationPipework,
+        BuiltInCategory.OST_FabricationDuctwork,
+        BuiltInCategory.OST_FabricationHangers,
+        BuiltInCategory.OST_FabricationContainment
+    ]
+    for cat in categories:
+        collector = FilteredElementCollector(doc, curview.Id).OfCategory(cat).OfClass(FabricationPart)
+        for elem in collector:
+            try:
+                pkg_param = elem.LookupParameter(PACKAGE_PARAM_NAME)
+                if pkg_param and pkg_param.HasValue:
+                    p_str = pkg_param.AsString()
+                    if p_str and p_str.strip() == package_name:
+                        matches.append(elem)
+            except Exception:
+                pass
+
+    return matches
+
+
 def show_elements(uidoc, elements):
     if not elements:
         return
@@ -720,11 +745,14 @@ class _SpoolManagerRequestHandler(IExternalEventHandler):
             elif self.request_name == "show":
                 self._do_show(uidoc, doc, curview, self.spool_name)
 
+            elif self.request_name == "show_package":
+                self._do_show_package(uidoc, doc, curview, self.package_name)
+
             elif self.request_name == "apply":
                 self._do_apply(uidoc, doc, curview, self.spool_name, self.map_name)
 
             elif self.request_name == "assign_package":
-                self._do_assign_package(doc, curview, self.package_name, self.selected_items)
+                self._do_assign_package(uidoc, doc, curview, self.package_name)
 
             elif self.request_name == "auto_spool":
                 self._do_auto_spool(uiapp, uidoc, doc, curview)
@@ -774,6 +802,18 @@ class _SpoolManagerRequestHandler(IExternalEventHandler):
 
         show_elements(uidoc, matches)
         self.pane.set_status("Showing {} element(s) for spool '{}'.".format(len(matches), spool_name))
+
+    def _do_show_package(self, uidoc, doc, curview, package_name):
+        if not package_name:
+            return
+
+        matches = get_elements_by_package(doc, curview, package_name)
+        if not matches:
+            self.pane.set_status("No elements found for package '{}' in active view.".format(package_name))
+            return
+
+        show_elements(uidoc, matches)
+        self.pane.set_status("Showing {} element(s) for package '{}'.".format(len(matches), package_name))
 
     def _do_apply(self, uidoc, doc, curview, spool_name, map_name):
         spool_name = (spool_name or "").strip()
@@ -858,44 +898,32 @@ class _SpoolManagerRequestHandler(IExternalEventHandler):
         self.pane.set_all_spools(packages_map)
         self.pane.set_status("Applied spool data to {} element(s). Next spool incremented.".format(changed))
 
-    def _do_assign_package(self, doc, curview, package_name, selected_spools):
+    def _do_assign_package(self, uidoc, doc, curview, package_name):
         package_name = (package_name or "").strip()
         if not package_name:
             self.pane.set_status("Enter a Package Name first.")
             return
-        if not selected_spools:
-            self.pane.set_status("Select one or more spools in the list.")
+
+        selection_ids = list(uidoc.Selection.GetElementIds())
+        if not selection_ids:
+            self.pane.set_status("Select one or more elements in Revit, then click Assign Package.")
             return
 
-        categories = [
-            BuiltInCategory.OST_FabricationPipework,
-            BuiltInCategory.OST_FabricationDuctwork,
-            BuiltInCategory.OST_FabricationHangers,
-            BuiltInCategory.OST_FabricationContainment
-        ]
-
-        elements_to_process = []
-        for cat in categories:
-            collector = FilteredElementCollector(doc, curview.Id).OfCategory(cat).OfClass(FabricationPart)
-            for elem in collector:
-                try:
-                    asm_val = get_parameter_value_by_name_AsString(elem, PARAM_NAME)
-                    if asm_val and asm_val in selected_spools:
-                        elements_to_process.append(elem)
-                except Exception:
-                    pass
-
-        if not elements_to_process:
-            self.pane.set_status("No fabrication parts matched the selected spools.")
-            return
+        Shared_Params()
 
         changed = 0
         t = Transaction(doc, "Assign STRATUS Package")
         t.Start()
         try:
-            for elem in elements_to_process:
-                set_parameter_by_name(elem, PACKAGE_PARAM_NAME, package_name)
-                changed += 1
+            for eid in selection_ids:
+                el = doc.GetElement(eid)
+                if el is None:
+                    continue
+                try:
+                    set_parameter_by_name(el, PACKAGE_PARAM_NAME, package_name)
+                    changed += 1
+                except Exception:
+                    pass
             t.Commit()
         except Exception as ex:
             if t.HasStarted():
@@ -1331,16 +1359,10 @@ class SpoolManagerPane(forms.WPFPanel):
             HOST_APP.uiapp.ViewActivated += self.on_view_activated
             app = HOST_APP.app
             app.DocumentChanged += self.on_document_changed
-
-            # Check Revit version for 2024+ native dark theme support
-            if HOST_APP.is_newer_than(2023, True):
-                HOST_APP.uiapp.ThemeChanged += self.on_theme_changed
-                self.apply_revit_theme()
-            else:
-                # Force strictly to Light Mode palette for Revit 2023 and older
-                self.apply_light_theme()
         except Exception:
-            self.apply_light_theme()
+            pass
+
+        self.apply_light_theme()
 
     def apply_light_theme(self):
         try:
@@ -1355,33 +1377,6 @@ class SpoolManagerPane(forms.WPFPanel):
         except Exception:
             pass
 
-    def apply_revit_theme(self):
-        try:
-            current_theme = UIThemeManager.CurrentTheme
-            is_dark = (current_theme == UITheme.Dark)
-
-            bg_hex = "#FF3B4453" if is_dark else "#FFF5F5F5"
-            text_hex = "#FFDFDFDF" if is_dark else "#FF333333"
-            subtext_hex = "#FF999999" if is_dark else "#FF666666"
-            ctrl_bg_hex = "#FF222933" if is_dark else "#FFFFFFFF"
-            btn_bg_hex = "#FF222933" if is_dark else "#FFEFEFEF"
-            border_hex = "#FF363B40" if is_dark else "#FFD0D0D0"
-            sep_hex = "#FFFFFFFF" if is_dark else "#FF000000"
-
-            res = self.Resources
-            res["PageBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["TextForegroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(text_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["SubTextForegroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(subtext_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["ControlBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(ctrl_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["ButtonBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(btn_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["BorderColorBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(border_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["SeparatorColorBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(sep_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-        except Exception:
-            pass
-
-    def on_theme_changed(self, sender, args):
-        self.apply_revit_theme()
-
     def on_loaded(self, sender, args):
         self.request_refresh()
 
@@ -1391,8 +1386,6 @@ class SpoolManagerPane(forms.WPFPanel):
             HOST_APP.uiapp.ViewActivated -= self.on_view_activated
             app = HOST_APP.app
             app.DocumentChanged -= self.on_document_changed
-            if HOST_APP.is_newer_than(2023, True):
-                HOST_APP.uiapp.ThemeChanged -= self.on_theme_changed
         except Exception:
             pass
 
@@ -1413,16 +1406,18 @@ class SpoolManagerPane(forms.WPFPanel):
         selected = self.spool_list_box.SelectedItem
         if selected and isinstance(selected, SpoolDisplayItem):
             self.request_show(selected.spool_name)
+        else:
+            dc = getattr(args.OriginalSource, "DataContext", None)
+            if dc and hasattr(dc, "Name"):
+                pkg_name = str(dc.Name)
+                if pkg_name:
+                    self.request_show_package(pkg_name)
 
     def on_apply_clicked(self, sender, args):
         self.request_apply(self.spool_input_tb.Text, self.map_input_tb.Text)
 
     def on_assign_package_clicked(self, sender, args):
-        selected_spools = []
-        for item in self.spool_list_box.SelectedItems:
-            if isinstance(item, SpoolDisplayItem):
-                selected_spools.append(item.spool_name)
-        self.request_assign_package(self.package_input_tb.Text, selected_spools)
+        self.request_assign_package(self.package_input_tb.Text)
 
     def on_auto_spool_clicked(self, sender, args):
         self.request_auto_spool()
@@ -1466,16 +1461,24 @@ class SpoolManagerPane(forms.WPFPanel):
         self._handler.map_name = None
         self._ext_event.Raise()
 
+    def request_show_package(self, package_name):
+        self._handler.request_name = "show_package"
+        self._handler.package_name = package_name
+        self._handler.spool_name = None
+        self._handler.map_name = None
+        self._ext_event.Raise()
+
     def request_apply(self, spool_name, map_name):
         self._handler.request_name = "apply"
         self._handler.spool_name = spool_name
         self._handler.map_name = map_name
         self._ext_event.Raise()
 
-    def request_assign_package(self, package_name, selected_items):
+    def request_assign_package(self, package_name):
         self._handler.request_name = "assign_package"
         self._handler.package_name = package_name
-        self._handler.selected_items = selected_items
+        self._handler.spool_name = None
+        self._handler.map_name = None
         self._ext_event.Raise()
 
     def request_auto_spool(self):

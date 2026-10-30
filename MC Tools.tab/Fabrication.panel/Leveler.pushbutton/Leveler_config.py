@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
-from Autodesk.Revit.DB import BoundingBoxXYZ, FilteredElementCollector, Transaction, BuiltInCategory, FabricationPart, Level, LogicalOrFilter, ElementCategoryFilter
+from Autodesk.Revit.DB import (BoundingBoxXYZ, FilteredElementCollector, Transaction,
+                               BuiltInCategory, FabricationPart, Level, LogicalOrFilter,
+                               ElementCategoryFilter, ElementId, WorksharingUtils)
+from System.Collections.Generic import List
 import System
+
 doc = __revit__.ActiveUIDocument.Document
 curview = doc.ActiveView
 
@@ -15,15 +19,25 @@ for level in level_collector:
 # Sort levels by elevation (ascending order)
 sorted_levels = sorted(level_elevations.items(), key=lambda x: x[1])
 
-# Function to get the center Z elevation of a fabrication part's bounding box
-def get_center_point_z(ele):
-    bBox = doc.GetElement(ele).get_BoundingBox(None)
-    center = (bBox.Max + bBox.Min) / 2
-    return center.Z
+if not sorted_levels:
+    raise Exception("No levels visible in the active view.")
+
 # Function to get the bottom Z elevation of a fabrication part's bounding box
 def get_bottom_point_z(ele):
-    bBox = doc.GetElement(ele).get_BoundingBox(None)
-    return bBox.Min.Z  # Return the Z coordinate of the bottom point
+    bBox = ele.get_BoundingBox(None)
+    if bBox is None:
+        return None
+    return bBox.Min.Z
+
+# Function to get the closest level at or below z (lowest level if z is below all)
+def get_level_id_for_z(z):
+    assigned_level_id = level_ids[sorted_levels[0][0]]
+    for level_name, elev in sorted_levels:
+        if elev <= z:
+            assigned_level_id = level_ids[level_name]
+        else:
+            break
+    return assigned_level_id
 
 # Category filters for Fabrication Pipework and Fabrication Ductwork
 pipework_filter = ElementCategoryFilter(BuiltInCategory.OST_FabricationPipework)
@@ -37,31 +51,36 @@ fabrication_elements = FilteredElementCollector(doc, curview.Id) \
                        .WhereElementIsNotElementType() \
                        .ToElements()
 
-# Start transaction
+# Pass 1: determine which parts actually need a change (no edits yet)
+changes = []  # list of (element, new_level_id)
+for elem in fabrication_elements:
+    bottom_z = get_bottom_point_z(elem)
+    if bottom_z is None:
+        continue
+    param = elem.LookupParameter("Reference Level")
+    if param is None or param.IsReadOnly:
+        continue
+    new_level_id = get_level_id_for_z(bottom_z)
+    if param.AsElementId() != new_level_id:
+        changes.append((elem, new_level_id))
+
+# Pass 2: check out everything in ONE call, skip what is owned by someone else
+skipped = set()
+if doc.IsWorkshared and changes:
+    ids = List[ElementId]([e.Id for e, _ in changes])
+    failed = WorksharingUtils.CheckoutElements(doc, ids)
+    skipped = set(i.IntegerValue for i in failed)
+
+# Pass 3: apply changes in a single transaction
 t = Transaction(doc, "Assign Levels to Fabrication Parts")
 t.Start()
-
-# Iterate through fabrication parts to assign the closest level below
-for elem in fabrication_elements:
-    try:
-        center_z = get_bottom_point_z(elem.Id)
-        
-        # Find the closest level below the center_z
-        assigned_level_id = None
-        for i, (level_name, elev) in enumerate(sorted_levels):
-            if elev > center_z:
-                # If no level was below center_z, fall back to the closest level above
-                assigned_level_id = level_ids[sorted_levels[i-1][0]] if i > 0 else level_ids[level_name]
-                break
-            assigned_level_id = level_ids[level_name]  # Update with level directly below
-
-        # Assign the level directly below or the closest above if none are below
-        if assigned_level_id:
-            elem.LookupParameter("Reference Level").Set(assigned_level_id)
-            #print("Assigned level ID {assigned_level_id} to element {elem.Id}")
-
-    except:
-        pass
-
-# Commit transaction
+done = 0
+for elem, new_level_id in changes:
+    if elem.Id.IntegerValue in skipped:
+        continue
+    elem.LookupParameter("Reference Level").Set(new_level_id)
+    done += 1
 t.Commit()
+
+# print("Updated: {}  |  Unchanged: {}  |  Skipped (owned by another user): {}".format(
+    # done, len(fabrication_elements) - len(changes), len(skipped)))

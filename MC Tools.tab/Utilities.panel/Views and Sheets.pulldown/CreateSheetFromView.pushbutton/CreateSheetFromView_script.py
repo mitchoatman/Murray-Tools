@@ -483,9 +483,9 @@ def build_sheet_targets(selected_views):
             if level_param:
                 level_id = get_id_value(level_param.AsElementId())
 
-        scope_param = view.get_Parameter(BuiltInParameter.VIEWER_VOLUME_OF_INTEREST_CROP)
-        if scope_param:
-            scope_id = level_id = get_id_value(level_param.AsElementId())
+            scope_param = view.get_Parameter(BuiltInParameter.VIEWER_VOLUME_OF_INTEREST_CROP)
+            if scope_param:
+                scope_id = level_id = get_id_value(level_param.AsElementId())
 
         key = (level_id, scope_id)
         if key not in grouped:

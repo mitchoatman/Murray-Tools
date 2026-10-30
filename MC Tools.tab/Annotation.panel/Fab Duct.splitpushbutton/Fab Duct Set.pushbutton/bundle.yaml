@@ -5,7 +5,7 @@ title:
   "Fab Duct Set"
 
 # bundle tooltip
-tooltip: >-
+tooltip: |-
   This will Insert the Fabrication Duct Set Tag Family into the Active View.(If the Family is already loaded into the project)
 
 # context directives are listed under `context` key, the order does not matter

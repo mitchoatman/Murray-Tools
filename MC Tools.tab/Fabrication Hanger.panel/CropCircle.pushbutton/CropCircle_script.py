@@ -50,6 +50,7 @@ class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
 def get_existing_crop_circles():
     # Collect all existing Crop-Circle family instances in the document.
     crop_circles = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_GenericModel)\
+                                                .OfClass(DB.FamilyInstance)\
                                                 .WhereElementIsNotElementType()\
                                                 .ToElements()
     existing_locations = {}

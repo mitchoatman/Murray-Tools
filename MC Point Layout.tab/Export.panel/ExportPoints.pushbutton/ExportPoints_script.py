@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import Autodesk
 import clr
 clr.AddReference('PresentationFramework')
@@ -6,7 +5,6 @@ clr.AddReference('PresentationCore')
 clr.AddReference('WindowsBase')
 clr.AddReference('System.Windows.Forms')
 clr.AddReference('System')
-clr.AddReference('System.Core')
 
 import System
 from System import Action
@@ -15,16 +13,14 @@ import System.Windows.Threading
 from System.Windows import (
     Window, WindowStartupLocation, WindowStyle, GridLength, HorizontalAlignment,
     VerticalAlignment, Thickness, GridUnitType, TextWrapping, FontWeights,
-    MessageBox, MessageBoxButton, MessageBoxImage, ResizeMode, Setter, Style
+    MessageBox, MessageBoxButton, MessageBoxImage, ResizeMode
 )
 from System.Windows.Controls import (
     Label, RadioButton, Button, TextBox, StackPanel, GroupBox, Grid,
     RowDefinition, ColumnDefinition, Orientation, TextBlock, CheckBox,
-    DataGrid, DataGridTextColumn, DataGridSelectionMode, Control, DataGridLength
+    DataGrid, DataGridTextColumn, DataGridSelectionMode
 )
-from System.Windows.Controls.Primitives import DataGridColumnHeader, DataGridRowHeader
 from System.Windows.Data import Binding
-from System.Windows.Media import SolidColorBrush, Color as MediaColor
 from System.Windows.Interop import WindowInteropHelper
 from System.Windows.Forms import SaveFileDialog, DialogResult
 from System.Diagnostics import Process, ProcessStartInfo
@@ -38,7 +34,7 @@ from Autodesk.Revit.DB import (
     FamilyInstance,
     ElementId
 )
-from Autodesk.Revit.UI import TaskDialog, UIThemeManager, UITheme
+from Autodesk.Revit.UI import TaskDialog
 
 import os
 import csv
@@ -59,72 +55,6 @@ SETTINGS_FILE = os.path.join(SETTINGS_FOLDER, "Ribbon_ExportPoints.txt")
 
 def to_bool(value):
     return str(value).strip().lower() == "true"
-
-
-def apply_revit_theme(window):
-    try:
-        current_theme = UIThemeManager.CurrentTheme
-        is_dark = (current_theme == UITheme.Dark)
-    except:
-        is_dark = False
-
-    bg_hex = "#FF3B4453" if is_dark else "#FFF5F5F5"
-    text_hex = "#FFDFDFDF" if is_dark else "#FF333333"
-    subtext_hex = "#FF999999" if is_dark else "#FF666666"
-    ctrl_bg_hex = "#FF222933" if is_dark else "#FFFFFFFF"
-    btn_bg_hex = "#FF222933" if is_dark else "#FFEFEFEF"
-    border_hex = "#FF363B40" if is_dark else "#FFD0D0D0"
-    grid_cell_bg_hex = "#FF2A323D" if is_dark else "#FFFFFFFF"
-    grid_header_bg_hex = "#FF323B48" if is_dark else "#FFEFEFEF"
-
-    res = window.Resources
-    res["PageBackgroundBrush"] = SolidColorBrush(MediaColor.FromArgb(*[int(bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)]))
-    res["TextForegroundBrush"] = SolidColorBrush(MediaColor.FromArgb(*[int(text_hex[i:i+2], 16) for i in (1, 3, 5, 7)]))
-    res["SubTextForegroundBrush"] = SolidColorBrush(MediaColor.FromArgb(*[int(subtext_hex[i:i+2], 16) for i in (1, 3, 5, 7)]))
-    res["ControlBackgroundBrush"] = SolidColorBrush(MediaColor.FromArgb(*[int(ctrl_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)]))
-    res["ButtonBackgroundBrush"] = SolidColorBrush(MediaColor.FromArgb(*[int(btn_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)]))
-    res["BorderColorBrush"] = SolidColorBrush(MediaColor.FromArgb(*[int(border_hex[i:i+2], 16) for i in (1, 3, 5, 7)]))
-    res["GridCellBackgroundBrush"] = SolidColorBrush(MediaColor.FromArgb(*[int(grid_cell_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)]))
-    res["GridHeaderBackgroundBrush"] = SolidColorBrush(MediaColor.FromArgb(*[int(grid_header_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)]))
-
-    window.Background = res["PageBackgroundBrush"]
-
-
-def style_all_controls(elem, window):
-    if isinstance(elem, GroupBox):
-        elem.SetResourceReference(GroupBox.ForegroundProperty, "TextForegroundBrush")
-        if elem.Content:
-            style_all_controls(elem.Content, window)
-    elif isinstance(elem, StackPanel) or isinstance(elem, Grid):
-        for child in elem.Children:
-            style_all_controls(child, window)
-    elif isinstance(elem, Label) or isinstance(elem, TextBlock):
-        elem.SetResourceReference(Label.ForegroundProperty, "TextForegroundBrush")
-    elif isinstance(elem, RadioButton) or isinstance(elem, CheckBox):
-        elem.SetResourceReference(RadioButton.ForegroundProperty, "TextForegroundBrush")
-    elif isinstance(elem, TextBox):
-        elem.SetResourceReference(TextBox.BackgroundProperty, "ControlBackgroundBrush")
-        elem.SetResourceReference(TextBox.ForegroundProperty, "TextForegroundBrush")
-        elem.SetResourceReference(TextBox.BorderBrushProperty, "BorderColorBrush")
-    elif isinstance(elem, Button):
-        elem.SetResourceReference(Button.BackgroundProperty, "ButtonBackgroundBrush")
-        elem.SetResourceReference(Button.ForegroundProperty, "TextForegroundBrush")
-        elem.SetResourceReference(Button.BorderBrushProperty, "BorderColorBrush")
-    elif isinstance(elem, DataGrid):
-        elem.SetResourceReference(DataGrid.BackgroundProperty, "GridCellBackgroundBrush")
-        elem.SetResourceReference(DataGrid.ForegroundProperty, "TextForegroundBrush")
-        elem.SetResourceReference(DataGrid.RowBackgroundProperty, "GridCellBackgroundBrush")
-        elem.SetResourceReference(DataGrid.AlternatingRowBackgroundProperty, "GridCellBackgroundBrush")
-        elem.SetResourceReference(DataGrid.BorderBrushProperty, "BorderColorBrush")
-
-
-def create_header_style(window):
-    style = Style(DataGridColumnHeader)
-    style.Setters.Add(Setter(Control.BackgroundProperty, window.Resources["GridHeaderBackgroundBrush"]))
-    style.Setters.Add(Setter(Control.ForegroundProperty, window.Resources["TextForegroundBrush"]))
-    style.Setters.Add(Setter(Control.BorderBrushProperty, window.Resources["BorderColorBrush"]))
-    style.Setters.Add(Setter(Control.BorderThicknessProperty, Thickness(0, 0, 1, 1)))
-    return style
 
 
 def qualifies_for_rck_prefix(element):
@@ -874,8 +804,6 @@ class EditablePreviewForm(Window):
         self.doc = doc
         self.uidoc = uidoc
 
-        apply_revit_theme(self)
-
         g = Grid()
         g.Margin = Thickness(10)
         g.RowDefinitions.Add(RowDefinition(Height=GridLength.Auto))
@@ -886,7 +814,6 @@ class EditablePreviewForm(Window):
         lbl.Content = "Click any row to select & zoom in Revit. Edit Description cells directly, then close window."
         lbl.FontWeight = FontWeights.Bold
         lbl.Margin = Thickness(0, 0, 0, 8)
-        lbl.SetResourceReference(Label.ForegroundProperty, "TextForegroundBrush")
         Grid.SetRow(lbl, 0)
         g.Children.Add(lbl)
 
@@ -894,12 +821,6 @@ class EditablePreviewForm(Window):
         self.data_grid.AutoGenerateColumns = False
         self.data_grid.IsReadOnly = False
         self.data_grid.SelectionMode = DataGridSelectionMode.Single
-        self.data_grid.SetResourceReference(DataGrid.BackgroundProperty, "GridCellBackgroundBrush")
-        self.data_grid.SetResourceReference(DataGrid.ForegroundProperty, "TextForegroundBrush")
-        self.data_grid.SetResourceReference(DataGrid.BorderBrushProperty, "BorderColorBrush")
-        self.data_grid.SetResourceReference(DataGrid.RowBackgroundProperty, "GridCellBackgroundBrush")
-        self.data_grid.SetResourceReference(DataGrid.AlternatingRowBackgroundProperty, "GridCellBackgroundBrush")
-        self.data_grid.ColumnHeaderStyle = create_header_style(self)
         self.data_grid.SelectionChanged += self.on_selection_changed
 
         for field in self.fieldnames:
@@ -969,14 +890,10 @@ class ExportHangerPointsDialog(Window):
         self.output_path = settings["output_path"]
 
         self.action_type = None
-
-        apply_revit_theme(self)
         self.InitializeComponents()
-        style_all_controls(self.Content, self)
 
     def InitializeComponents(self):
         main_grid = Grid()
-        main_grid.Margin = Thickness(10)
         self.Content = main_grid
 
         for i in range(6):
@@ -986,7 +903,7 @@ class ExportHangerPointsDialog(Window):
 
         coord_group = GroupBox()
         coord_group.Header = "Point Export Options"
-        coord_group.Margin = Thickness(0, 0, 0, 8)
+        coord_group.Margin = Thickness(10, 10, 10, 5)
         main_grid.Children.Add(coord_group)
         Grid.SetRow(coord_group, 0)
 
@@ -1025,7 +942,7 @@ class ExportHangerPointsDialog(Window):
 
         system_panel = StackPanel()
         system_panel.Orientation = Orientation.Vertical
-        system_panel.Margin = Thickness(15, 0, 0, 0)
+        system_panel.Margin = Thickness(20, 0, 0, 0)
         Grid.SetColumn(system_panel, 1)
         coord_grid.Children.Add(system_panel)
 
@@ -1053,7 +970,7 @@ class ExportHangerPointsDialog(Window):
 
         select_group = GroupBox()
         select_group.Header = "Point Selection"
-        select_group.Margin = Thickness(0, 0, 0, 8)
+        select_group.Margin = Thickness(10, 5, 10, 5)
         main_grid.Children.Add(select_group)
         Grid.SetRow(select_group, 1)
 
@@ -1065,24 +982,24 @@ class ExportHangerPointsDialog(Window):
         self.rb_all = RadioButton()
         self.rb_all.Content = "All points in active view"
         self.rb_all.IsChecked = (self.selection_mode == "ALL")
-        self.rb_all.Margin = Thickness(0, 0, 0, 6)
+        self.rb_all.Margin = Thickness(0, 0, 0, 8)
         select_panel.Children.Add(self.rb_all)
 
         self.rb_pick = RadioButton()
         self.rb_pick.Content = "Pick / Window select points"
         self.rb_pick.IsChecked = (self.selection_mode == "PICK")
-        self.rb_pick.Margin = Thickness(0, 0, 0, 6)
+        self.rb_pick.Margin = Thickness(0, 0, 0, 8)
         select_panel.Children.Add(self.rb_pick)
 
         self.cb_exclude_beam_hangers = CheckBox()
         self.cb_exclude_beam_hangers.Content = "Exclude Beam Hangers"
         self.cb_exclude_beam_hangers.IsChecked = self.exclude_beam_hangers
-        self.cb_exclude_beam_hangers.Margin = Thickness(0, 0, 0, 2)
+        self.cb_exclude_beam_hangers.Margin = Thickness(0, 0, 0, 8)
         select_panel.Children.Add(self.cb_exclude_beam_hangers)
 
         options_group = GroupBox()
         options_group.Header = "Point Number Options"
-        options_group.Margin = Thickness(0, 0, 0, 8)
+        options_group.Margin = Thickness(10, 5, 10, 5)
         main_grid.Children.Add(options_group)
         Grid.SetRow(options_group, 2)
 
@@ -1093,17 +1010,17 @@ class ExportHangerPointsDialog(Window):
 
         self.cb_service_prefix = CheckBox()
         self.cb_service_prefix.Content = "Prefix point numbers with service abbreviation"
-        self.cb_service_prefix.Margin = Thickness(0, 0, 0, 6)
+        self.cb_service_prefix.Margin = Thickness(0, 0, 0, 5)
         options_panel.Children.Add(self.cb_service_prefix)
 
         self.cb_item_number = CheckBox()
         self.cb_item_number.Content = "Use Item Number as Point Number"
-        self.cb_item_number.Margin = Thickness(0, 0, 0, 6)
+        self.cb_item_number.Margin = Thickness(0, 0, 0, 5)
         options_panel.Children.Add(self.cb_item_number)
 
         self.cb_rck_prefix = CheckBox()
         self.cb_rck_prefix.Content = 'Prefix trapeze point number with "RCK"'
-        self.cb_rck_prefix.Margin = Thickness(0, 0, 0, 2)
+        self.cb_rck_prefix.Margin = Thickness(0, 0, 0, 5)
         options_panel.Children.Add(self.cb_rck_prefix)
 
         self.cb_service_prefix.Checked += self.on_service_prefix_checked
@@ -1122,7 +1039,7 @@ class ExportHangerPointsDialog(Window):
 
         desc_group = GroupBox()
         desc_group.Header = "Point Description Options"
-        desc_group.Margin = Thickness(0, 0, 0, 8)
+        desc_group.Margin = Thickness(10, 5, 10, 5)
         main_grid.Children.Add(desc_group)
         Grid.SetRow(desc_group, 3)
 
@@ -1134,7 +1051,7 @@ class ExportHangerPointsDialog(Window):
         self.cb_update_sleeve_descriptions = CheckBox()
         self.cb_update_sleeve_descriptions.Content = "Update Sleeve Description"
         self.cb_update_sleeve_descriptions.IsChecked = self.update_sleeve_descriptions
-        self.cb_update_sleeve_descriptions.Margin = Thickness(0, 0, 0, 8)
+        self.cb_update_sleeve_descriptions.Margin = Thickness(0, 0, 0, 10)
         desc_panel.Children.Add(self.cb_update_sleeve_descriptions)
 
         fab_desc_lbl = Label()
@@ -1163,13 +1080,13 @@ class ExportHangerPointsDialog(Window):
         self.rb_fab_desc_family.Content = "Use family name"
         self.rb_fab_desc_family.GroupName = "FabDescMode"
         self.rb_fab_desc_family.IsChecked = (self.fab_part_description_mode == "FAMILY")
-        self.rb_fab_desc_family.Margin = Thickness(0, 0, 0, 2)
+        self.rb_fab_desc_family.Margin = Thickness(0, 0, 0, 5)
         self.rb_fab_desc_family.Checked += lambda s, e: setattr(self, "fab_part_description_mode", "FAMILY")
         desc_panel.Children.Add(self.rb_fab_desc_family)
 
         file_group = GroupBox()
         file_group.Header = "Output File"
-        file_group.Margin = Thickness(0, 0, 0, 8)
+        file_group.Margin = Thickness(10, 5, 10, 5)
         main_grid.Children.Add(file_group)
         Grid.SetRow(file_group, 4)
 
@@ -1192,7 +1109,6 @@ class ExportHangerPointsDialog(Window):
         self.txt_filename = TextBox()
         self.txt_filename.Text = self.output_path
         self.txt_filename.Margin = Thickness(0, 0, 8, 0)
-        self.txt_filename.VerticalContentAlignment = System.Windows.VerticalAlignment.Center
         Grid.SetRow(self.txt_filename, 0)
         Grid.SetColumn(self.txt_filename, 1)
         file_grid.Children.Add(self.txt_filename)
@@ -1200,7 +1116,6 @@ class ExportHangerPointsDialog(Window):
         btn_browse = Button()
         btn_browse.Content = "Browse..."
         btn_browse.Width = 80
-        btn_browse.Height = 26
         btn_browse.HorizontalAlignment = HorizontalAlignment.Right
         btn_browse.Click += self.on_browse_clicked
         Grid.SetRow(btn_browse, 0)
@@ -1210,38 +1125,38 @@ class ExportHangerPointsDialog(Window):
         btn_panel = StackPanel()
         btn_panel.Orientation = Orientation.Horizontal
         btn_panel.HorizontalAlignment = HorizontalAlignment.Center
-        btn_panel.Margin = Thickness(0, 5, 0, 0)
+        btn_panel.Margin = Thickness(0, 15, 0, 10)
         main_grid.Children.Add(btn_panel)
         Grid.SetRow(btn_panel, 5)
 
         btn_export = Button()
         btn_export.Content = "Export"
-        btn_export.Width = 85
-        btn_export.Height = 28
-        btn_export.Margin = Thickness(0, 0, 6, 0)
+        btn_export.Width = 90
+        btn_export.Height = 32
+        btn_export.Margin = Thickness(0, 0, 8, 0)
         btn_export.Click += self.on_export_clicked
         btn_panel.Children.Add(btn_export)
 
         btn_preview = Button()
         btn_preview.Content = "Preview"
-        btn_preview.Width = 85
-        btn_preview.Height = 28
-        btn_preview.Margin = Thickness(0, 0, 6, 0)
+        btn_preview.Width = 90
+        btn_preview.Height = 32
+        btn_preview.Margin = Thickness(0, 0, 8, 0)
         btn_preview.Click += self.on_preview_clicked
         btn_panel.Children.Add(btn_preview)
 
         btn_cancel = Button()
         btn_cancel.Content = "Cancel"
-        btn_cancel.Width = 75
-        btn_cancel.Height = 28
-        btn_cancel.Margin = Thickness(0, 0, 6, 0)
+        btn_cancel.Width = 80
+        btn_cancel.Height = 32
+        btn_cancel.Margin = Thickness(0, 0, 8, 0)
         btn_cancel.Click += lambda s, e: self.Close()
         btn_panel.Children.Add(btn_cancel)
 
         btn_template = Button()
         btn_template.Content = "Make Template"
-        btn_template.Width = 95
-        btn_template.Height = 28
+        btn_template.Width = 100
+        btn_template.Height = 32
         btn_template.Click += self.on_make_template_clicked
         btn_panel.Children.Add(btn_template)
 
@@ -1376,10 +1291,7 @@ class SuccessDialog(Window):
         self.ResizeMode = 0
         self.WindowStartupLocation = WindowStartupLocation.CenterScreen
         self.Topmost = True
-
-        apply_revit_theme(self)
         self.InitializeComponents()
-        style_all_controls(self.Content, self)
 
     def InitializeComponents(self):
         grid = Grid()
@@ -1786,8 +1698,6 @@ def perform_export():
             except:
                 pass
 
-            assigned_descriptions[get_element_id_value(element)] = description
-
             try:
                 loc = element.Location
                 if hasattr(loc, 'Point') and loc.Point is not None:
@@ -1841,23 +1751,15 @@ def perform_export():
             try:
                 t_preview_edits.Start()
                 doc.Regenerate()
-                
                 for element in element_list:
                     try:
-                        desc = assigned_descriptions.get(get_element_id_value(element), "")
-                        
-                        desc_param = element.LookupParameter("TS_Point_Description")
-                        if desc_param and not desc_param.IsReadOnly:
-                            desc_param.Set(desc)
-
-                        owner = owner_by_element.get(get_element_id_value(element))
-                        if owner and owner.Id != element.Id:
-                            owner_desc_param = owner.LookupParameter("TS_Point_Description")
-                            if owner_desc_param and not owner_desc_param.IsReadOnly:
-                                owner_desc_param.Set(desc)
+                        if is_fab_hanger(element):
+                            desc_param = element.LookupParameter("TS_Point_Description")
+                            if desc_param and not desc_param.IsReadOnly:
+                                desc = assigned_descriptions.get(get_element_id_value(element), "")
+                                desc_param.Set(desc)
                     except:
                         pass
-
                 t_preview_edits.Commit()
             except:
                 try:
@@ -1923,17 +1825,11 @@ def perform_export():
 
         for element in element_list:
             try:
-                desc = assigned_descriptions.get(get_element_id_value(element), "")
-                
-                desc_param = element.LookupParameter("TS_Point_Description")
-                if desc_param and not desc_param.IsReadOnly:
-                    desc_param.Set(desc)
-
-                owner = owner_by_element.get(get_element_id_value(element))
-                if owner and owner.Id != element.Id:
-                    owner_desc_param = owner.LookupParameter("TS_Point_Description")
-                    if owner_desc_param and not owner_desc_param.IsReadOnly:
-                        owner_desc_param.Set(desc)
+                if is_fab_hanger(element):
+                    desc_param = element.LookupParameter("TS_Point_Description")
+                    if desc_param and not desc_param.IsReadOnly:
+                        desc = assigned_descriptions.get(get_element_id_value(element), "")
+                        desc_param.Set(desc)
             except:
                 pass
 

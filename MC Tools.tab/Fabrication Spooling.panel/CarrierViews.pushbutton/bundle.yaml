@@ -1,0 +1,18 @@
+
+highlight: new
+
+# bundle title
+title:
+  "Create\nCarrier Views"
+
+# bundle tooltip
+tooltip: |-
+  Create Top, Front, and 3D ISO views around the current selection, name them from a prompt, and optionally place them on a sheet.
+  
+  Select fabrication parts and/or family instances in the active plan view, then run.
+
+# bundle help url
+#help_url: "https://www.youtube.com/watch?v=H7b8hjHbauE&t=8s&list=PLc_1PNcpnV57FWI6G8Cd09umHpSOzvamf"
+
+# bundle author
+author: Francisco Cruz Jr

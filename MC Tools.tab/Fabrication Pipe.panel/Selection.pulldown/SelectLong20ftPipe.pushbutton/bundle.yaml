@@ -19,8 +19,5 @@ tooltip: |-
 #context:
 #  - Selection
 
-# bundle help url
-help_url: "https://youtu.be/kr8iAygZRu0"
-
 # bundle author
 author: Mitchell Oatman

@@ -1,0 +1,14 @@
+
+#highlight: new
+
+# bundle title
+title:
+  "Find\nHidden"
+
+# bundle tooltip
+tooltip: |-
+  Opens the Bulk BOM export window for the active model: Bulk Fab Copper, Non Copper, Valve and
+  Hanger MR forms, written to a folder you choose. The window stays open while you work in Revit.
+
+# bundle author
+author: Mitchell Oatman

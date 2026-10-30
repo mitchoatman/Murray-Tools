@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<!-- GENERATED FILE. Do not edit. Edit help.md and click the Build Help button. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rename Sheets and Views</title>
+<meta name="murray-topic-id" content="RenameSheetsViews">
+<meta name="murray-content-hash" content="33f5e09dd3b80445">
+<style>
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.55}
+.band{background:#FFE716;border-bottom:2px solid #000}
+.band-inner{display:flex;align-items:center;gap:20px;padding:16px 28px}
+.band-logo{height:56px;width:auto;flex:none}
+.band small{display:block;font-size:14px;font-weight:bold;margin-bottom:4px}
+.band small a{text-decoration:none}
+.band small a:hover{text-decoration:underline}
+.band h1{margin:0;font-size:30px;line-height:1.2}
+.layout{display:flex;align-items:flex-start}
+.side{flex:none;width:300px;position:sticky;top:0;max-height:100vh;overflow:auto;padding:18px 0 24px}
+.side input{display:block;width:calc(100% - 40px);margin:0 20px 12px;padding:7px 10px;font:inherit;font-size:14px;border:1px solid #000;border-radius:0}
+.side ul{list-style:none;margin:0;padding:0}
+.side li{margin:0}
+.side a{display:block;padding:7px 20px 7px 16px;border-left:4px solid transparent;text-decoration:none;font-size:15px;line-height:1.3}
+.side a:hover{border-left-color:#000;text-decoration:underline}
+.side a[aria-current="page"]{background:#FFE716;border-left-color:#000;font-weight:bold}
+.side .home-link{font-weight:bold;border-bottom:1px solid #000;margin-bottom:6px;padding-bottom:10px}
+.side .none{display:none;padding:7px 20px;font-size:14px}
+.content{flex:1;min-width:0;min-height:100vh;padding:24px 36px 0;border-left:1px solid #000;margin-left:-1px}
+.content>.page{max-width:900px}
+h2{font-size:22px;margin:32px 0 10px;padding-bottom:4px;border-bottom:2px solid #FFE716;line-height:1.25}
+h3{font-size:18px;margin:24px 0 8px;line-height:1.25}
+p{margin:8px 0}
+ul,ol{margin:4px 0;padding-left:26px}
+li{margin:3px 0}
+.page>ul>li,.page>ol>li{margin-top:12px}
+a{color:#000;text-decoration:underline}
+a:focus-visible,img:focus-visible,button:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid #000;outline-offset:2px}
+figure{margin:12px 0}
+figure img{display:block;max-width:100%;height:auto;border:1px solid #000;cursor:zoom-in}
+.note{background:#FFE716;padding:6px 12px;margin:6px 0;border-left:4px solid #000}
+.missing{border:2px dashed #000;padding:8px 12px;font-weight:bold}
+code{font-family:Consolas,monospace;font-size:14px;border:1px solid #000;padding:0 4px}
+hr{border:0;border-top:1px solid #000;margin:20px 0}
+.home{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:40px;max-width:1200px}
+.home>.page>h2:first-child{margin-top:8px}
+.feedback{border:1px solid #000;padding:4px 20px 20px;align-self:start;position:sticky;top:24px}
+.feedback h2{margin-top:16px}
+.feedback textarea{display:block;width:100%;min-height:140px;margin:10px 0;padding:8px;font:inherit;font-size:15px;border:1px solid #000;border-radius:0;resize:vertical}
+.feedback button{font:inherit;font-weight:bold;background:#FFE716;color:#000;border:2px solid #000;padding:8px 22px;cursor:pointer}
+.feedback button:hover{background:#000;color:#fff}
+.feedback .small{font-size:13px}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;z-index:10}
+.lightbox.open{display:flex}
+.lightbox img{max-width:100%;max-height:100%;background:#fff}
+.wn{margin:12px 0 8px}
+.wn-head{font-weight:bold;margin:16px 0 4px}
+.wn-card{border:1px solid #000;border-top:4px solid #FFE716;padding:4px 16px 10px;margin:10px 0}
+.wn-card h3{margin:8px 0 2px;font-size:17px}
+.wn-card .meta{font-size:13px;margin:0 0 4px}
+.wn-card p{margin:4px 0}
+.wn-note{font-size:13px}
+.badge{display:inline-block;font-size:12px;font-weight:bold;padding:1px 8px;margin-left:8px;border:1px solid #000;background:#FFE716;color:#000;vertical-align:middle}
+.badge.upd{background:#fff}
+.btn{font:inherit;font-weight:bold;background:#FFE716;color:#000;border:2px solid #000;padding:6px 16px;margin:8px 10px 6px 0;cursor:pointer}
+.btn:hover{background:#000;color:#fff}
+footer{max-width:900px;margin:48px 0 0;padding:12px 0 28px;font-size:12px;border-top:1px solid #000}
+@media (max-width:1100px){.home{grid-template-columns:1fr}.feedback{position:static}}
+@media (max-width:760px){.layout{display:block}.side{position:static;width:auto;max-height:none;border-bottom:1px solid #000}.content{padding:20px;border-left:0;margin-left:0;min-height:0}}
+@media print{.side,.feedback,.lightbox{display:none!important}figure img{cursor:auto}.content{padding:0}}
+</style>
+</head>
+<body>
+<header class="band"><div class="band-inner"><img class="band-logo" src="../../murray_logo.png" alt="Murray Company"><div><small><a href="../../help.html">Murray Help</a></small><h1>Rename Sheets and Views</h1></div></div></header>
+<div class="layout">
+<nav class="side" aria-label="Help topics">
+<input id="topic-filter" type="search" placeholder="Filter topics" aria-label="Filter topics">
+<ul id="topics-home">
+<li><a class="home-link" href="../../help.html">Home</a></li>
+</ul><ul id="topics">
+<li><a href="../ChangeRodSize/help.html">Change Rod Size</a></li>
+<li><a href="../ChromeShortcuts/help.html">Chrome Shortcuts</a></li>
+<li><a href="../FabricationHangersInRevit/help.html">Fabrication Hangers in Revit</a></li>
+<li><a href="../FabricationPartBOMExcel/help.html">Fabrication Part BOM (Excel)</a></li>
+<li><a href="../FamilyNavigator/help.html">Family Navigator Pane</a></li>
+<li><a href="../HideIsolate/help.html">Hide / Isolate Service</a></li>
+<li><a href="../MakeSchedule/help.html">Make Schedule</a></li>
+<li><a href="../MCPointloadDuct/help.html">MC Pointload (Duct)</a></li>
+<li><a href="../MCPointloadPipe/help.html">MC Pointload (Pipe)</a></li>
+<li><a href="../PipeLabels/help.html">Pipe Labels</a></li>
+<li><a href="../PointLayoutMC/help.html">Point Layout (MC)</a></li>
+<li><a href="../PointLayoutUG/help.html">Point Layout (UG)</a></li>
+<li><a href="../QCPoints/help.html">QC Points</a></li>
+<li><a href="../RenameSheetsViews/help.html" aria-current="page">Rename Sheets and Views</a></li>
+<li><a href="../RevitFamilyLibraryAndCreatingFamiliesFromImports/help.html">Revit Family Library and Creating Families (From Imports)</a></li>
+<li><a href="../RevitRevisions/help.html">Revit Revisions</a></li>
+<li><a href="../RoughInDrawings/help.html">Rough In Drawings</a></li>
+<li><a href="../StiffyBOMWIP/help.html">Stiffy BOM (WIP)</a></li>
+<li><a href="../TaggingRoomNames/help.html">Tagging Room Names</a></li>
+<li><a href="../ValveNumbering/help.html">Valve Numbering</a></li>
+<li><a href="../WallTrimbleRevit/help.html">Wall Trimble Revit</a></li>
+</ul><p class="none" id="no-topics">No matching topics.</p></nav>
+<main class="content">
+<div class="page"><p>Renames many sheets and views in the open Revit project at once. You pick the items, type your changes, check the live preview, then apply everything in one step.</p>
+<p>Nothing in the model changes until you click the <strong>RENAME</strong> button at the bottom.</p>
+<h2>What it renames</h2>
+<p>| Item | What changes | |---|---| | Sheet name | Each sheet has its own row, labeled <code>DrawingSheet (Name)</code> | | Sheet number | Each sheet has a second row, labeled <code>DrawingSheet (Number)</code> | | Views | Floor plans, ceiling plans, elevations, sections, 3D views, drafting views and schedules |</p>
+<p>Not listed: view templates, and the system schedules Revit does not allow you to rename (title block revision schedules and internal keynote schedules).</p>
+<h2>The dialog</h2>
+<figure><img src="images/renamer_dialog.png" alt="Renamer dialog"></figure>
+<p><em>The dialog as it opens. Nothing is selected, so every row shows UNCHANGED and the button reads RENAME 0 ITEM(S). Your item names will differ.</em></p>
+<h2>How each feature works</h2>
+<h3>1. Find / Replace</h3>
+<p>Type the text to find in the top box and its replacement in the bottom box.</p>
+<ul><li>
+Matching is <strong>case sensitive</strong>. <code>Level</code> will not match <code>LEVEL</code>.
+</li><li>
+Every occurrence in a name is replaced, not just the first.
+</li><li>
+Leave <strong>Replace</strong> empty to delete the found text.
+</li><li>
+Leave <strong>Find</strong> empty to skip this step.
+</li></ul>
+<h3>2. Prefix</h3>
+<p>Text added to the start of every name. Example: <code>L1-</code> turns <code>Plumbing Plan</code> into <code>L1-Plumbing Plan</code>.</p>
+<h3>3. Suffix</h3>
+<p>Text added to the end of every name. Example: <code>-DRAFT</code> turns <code>Plumbing Plan</code> into <code>Plumbing Plan-DRAFT</code>.</p>
+<p><strong>Order of operations:</strong> Find/Replace runs first, then the prefix and suffix are added around the result. All three can be used together.</p>
+<h3>4. Search</h3>
+<p>Filters the list to rows whose <strong>current name</strong> contains your text. Not case sensitive. It only changes what you see. It does not change what is selected.</p>
+<h3>5. Type chips</h3>
+<p>The buttons under the input boxes filter the list by type. <strong>ALL</strong> shows everything. The black chip is the one currently active. Chips only appear for types that exist in your project.</p>
+<p>Order: DrawingSheet, Schedule, FloorPlan, CeilingPlan, ThreeD, Section, Elevation, DraftingView.</p>
+<h3>6. Selecting rows</h3>
+<p>Only checked rows are renamed.</p>
+<ul><li>
+Click a checkbox to select a single row.
+</li><li>
+<strong>Shift+click</strong> a second checkbox to select or clear the whole range between the two clicks.
+</li><li>
+The checkbox in the header selects or clears every row <strong>currently shown</strong>, so it respects the active chip and Search filter.
+</li></ul>
+<p>Selections are kept when you change chips or Search, so you can build up a selection across several types.</p>
+<h3>7. New Name Preview</h3>
+<p>Shows the result of your Find/Replace, Prefix and Suffix for every row, updating as you type. Check this column before renaming. Hover over a truncated name to see the full text.</p>
+<h3>8. Status</h3>
+<p>Each row shows one status.</p>
+<p>| Status | Meaning | |---|---| | <strong>WILL RENAME</strong> (black) | Checked, the name changes, and no problem was found. This row will be renamed. | | <strong>NOT SELECTED</strong> | The name would change, but the row is not checked. | | <strong>UNCHANGED</strong> | The new name matches the current name. Nothing to do. | | <strong>CONFLICT</strong> (heavy border) | Checked, but the new name cannot be used. This row is skipped. |</p>
+<p>A row is flagged as a <strong>CONFLICT</strong> when:</p>
+<ul><li>
+the new name is blank,
+</li><li>
+the new name matches a name that is staying as it is, within the same type, or
+</li><li>
+two selected rows would end up with the same new name.
+</li></ul>
+<p>Sheet names are the exception. Revit allows repeated sheet names, so only a blank sheet name is flagged. Sheet numbers and view names must be unique.</p>
+<h3>9. RENAME button</h3>
+<p>The button shows how many rows will be renamed, for example <code>RENAME 3 ITEM(S)</code>. It is disabled when that count is zero.</p>
+<p>The count includes every <strong>WILL RENAME</strong> row, <strong>even rows hidden by the current chip or Search filter</strong>. Clear the filters and scan the full list if you are unsure what is selected.</p>
+<h2>What happens when you click RENAME</h2>
+<ol><li>
+All renames are applied in a single Revit transaction named <strong>Rename Sheets and Views</strong>.
+</li><li>
+If every item succeeds, a short Windows notification shows the number renamed and the dialog closes.
+</li><li>
+If some items fail (for example, Revit rejects a name), the rest are still renamed. A message lists the failures, up to 15, and the dialog closes.
+</li><li>
+If the whole operation errors, it is rolled back and nothing is changed.
+</li></ol>
+<h2>Example: change "Level" to "LVL" on selected plans</h2>
+<ol><li>
+Click the <strong>FloorPlan</strong> chip.
+</li><li>
+Type <code>Level</code> in Find and <code>LVL</code> in Replace.
+</li><li>
+Check the plans you want, or use the header checkbox to select them all.
+</li><li>
+Review <strong>New Name Preview</strong> and fix any <strong>CONFLICT</strong> rows.
+</li><li>
+Click <strong>RENAME</strong>.
+</li></ol>
+<h2>Tips</h2>
+<ul><li>
+Use Search to find a group of similar names, then the header checkbox to select just those.
+</li><li>
+Sheet numbers are separate rows. If you only want to rename sheet names, leave the <code>DrawingSheet (Number)</code> rows unchecked.
+</li><li>
+To renumber sheets with a prefix, select only the <code>DrawingSheet (Number)</code> rows before entering the prefix.
+</li><li>
+The dialog can be resized if names are cut off.
+</li></ul>
+<h2>Open items</h2>
+<ul><li>
+[CONFIRM: ribbon tab, panel and button name used to launch the tool]
+</li><li>
+[CONFIRM: behavior on workshared models when an element is owned by another user]
+</li></ul></div>
+<footer>Last built 2026-10-19. Click any image to enlarge; press Esc to close.</footer>
+</main>
+</div>
+<div class="lightbox" id="lb" role="dialog" aria-label="Enlarged image"><img alt=""></div>
+<script>
+(function(){
+  var box=document.getElementById('lb'), big=box.querySelector('img');
+  document.querySelectorAll('figure img').forEach(function(im){
+    im.tabIndex=0;
+    function open(){big.src=im.src;box.classList.add('open');}
+    im.addEventListener('click',open);
+    im.addEventListener('keydown',function(e){if(e.key==='Enter'){open();}});
+  });
+  function close(){box.classList.remove('open');big.removeAttribute('src');}
+  box.addEventListener('click',close);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){close();}});
+
+  var f=document.getElementById('topic-filter');
+  if(f){
+    var items=document.querySelectorAll('#topics li'), none=document.getElementById('no-topics');
+    f.addEventListener('input',function(){
+      var q=f.value.toLowerCase().trim(), shown=0;
+      items.forEach(function(li){var hit=li.textContent.toLowerCase().indexOf(q)>-1;li.style.display=hit?'':'none';if(hit)shown++;});
+      none.style.display=shown?'none':'block';
+    });
+  }
+  var cur=document.querySelector('.side a[aria-current="page"]');
+  if(cur&&cur.scrollIntoView){cur.scrollIntoView({block:'nearest'});}
+
+  var send=document.getElementById('fb-send');
+  if(send){
+    send.addEventListener('click',function(){
+      var t=document.getElementById('fb-text'), msg=t.value.trim();
+      if(!msg){t.focus();return;}
+      window.location.href='mailto:'+send.getAttribute('data-to')
+        +'?cc='+encodeURIComponent(send.getAttribute('data-cc'))
+        +'&subject='+encodeURIComponent('Murray Help feedback')
+        +'&body='+encodeURIComponent(msg);
+    });
+  }
+})();
+
+(function(){
+  var KEY='murrayHelpSeen_v1';
+  function load(){
+    var r;
+    try{r=window.localStorage.getItem(KEY);}catch(e){return null;}
+    if(!r){return {};}
+    try{var o=JSON.parse(r);return (o&&typeof o==='object')?o:{};}catch(e2){return {};}
+  }
+  function save(s){try{window.localStorage.setItem(KEY,JSON.stringify(s));return true;}catch(e){return false;}}
+
+  var idm=document.querySelector('meta[name="murray-topic-id"]');
+  var hm=document.querySelector('meta[name="murray-content-hash"]');
+  if(idm&&hm){var s0=load();if(s0){s0[idm.content]=hm.content;save(s0);}}
+
+  var box=document.getElementById('whats-new'), dm=document.getElementById('topics-data');
+  if(!box||!dm){return;}
+  var data=JSON.parse(dm.textContent);
+  var seen=load(), canSave=(seen!==null);
+  if(seen===null){seen={};}
+  var showAll=!canSave;
+  var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function el(tag,cls,text){var e=document.createElement(tag);if(cls){e.className=cls;}if(text!==undefined){e.textContent=text;}return e;}
+  function fmt(d){var p=(d||'').split('-');if(p.length!==3){return d||'';}return MON[parseInt(p[1],10)-1]+' '+parseInt(p[2],10)+', '+p[0];}
+  function status(t){if(!(t.id in seen)){return 'new';}if(seen[t.id]!==t.hash){return 'upd';}return 'seen';}
+  function card(t,st){
+    var c=el('div','wn-card'), h=el('h3'), a=el('a',null,t.title);
+    a.href=t.href;h.appendChild(a);
+    if(st==='new'){h.appendChild(el('span','badge','NEW'));}
+    else if(st==='upd'){h.appendChild(el('span','badge upd','IMPROVED'));}
+    c.appendChild(h);
+    c.appendChild(el('div','meta',[fmt(t.date),t.type].filter(Boolean).join(' \u00b7 ')));
+    if(t.summary){c.appendChild(el('p',null,t.summary));}
+    return c;
+  }
+  function render(){
+    box.textContent='';
+    var items=data.slice().sort(function(a,b){return a.date<b.date?1:(a.date>b.date?-1:0);});
+    var fresh=[], upd=[];
+    items.forEach(function(t){var s=status(t);if(s==='new'){fresh.push(t);}else if(s==='upd'){upd.push(t);}});
+    var anyNew=(fresh.length+upd.length)>0;
+    if(!canSave){box.appendChild(el('p','wn-note','This browser is not saving which topics you have read, so every topic is listed.'));}
+    if(!showAll){
+      if(!anyNew){
+        box.appendChild(el('p','wn-head','You are all caught up.'));
+        box.appendChild(el('p',null,'No new or improved topics since you last checked.'));
+      }else{
+        if(fresh.length){box.appendChild(el('p','wn-head','New ('+fresh.length+')'));fresh.forEach(function(t){box.appendChild(card(t,'new'));});}
+        if(upd.length){box.appendChild(el('p','wn-head','Improved ('+upd.length+')'));upd.forEach(function(t){box.appendChild(card(t,'upd'));});}
+      }
+    }else{
+      box.appendChild(el('p','wn-head','All topics ('+items.length+')'));
+      items.forEach(function(t){box.appendChild(card(t,status(t)));});
+    }
+    var bar=el('div');
+    if(canSave&&anyNew){
+      var b1=el('button','btn','Mark all as read');b1.type='button';
+      b1.onclick=function(){data.forEach(function(t){seen[t.id]=t.hash;});save(seen);showAll=false;render();};
+      bar.appendChild(b1);
+    }
+    if(canSave){
+      var b2=el('button','btn',showAll?'Show only new':'Show all topics');b2.type='button';
+      b2.onclick=function(){showAll=!showAll;render();};
+      bar.appendChild(b2);
+    }
+    box.appendChild(bar);
+  }
+  render();
+  window.addEventListener('pageshow',function(e){if(e.persisted){var s=load();if(s){seen=s;}render();}});
+})();
+</script>
+</body>
+</html>

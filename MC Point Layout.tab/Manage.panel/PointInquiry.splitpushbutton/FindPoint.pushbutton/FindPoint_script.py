@@ -13,16 +13,14 @@ clr.AddReference("System.Core")
 from System import Action
 import System.Windows.Threading
 
-from System.Windows import Window, Thickness, HorizontalAlignment, WindowStartupLocation, FontWeights, GridLength, GridUnitType, Setter, Style
-from System.Windows.Controls import Grid, RowDefinition, ColumnDefinition, Label, TextBox, Button, DataGrid, DataGridTextColumn, DataGridSelectionMode, Orientation, StackPanel, DataGridLength, Control
-from System.Windows.Controls.Primitives import DataGridColumnHeader, DataGridRowHeader
+from System.Windows import Window, Thickness, HorizontalAlignment, WindowStartupLocation, FontWeights, GridLength, GridUnitType
+from System.Windows.Controls import Grid, RowDefinition, ColumnDefinition, Label, TextBox, Button, DataGrid, DataGridTextColumn, DataGridSelectionMode, Orientation, StackPanel, DataGridLength
 from System.Windows.Data import Binding, CollectionViewSource
 from System.Windows.Interop import WindowInteropHelper
 from System.Collections.Generic import List
-from System.Windows.Media import SolidColorBrush, Color as MediaColor
 
 from Autodesk.Revit.DB import FilteredElementCollector, ElementId, Transaction
-from Autodesk.Revit.UI import UIApplication, TaskDialog, UIThemeManager, UITheme
+from Autodesk.Revit.UI import UIApplication, TaskDialog
 
 from Parameters.Add_SharedParameters import Shared_Params
 
@@ -135,7 +133,6 @@ class PointDataWindow(Window):
         self.is_initialized = False
         self.is_filtering = False
 
-        self.apply_revit_theme()
         self.initialize_components(default_value)
 
         try:
@@ -144,34 +141,6 @@ class PointDataWindow(Window):
             pass
 
         self.is_initialized = True
-
-    def apply_revit_theme(self):
-        try:
-            current_theme = UIThemeManager.CurrentTheme
-            is_dark = (current_theme == UITheme.Dark)
-
-            bg_hex = "#FF3B4453" if is_dark else "#FFF5F5F5"
-            text_hex = "#FFDFDFDF" if is_dark else "#FF333333"
-            subtext_hex = "#FF999999" if is_dark else "#FF666666"
-            ctrl_bg_hex = "#FF222933" if is_dark else "#FFFFFFFF"
-            btn_bg_hex = "#FF222933" if is_dark else "#FFEFEFEF"
-            border_hex = "#FF363B40" if is_dark else "#FFD0D0D0"
-            grid_cell_bg_hex = "#FF2A323D" if is_dark else "#FFFFFFFF"
-            grid_header_bg_hex = "#FF323B48" if is_dark else "#FFEFEFEF"
-
-            res = self.Resources
-            res["PageBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["TextForegroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(text_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["SubTextForegroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(subtext_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["ControlBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(ctrl_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["ButtonBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(btn_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["BorderColorBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(border_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["GridCellBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(grid_cell_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["GridHeaderBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(grid_header_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-
-            self.Background = res["PageBackgroundBrush"]
-        except Exception:
-            pass
 
     def initialize_components(self, default_value):
         grid = Grid()
@@ -193,7 +162,6 @@ class PointDataWindow(Window):
         self.label.Content = "Find Point Data:"
         self.label.FontWeight = FontWeights.Bold
         self.label.Margin = Thickness(0, 0, 0, 3)
-        self.label.SetResourceReference(Label.ForegroundProperty, "TextForegroundBrush")
         Grid.SetRow(self.label, row_index)
         grid.Children.Add(self.label)
         row_index += 1
@@ -203,9 +171,6 @@ class PointDataWindow(Window):
         self.textbox.Height = 26
         self.textbox.VerticalContentAlignment = System.Windows.VerticalAlignment.Center
         self.textbox.Margin = Thickness(0, 0, 0, 8)
-        self.textbox.SetResourceReference(TextBox.BackgroundProperty, "ControlBackgroundBrush")
-        self.textbox.SetResourceReference(TextBox.ForegroundProperty, "TextForegroundBrush")
-        self.textbox.SetResourceReference(TextBox.BorderBrushProperty, "BorderColorBrush")
         self.textbox.TextChanged += self.on_text_changed
         Grid.SetRow(self.textbox, row_index)
         grid.Children.Add(self.textbox)
@@ -220,13 +185,6 @@ class PointDataWindow(Window):
         self.datagrid.AutoGenerateColumns = False
         self.datagrid.IsReadOnly = False
         self.datagrid.SelectionMode = DataGridSelectionMode.Single
-        self.datagrid.SetResourceReference(DataGrid.BackgroundProperty, "GridCellBackgroundBrush")
-        self.datagrid.SetResourceReference(DataGrid.ForegroundProperty, "TextForegroundBrush")
-        self.datagrid.SetResourceReference(DataGrid.BorderBrushProperty, "BorderColorBrush")
-        self.datagrid.SetResourceReference(DataGrid.RowBackgroundProperty, "GridCellBackgroundBrush")
-        self.datagrid.SetResourceReference(DataGrid.AlternatingRowBackgroundProperty, "GridCellBackgroundBrush")
-        self.datagrid.ColumnHeaderStyle = self.create_header_style()
-        self.datagrid.RowHeaderStyle = self.create_row_header_style()
         self.datagrid.SelectionChanged += self.on_selection_changed
         self.datagrid.CellEditEnding += self.on_cell_edit_ending
         self.datagrid.Margin = Thickness(0, 0, 0, 10)
@@ -263,28 +221,10 @@ class PointDataWindow(Window):
         self.close_button.Content = "Close"
         self.close_button.Width = 85
         self.close_button.Height = 28
-        self.close_button.SetResourceReference(Button.BackgroundProperty, "ButtonBackgroundBrush")
-        self.close_button.SetResourceReference(Button.ForegroundProperty, "TextForegroundBrush")
-        self.close_button.SetResourceReference(Button.BorderBrushProperty, "BorderColorBrush")
         self.close_button.Click += self.on_close_click
         button_panel.Children.Add(self.close_button)
 
         self.KeyDown += self.on_key_down
-
-    def create_header_style(self):
-        style = Style(DataGridColumnHeader)
-        style.Setters.Add(Setter(Control.BackgroundProperty, self.Resources["GridHeaderBackgroundBrush"]))
-        style.Setters.Add(Setter(Control.ForegroundProperty, self.Resources["TextForegroundBrush"]))
-        style.Setters.Add(Setter(Control.BorderBrushProperty, self.Resources["BorderColorBrush"]))
-        style.Setters.Add(Setter(Control.BorderThicknessProperty, Thickness(0, 0, 1, 1)))
-        return style
-
-    def create_row_header_style(self):
-        style = Style(DataGridRowHeader)
-        style.Setters.Add(Setter(Control.BackgroundProperty, self.Resources["GridHeaderBackgroundBrush"]))
-        style.Setters.Add(Setter(Control.BorderBrushProperty, self.Resources["BorderColorBrush"]))
-        style.Setters.Add(Setter(Control.BorderThicknessProperty, Thickness(0, 0, 1, 1)))
-        return style
 
     def save_search_text(self):
         try:
@@ -374,9 +314,6 @@ revit_window_handle = get_revit_window_handle()
 
 form = PointDataWindow(previous_input, point_data, revit_window_handle)
 form.Show()
-
-# Clear initial selection so nothing is highlighted on open
-form.datagrid.UnselectAll()
 
 disp = System.Windows.Threading.Dispatcher.CurrentDispatcher
 while form.IsVisible:

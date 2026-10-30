@@ -22,9 +22,9 @@ def get_section_view_type(document):
     return None
 
 
-def require_plan_view(view):
-    if not isinstance(view, DB.ViewPlan):
-        raise Exception("Run this command from a floor plan view.")
+def require_supported_view(view):
+    if not isinstance(view, (DB.ViewPlan, DB.ViewSection)):
+        raise Exception("Run this command from a floor plan or section view.")
 
 
 class StraightFabOrLineBasedGenericFilter(ISelectionFilter):
@@ -180,6 +180,51 @@ def build_section_transform_from_plan(curve, view, pick_point):
     return tf
 
 
+def build_section_transform_from_section(curve, view, pick_point):
+    p0 = curve.GetEndPoint(0)
+    p1 = curve.GetEndPoint(1)
+    origin = curve.Evaluate(0.5, True)
+
+    line_dir = p1 - p0
+    if line_dir.GetLength() < 1e-9:
+        raise Exception("Selected element is too short.")
+    line_dir = line_dir.Normalize()
+
+    view_dir = view.ViewDirection.Normalize()
+
+    x_guess = line_dir - view_dir.Multiply(line_dir.DotProduct(view_dir))
+    if x_guess.GetLength() < 1e-6:
+        raise Exception("Selected element is perpendicular to the active section view.")
+    x_guess = x_guess.Normalize()
+
+    z_guess = x_guess.CrossProduct(view_dir).Normalize()
+
+    proj = curve.Project(pick_point)
+    if proj:
+        on_curve = proj.XYZPoint
+    else:
+        on_curve = origin
+
+    side_vec = pick_point - on_curve
+    side_vec_screen = side_vec - view_dir.Multiply(side_vec.DotProduct(view_dir))
+
+    if side_vec_screen.GetLength() > 1e-6 and side_vec_screen.DotProduct(z_guess) > 0:
+        z_axis = z_guess.Negate()
+    else:
+        z_axis = z_guess
+
+    x_axis = x_guess
+    y_axis = z_axis.CrossProduct(x_axis).Normalize()
+
+    tf = DB.Transform.Identity
+    tf.Origin = origin
+    tf.BasisX = x_axis
+    tf.BasisY = y_axis
+    tf.BasisZ = z_axis
+
+    return tf
+
+
 def get_local_bounds(points, transform):
     inv = transform.Inverse
     xs, ys, zs = [], [], []
@@ -194,7 +239,7 @@ def get_local_bounds(points, transform):
 
 
 try:
-    require_plan_view(active_view)
+    require_supported_view(active_view)
 
     elem, pick_point = pick_element_and_point()
     curve = get_linear_curve(elem)
@@ -205,7 +250,13 @@ try:
     if not section_type:
         raise Exception("No Section ViewFamilyType found.")
 
-    tf = build_section_transform_from_plan(curve, active_view, pick_point)
+    if isinstance(active_view, DB.ViewPlan):
+        tf = build_section_transform_from_plan(curve, active_view, pick_point)
+    elif isinstance(active_view, DB.ViewSection):
+        tf = build_section_transform_from_section(curve, active_view, pick_point)
+    else:
+        raise Exception("Run this command from a floor plan or section view.")
+
     pts = get_points_for_bounds(elem, curve)
     local_min, local_max = get_local_bounds(pts, tf)
 
@@ -228,7 +279,6 @@ try:
         t.Start()
         section_view = DB.ViewSection.CreateSection(doc, section_type.Id, box)
         
-        # Safely attempt to set detail level, skipping if it fails
         try:
             section_view.DetailLevel = DB.ViewDetailLevel.Fine
         except:

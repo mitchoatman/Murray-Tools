@@ -194,6 +194,7 @@ if target_famtype:
                     rodloc = STName1.GetRodEndPosition(n)
                     valuenum = rodloc.Z
                     combined_xyz = XYZ(rodloc.X, rodloc.Y, rodloc.Z)
+                    combined_xyz2 = XYZ(rodloc.X, rodloc.Y, rodloc.Z)
 
                     if "1.625" in rack_type_lower:
                         if "single" in rack_type_lower:
@@ -213,6 +214,10 @@ if target_famtype:
                             else:
                                 combined_xyz = XYZ(rodloc.X, rodloc.Y, middle_bottom_point.Z + 0.2815)
                                 combined_xyz2 = XYZ(rodloc.X, rodloc.Y, middle_bottom_point.Z + 0.31275)
+
+                    elif "full band" in rack_type_lower:
+                        combined_xyz = XYZ(rodloc.X, rodloc.Y, middle_top_point.Z - BraceOffsetZ - 0.3899)
+                        combined_xyz2 = XYZ(rodloc.X, rodloc.Y, middle_top_point.Z - BraceOffsetZ - 0.3577)
 
                     elif "seismic" in rack_type_lower:
                         combined_xyz = XYZ(rodloc.X, rodloc.Y, middle_top_point.Z - BraceOffsetZ + 0.1615)

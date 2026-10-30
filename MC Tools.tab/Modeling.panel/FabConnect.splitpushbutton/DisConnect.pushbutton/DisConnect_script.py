@@ -12,6 +12,14 @@ doc = uidoc.Document
 messages = []
 
 
+def get_id_value(element_id):
+    """ElementId to integer, compatible with Revit 2022-2027.
+    Revit 2024+ uses ElementId.Value (long); 2022-2023 only have IntegerValue."""
+    if hasattr(element_id, "Value"):
+        return element_id.Value
+    return element_id.IntegerValue
+
+
 class FabricationPartSelectionFilter(ISelectionFilter):
     """Allow only Fabrication Parts to be selected"""
     def AllowElement(self, element):
@@ -34,16 +42,19 @@ def disconnect_all_connectors(el):
         connector_manager = get_connector_manager(el)
     except AttributeError:
         raise AttributeError("No connector manager")
-    
-    for connector in connector_manager.Connectors:
+
+    owner_id = get_id_value(el.Id)
+
+    # Snapshot the connectors so the collection is not modified while iterating
+    for connector in list(connector_manager.Connectors):
         if not connector.IsConnected:
             continue
-        
+
         connected_connectors = []
         for other_connector in connector.AllRefs:
-            if other_connector.Owner.Id != connector.Owner.Id:
+            if get_id_value(other_connector.Owner.Id) != owner_id:
                 connected_connectors.append(other_connector)
-        
+
         for other_connector in connected_connectors:
             try:
                 connector.DisconnectFrom(other_connector)
@@ -55,7 +66,7 @@ def disconnect():
     """Main function to disconnect selected fabrication parts"""
     global messages
     messages = []
-    
+
     try:
         selection_filter = FabricationPartSelectionFilter()
         selected_refs = uidoc.Selection.PickObjects(
@@ -63,39 +74,39 @@ def disconnect():
             selection_filter,
             "Select fabrication parts to disconnect (press Finish when done)"
         )
-        
+
         if not selected_refs:
             TaskDialog.Show("Disconnect Fabrication Parts", "No fabrication parts selected")
             return
-        
+
         transaction = Transaction(doc, "Disconnect fabrication parts")
         transaction.Start()
-        
+
         try:
             for ref in selected_refs:
                 el = doc.GetElement(ref.ElementId)
                 try:
                     disconnect_all_connectors(el)
                     messages.append("Disconnected Fabrication Part - ID: {}".format(
-                        el.Id.IntegerValue
+                        get_id_value(el.Id)
                     ))
                 except Exception as e:
                     messages.append("Error disconnecting element {}: {}".format(
-                        el.Id.IntegerValue,
+                        get_id_value(el.Id),
                         str(e)
                     ))
-            
+
             transaction.Commit()
             result_message = "\n".join(messages)
             TaskDialog.Show(
                 "Disconnect Complete",
                 result_message if result_message else "All fabrication parts disconnected successfully"
             )
-            
+
         except Exception as e:
             transaction.RollBack()
             TaskDialog.Show("Error", "Transaction failed: {}".format(str(e)))
-    
+
     except InvalidOperationException:
         TaskDialog.Show("Disconnect Fabrication Parts", "Selection cancelled by user")
 

@@ -11,18 +11,20 @@ clr.AddReference("PresentationFramework")
 clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
 clr.AddReference("System.Windows.Forms")
+clr.AddReference("System.Drawing")
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 
-from pyrevit import forms, HOST_APP
+from pyrevit import forms
 import Autodesk.Revit.UI as UI
-from Autodesk.Revit.UI import UIThemeManager, UITheme
 
 from System.Collections.Generic import List
 from System.Windows.Forms import FolderBrowserDialog, DialogResult
 from System.Windows.Controls import ListBoxItem
-from System.Windows.Media import VisualTreeHelper, SolidColorBrush, Color as MediaColor
+from System.Windows.Media import VisualTreeHelper
 from System.Windows.Input import Key, Keyboard
+from System.Drawing import Bitmap
+from System.Drawing.Imaging import ImageFormat
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import (
     Transaction,
@@ -52,7 +54,7 @@ from Autodesk.Revit.DB import (
     ImageResolution,
     ZoomFitType
 )
-from Autodesk.Revit.UI.Selection import ObjectType, ISelectionFilter
+from Autodesk.Revit.UI.Selection import ObjectType, ObjectSnapTypes, ISelectionFilter
 from Autodesk.Revit.UI import (
     IExternalEventHandler,
     ExternalEvent,
@@ -67,56 +69,9 @@ PANE_XAML = """
 <Page
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    x:Name="root_page"
-    Background="{DynamicResource PageBackgroundBrush}">
-
-    <Page.Resources>
-        <!-- Dynamic Theme Brushes Setup (Defaults to Light) -->
-        <SolidColorBrush x:Key="PageBackgroundBrush" Color="#FFF5F5F5"/>
-        <SolidColorBrush x:Key="TextForegroundBrush" Color="#FF333333"/>
-        <SolidColorBrush x:Key="SubTextForegroundBrush" Color="#FF666666"/>
-        <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#FFFFFFFF"/>
-        <SolidColorBrush x:Key="ButtonBackgroundBrush" Color="#FFEFEFEF"/>
-        <SolidColorBrush x:Key="BorderColorBrush" Color="#FFD0D0D0"/>
-        <SolidColorBrush x:Key="SeparatorColorBrush" Color="#FF000000"/>
-    </Page.Resources>
+    Background="#FFF5F5F5">
 
     <Grid Margin="10">
-        <Grid.Resources>
-            <Style TargetType="TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource TextForegroundBrush}"/>
-            </Style>
-            <Style TargetType="TextBox">
-                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}"/>
-                <Setter Property="Foreground" Value="{DynamicResource TextForegroundBrush}"/>
-                <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}"/>
-                <Setter Property="Padding" Value="2,1,2,1"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="TextBox">
-                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="1">
-                                <ScrollViewer x:Name="PART_ContentHost"/>
-                            </Border>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-            <Style TargetType="Button">
-                <Setter Property="Background" Value="{DynamicResource ButtonBackgroundBrush}"/>
-                <Setter Property="Foreground" Value="{DynamicResource TextForegroundBrush}"/>
-                <Setter Property="BorderBrush" Value="{DynamicResource BorderColorBrush}"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="1">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-        </Grid.Resources>
-
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -143,7 +98,7 @@ PANE_XAML = """
             </Grid>
         </StackPanel>
 
-        <!-- Quick Folder Buttons with Safe Margins for Spacing -->
+        <!-- Quick Folder Buttons -->
         <Grid Grid.Row="1" Margin="0,0,0,8" HorizontalAlignment="Left">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -154,10 +109,10 @@ PANE_XAML = """
                 <ColumnDefinition Width="4"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <Button x:Name="atkore_btn" Grid.Column="0" Content=" Atkore Strut " Height="26"/>
-            <Button x:Name="plumbing_btn" Grid.Column="2" Content=" Plumbing Fixtures " Height="26"/>
-            <Button x:Name="mechanical_btn" Grid.Column="4" Content=" Mechanical Equipment " Height="26"/>
-            <Button x:Name="pipe_accessories_btn" Grid.Column="6" Content=" Pipe Accessories " Height="26"/>
+            <Button x:Name="atkore_btn" Grid.Column="0" Content="Atkore Strut" Height="26" Padding="10,0,10,0"/>
+            <Button x:Name="plumbing_btn" Grid.Column="2" Content="Plumbing Fixtures" Height="26" Padding="10,0,10,0"/>
+            <Button x:Name="mechanical_btn" Grid.Column="4" Content="Mechanical Equipment" Height="26" Padding="10,0,10,0"/>
+            <Button x:Name="pipe_accessories_btn" Grid.Column="6" Content="Pipe Accessories" Height="26" Padding="10,0,10,0"/>
         </Grid>
 
         <!-- Search Filter -->
@@ -166,10 +121,10 @@ PANE_XAML = """
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="24"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBox x:Name="search_tb" Grid.Column="0" Height="24" VerticalContentAlignment="Center"/>
-                <Button x:Name="clear_search_btn" Grid.Column="1" Content="X" Height="24" Margin="4,0,0,0"/>
+                <Button x:Name="clear_search_btn" Grid.Column="1" Content="X" Width="24" Height="24" Margin="4,0,0,0" Padding="0"/>
             </Grid>
         </StackPanel>
 
@@ -191,15 +146,16 @@ PANE_XAML = """
                 <ColumnDefinition Width="4"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <Button x:Name="create_section_btn" Grid.Column="0" Content="Create Section" Height="26"/>
+            <Button x:Name="create_section_btn" Grid.Column="0" Content="Create Element Section" Height="26"/>
+            <Button x:Name="create_multi_section_btn" Grid.Column="2" Content="Create Section of Elements" Height="26"/>
         </Grid>
 
         <!-- Image Grid ListBox -->
         <ListBox x:Name="families_lb"
                  Grid.Row="5"
-                 BorderBrush="{DynamicResource BorderColorBrush}"
+                 BorderBrush="#FFD0D0D0"
                  BorderThickness="1"
-                 Background="{DynamicResource ControlBackgroundBrush}"
+                 Background="White"
                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.ItemsPanel>
@@ -209,10 +165,10 @@ PANE_XAML = """
             </ListBox.ItemsPanel>
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <Border Width="78" Height="90" Margin="2" Padding="2" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Background="{DynamicResource ControlBackgroundBrush}">
+                    <Border Width="78" Height="90" Margin="2" Padding="2" BorderBrush="#FFCCCCCC" BorderThickness="1" Background="White">
                         <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                             <Image Source="{Binding ImagePath}" Width="64" Height="64" Stretch="Uniform"/>
-                            <TextBlock Text="{Binding DisplayName}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" TextAlignment="Center" FontSize="10" FontWeight="SemiBold" Margin="0,3,0,0" Width="72" Foreground="{DynamicResource TextForegroundBrush}"/>
+                            <TextBlock Text="{Binding DisplayName}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" TextAlignment="Center" FontSize="10" FontWeight="SemiBold" Margin="0,3,0,0" Width="72"/>
                         </StackPanel>
                     </Border>
                 </DataTemplate>
@@ -229,7 +185,7 @@ PANE_XAML = """
         <TextBlock x:Name="status_tb"
                    Grid.Row="7"
                    Margin="0,6,0,0"
-                   Foreground="{DynamicResource SubTextForegroundBrush}"
+                   Foreground="#666666"
                    TextWrapping="Wrap"
                    Text="Select part to insert in view"/>
     </Grid>
@@ -245,7 +201,6 @@ LAST_FOLDER_FILE = r"C:\Temp\Ribbon_FamilyManager.txt"
 
 DEFAULT_STATUS_MESSAGE = "Select part to insert in view"
 
-# Allowed straight fabrication CIDs
 ALLOWED_CIDS = set([
     2041, 866, 40,
 ])
@@ -285,6 +240,16 @@ def family_sort_key(item):
     name = item.Name or ""
     channel_first = 0 if "channel" in name.lower() else 1
     return (channel_first, natural_sort_key(name))
+
+
+def save_png_transparent(src_path, dst_path):
+    bmp = Bitmap(src_path)
+    try:
+        bg = bmp.GetPixel(0, 0)
+        bmp.MakeTransparent(bg)
+        bmp.Save(dst_path, ImageFormat.Png)
+    finally:
+        bmp.Dispose()
 
 
 class FamilyLoaderOptionsHandler(System.Object, System.IDisposable, DB.IFamilyLoadOptions):
@@ -416,6 +381,13 @@ def get_horizontal_direction(vec):
     return horiz.Normalize()
 
 
+SECTION_LIKE_VIEWTYPES = (ViewType.Section, ViewType.Detail)
+
+
+def is_section_like(view):
+    return view is not None and view.ViewType in SECTION_LIKE_VIEWTYPES
+
+
 class _FamilyViewerRequestHandler(IExternalEventHandler):
 
     def _create_temporary_project_doc(self, app):
@@ -455,8 +427,8 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
                 self._do_place_family(uidoc, doc, self.selected_family)
 
             elif self.request_name == "set_work_plane":
-                if view.ViewType not in (ViewType.ThreeD, ViewType.Section):
-                    self.pane.set_status("Run Work Plane tool from a 3D view or Section view.")
+                if view.ViewType != ViewType.ThreeD and not is_section_like(view):
+                    self.pane.set_status("Run Work Plane tool from a 3D, Section, or Detail view.")
                     return
                 self._do_set_work_plane(doc, uidoc, view)
 
@@ -465,6 +437,9 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
 
             elif self.request_name == "create_section":
                 self._do_create_section(doc, uidoc, view)
+
+            elif self.request_name == "create_multi_section":
+                self._do_create_multi_section(doc, uidoc, view)
 
             elif self.request_name == "generate_images":
                 self._do_generate_images(uiapp, self.pane.folder_path_tb.Text)
@@ -676,7 +651,10 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
                 pngs = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.lower().endswith(".png")]
                 if pngs:
                     exported = max(pngs, key=os.path.getmtime)
-                    shutil.copyfile(exported, img_path)
+                    try:
+                        save_png_transparent(exported, img_path)
+                    except Exception:
+                        shutil.copyfile(exported, img_path)
                     return True
                 else:
                     export_err = "ExportImage created no PNG"
@@ -732,7 +710,12 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
                 if bmp is None:
                     return "{}; temp project GetPreviewImage returned None".format(export_err)
 
-                bmp.Save(img_path, Drawing.Imaging.ImageFormat.Png)
+                tmp_preview = os.path.join(temp_dir, "fallback_preview.png")
+                bmp.Save(tmp_preview, Drawing.Imaging.ImageFormat.Png)
+                try:
+                    save_png_transparent(tmp_preview, img_path)
+                except Exception:
+                    shutil.copyfile(tmp_preview, img_path)
                 return True
 
             finally:
@@ -779,7 +762,7 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
                 raise Exception("Invalid connector geometry.")
             plane_origin, line_dir = midpoint(p1, p2), vec.Normalize()
 
-            if curview.ViewType == ViewType.Section:
+            if is_section_like(curview):
                 x_vector, y_vector = curview.RightDirection.Normalize(), curview.UpDirection.Normalize()
             elif is_mostly_vertical(line_dir):
                 axis = self._choose_dialog("Select Axis", "Vertical part. Choose alignment axis:", "X-axis", "Y-axis")
@@ -801,7 +784,7 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
             loc = elem.Location
             if isinstance(loc, LocationPoint):
                 plane_origin = loc.Point
-                if curview.ViewType == ViewType.Section:
+                if is_section_like(curview):
                     x_vector, y_vector = curview.RightDirection.Normalize(), curview.UpDirection.Normalize()
                 else:
                     orientation = self._choose_dialog("Select Orientation", "Choose orientation:", "Horizontal", "Vertical")
@@ -818,7 +801,7 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
                 curve = loc.Curve
                 vec = curve.GetEndPoint(1) - curve.GetEndPoint(0)
                 plane_origin, line_dir = curve.Evaluate(0.5, True), vec.Normalize()
-                if curview.ViewType == ViewType.Section:
+                if is_section_like(curview):
                     x_vector, y_vector = curview.RightDirection.Normalize(), curview.UpDirection.Normalize()
                 else:
                     horiz = get_horizontal_direction(line_dir)
@@ -872,13 +855,13 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
         self.pane.set_status("Work plane hidden.")
 
     def _get_section_view_type(self, document):
-        for vft in DB.FilteredElementCollector(document).OfClass(ViewFamilyType):
+        for vft in FilteredElementCollector(document).OfClass(ViewFamilyType):
             if vft.ViewFamily == ViewFamily.Section:
                 return vft
         return None
 
     def _require_supported_section_view(self, view):
-        if not isinstance(view, ViewPlan) and not isinstance(view, ViewSection):
+        if not isinstance(view, (ViewPlan, ViewSection)):
             raise Exception("Run this command from a floor plan or section view.")
 
     def _pick_element_and_point_for_section(self, doc, uidoc):
@@ -926,7 +909,6 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
             raise Exception("Selected element is too short.")
 
         line_dir = line_dir.Normalize()
-
         plan_view_dir = view.ViewDirection.Normalize()
 
         x_guess = line_dir - plan_view_dir.Multiply(line_dir.DotProduct(plan_view_dir))
@@ -976,18 +958,12 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
         line_dir = line_dir.Normalize()
 
         view_dir = view.ViewDirection.Normalize()
-
         x_guess = line_dir - view_dir.Multiply(line_dir.DotProduct(view_dir))
         if x_guess.GetLength() < 1e-6:
             raise Exception("Selected element is perpendicular to the active section view.")
         x_guess = x_guess.Normalize()
 
-        y_guess = view.UpDirection.Normalize()
-
-        z_guess = x_guess.CrossProduct(y_guess)
-        if z_guess.GetLength() < 1e-6:
-            raise Exception("Could not determine section direction.")
-        z_guess = z_guess.Normalize()
+        z_guess = x_guess.CrossProduct(view_dir).Normalize()
 
         proj = curve.Project(pick_point)
         if proj:
@@ -996,14 +972,14 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
             on_curve = origin
 
         side_vec = pick_point - on_curve
-        side_vec = side_vec - view_dir.Multiply(side_vec.DotProduct(view_dir))
+        side_vec_screen = side_vec - view_dir.Multiply(side_vec.DotProduct(view_dir))
 
-        if side_vec.GetLength() > 1e-6 and side_vec.DotProduct(z_guess) > 0:
+        if side_vec_screen.GetLength() > 1e-6 and side_vec_screen.DotProduct(z_guess) > 0:
             z_axis = z_guess.Negate()
         else:
             z_axis = z_guess
 
-        x_axis = y_guess.CrossProduct(z_axis).Normalize()
+        x_axis = x_guess
         y_axis = z_axis.CrossProduct(x_axis).Normalize()
 
         tf = DB.Transform.Identity
@@ -1050,10 +1026,9 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
 
         pad_x = 1.0
         pad_y = 1.0
-        pad_z = 0.5
-
-        min_z = local_min.Z - pad_z
-        max_z = local_max.Z + pad_z
+        # Fully enclose element depth with 12" (1.0 ft) offset on the pick/marker side
+        min_z = local_min.Z - 1.0
+        max_z = local_max.Z + 1.0
         if (max_z - min_z) < 0.25:
             max_z = min_z + 0.25
 
@@ -1064,11 +1039,154 @@ class _FamilyViewerRequestHandler(IExternalEventHandler):
 
         with Transaction(doc, "Create Section Along Element") as t:
             t.Start()
-            section_view = DB.ViewSection.CreateSection(doc, section_type.Id, box)
+            section_view = ViewSection.CreateSection(doc, section_type.Id, box)
             section_view.DetailLevel = DB.ViewDetailLevel.Fine
+            section_view.CropBoxActive = True
+            section_view.CropBoxVisible = True
             t.Commit()
 
         self.pane.set_status("Section created successfully.")
+
+    def _get_element_points(self, elem):
+        pts = []
+        bbox = elem.get_BoundingBox(None)
+        if bbox:
+            pts.extend(self._bbox_corners(bbox))
+        
+        try:
+            loc = elem.Location
+            if isinstance(loc, LocationCurve) and isinstance(loc.Curve, DB.Line):
+                crv = loc.Curve
+                pts.append(crv.GetEndPoint(0))
+                pts.append(crv.GetEndPoint(1))
+        except:
+            pass
+        return pts
+
+    def _build_section_transform_for_elements(self, elements, view, pick_point):
+        all_pts = []
+        for elem in elements:
+            all_pts.extend(self._get_element_points(elem))
+        
+        if not all_pts:
+            raise Exception("Selected elements have no valid geometry.")
+        
+        sum_x = sum(p.X for p in all_pts)
+        sum_y = sum(p.Y for p in all_pts)
+        sum_z = sum(p.Z for p in all_pts)
+        n = len(all_pts)
+        origin = XYZ(sum_x / n, sum_y / n, sum_z / n)
+
+        click_vec = pick_point - origin
+
+        if isinstance(view, ViewSection):
+            view_dir = view.ViewDirection.Normalize()
+            up_dir = view.UpDirection.Normalize()
+            right_dir = view.RightDirection.Normalize()
+
+            click_vec_screen = click_vec - view_dir.Multiply(click_vec.DotProduct(view_dir))
+            if click_vec_screen.GetLength() < 1e-6:
+                raise Exception("Pick point is too close to the center of the selection.")
+
+            dx = click_vec_screen.DotProduct(right_dir)
+            dy = click_vec_screen.DotProduct(up_dir)
+
+            y_axis = XYZ.BasisZ
+
+            if abs(dx) > abs(dy):
+                if dx > 0:
+                    z_axis = right_dir.Negate()
+                else:
+                    z_axis = right_dir
+            else:
+                z_axis = view_dir.Negate() if dy > 0 else view_dir
+
+            x_axis = y_axis.CrossProduct(z_axis).Normalize()
+            y_axis = z_axis.CrossProduct(x_axis).Normalize()
+        else:
+            click_vec = XYZ(click_vec.X, click_vec.Y, 0.0)
+            if click_vec.GetLength() < 1e-6:
+                raise Exception("Pick point is too close to the center of the selection.")
+
+            dx = click_vec.X
+            dy = click_vec.Y
+            y_axis = XYZ.BasisZ
+
+            if abs(dx) > abs(dy):
+                if dx > 0:
+                    z_axis = XYZ(-1, 0, 0)
+                else:
+                    z_axis = XYZ(1, 0, 0)
+            else:
+                if dy > 0:
+                    z_axis = XYZ(0, -1, 0)
+                else:
+                    z_axis = XYZ(0, 1, 0)
+
+            x_axis = y_axis.CrossProduct(z_axis).Normalize()
+
+        tf = DB.Transform.Identity
+        tf.Origin = origin
+        tf.BasisX = x_axis
+        tf.BasisY = y_axis
+        tf.BasisZ = z_axis
+        return tf
+
+    def _do_create_multi_section(self, doc, uidoc, active_view):
+        if not isinstance(active_view, (ViewPlan, ViewSection)):
+            raise Exception("Run this command from a floor plan or section view.")
+
+        selected_ids = uidoc.Selection.GetElementIds()
+        if not selected_ids:
+            refs = uidoc.Selection.PickObjects(
+                ObjectType.Element, 
+                "Select multiple elements to create a section around"
+            )
+            selected_ids = [r.ElementId for r in refs]
+
+        elements = [doc.GetElement(eid) for eid in selected_ids if doc.GetElement(eid)]
+        if not elements:
+            raise Exception("No valid elements selected.")
+
+        pick_point = uidoc.Selection.PickPoint(
+            ObjectSnapTypes.None, 
+            "Click relative to the group center"
+        )
+
+        section_type = self._get_section_view_type(doc)
+        if not section_type:
+            raise Exception("No Section ViewFamilyType found.")
+
+        tf = self._build_section_transform_for_elements(elements, active_view, pick_point)
+        
+        all_pts = []
+        for elem in elements:
+            all_pts.extend(self._get_element_points(elem))
+
+        local_min, local_max = self._get_local_bounds(all_pts, tf)
+
+        pad_x = 1.0
+        pad_y = 1.0
+        # Fully enclose element depth with 12" (1.0 ft) offset on the pick/marker side
+        min_z = local_min.Z - 1.0
+        max_z = local_max.Z + 1.0
+        if (max_z - min_z) < 0.25:
+            max_z = min_z + 0.25
+
+        box = DB.BoundingBoxXYZ()
+        box.Transform = tf
+        box.Min = XYZ(local_min.X - pad_x, local_min.Y - pad_y, min_z)
+        box.Max = XYZ(local_max.X + pad_x, local_max.Y + pad_y, max_z)
+
+        with Transaction(doc, "Create Section Around Selection") as t:
+            t.Start()
+            section_view = ViewSection.CreateSection(doc, section_type.Id, box)
+            section_view.DetailLevel = DB.ViewDetailLevel.Fine
+            section_view.CropBoxActive = True
+            section_view.CropBoxVisible = True
+            t.Commit()
+
+        self.pane.set_status("Section around selection created successfully.")
 
     def _choose_dialog(self, title, instruction, opt1, opt2):
         td = TaskDialog(title)
@@ -1115,7 +1233,7 @@ class FamilyViewerPane(forms.WPFPanel):
         self.pipe_accessories_btn.Click += lambda s, e: self.set_folder_path(PIPE_ACCESSORIES_FOLDER)
         self.clear_search_btn.Click += lambda s, e: setattr(self.search_tb, 'Text', '')
         self.search_tb.TextChanged += self.on_search_changed
-        
+
         self.families_lb.SelectionChanged += self.on_family_selected
         self.families_lb.PreviewMouseLeftButtonDown += self.on_families_preview_mouse_down
         self.families_lb.MouseMove += self.on_families_mouse_move
@@ -1124,67 +1242,10 @@ class FamilyViewerPane(forms.WPFPanel):
         self.set_workplane_btn.Click += self.on_set_workplane_clicked
         self.hide_workplane_btn.Click += self.on_hide_workplane_clicked
         self.create_section_btn.Click += self.on_create_section_clicked
+        self.create_multi_section_btn.Click += self.on_create_multi_section_clicked
         self.generate_images_btn.Click += self.on_generate_images_clicked
 
         self.Loaded += self.on_loaded
-        self.Unloaded += self.on_unloaded
-
-        # Theme Initialization Logic
-        try:
-            if HOST_APP.is_newer_than(2023, True):
-                HOST_APP.uiapp.ThemeChanged += self.on_theme_changed
-                self.apply_revit_theme()
-            else:
-                self.apply_light_theme()
-        except Exception:
-            self.apply_light_theme()
-
-    def apply_light_theme(self):
-        try:
-            res = self.Resources
-            res["PageBackgroundBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 245, 245, 245))
-            res["TextForegroundBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 51, 51, 51))
-            res["SubTextForegroundBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 102, 102, 102))
-            res["ControlBackgroundBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 255, 255, 255))
-            res["ButtonBackgroundBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 239, 239, 239))
-            res["BorderColorBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 208, 208, 208))
-            res["SeparatorColorBrush"] = SolidColorBrush(MediaColor.FromArgb(255, 0, 0, 0))
-        except Exception:
-            pass
-
-    def apply_revit_theme(self):
-        try:
-            current_theme = UIThemeManager.CurrentTheme
-            is_dark = (current_theme == UITheme.Dark)
-
-            bg_hex = "#FF3B4453" if is_dark else "#FFF5F5F5"
-            text_hex = "#FFDFDFDF" if is_dark else "#FF333333"
-            subtext_hex = "#FF999999" if is_dark else "#FF666666"
-            ctrl_bg_hex = "#FF222933" if is_dark else "#FFFFFFFF"
-            btn_bg_hex = "#FF222933" if is_dark else "#FFEFEFEF"
-            border_hex = "#FF363B40" if is_dark else "#FFD0D0D0"
-            sep_hex = "#FFFFFFFF" if is_dark else "#FF000000"
-
-            res = self.Resources
-            res["PageBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["TextForegroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(text_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["SubTextForegroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(subtext_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["ControlBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(ctrl_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["ButtonBackgroundBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(btn_bg_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["BorderColorBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(border_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-            res["SeparatorColorBrush"] = SolidColorBrush((MediaColor.FromArgb(*[int(sep_hex[i:i+2], 16) for i in (1, 3, 5, 7)])))
-        except Exception:
-            pass
-
-    def on_theme_changed(self, sender, args):
-        self.apply_revit_theme()
-
-    def on_unloaded(self, sender, args):
-        try:
-            if HOST_APP.is_newer_than(2023, True):
-                HOST_APP.uiapp.ThemeChanged -= self.on_theme_changed
-        except Exception:
-            pass
 
     def _read_saved_folder_path(self):
         try:
@@ -1374,6 +1435,11 @@ class FamilyViewerPane(forms.WPFPanel):
     def on_create_section_clicked(self, sender, args):
         self.set_status("Pick a straight fabrication part or line-based generic model to create a section.")
         self._handler.request_name = "create_section"
+        self._ext_event.Raise()
+
+    def on_create_multi_section_clicked(self, sender, args):
+        self.set_status("Select multiple elements and click direction for group section.")
+        self._handler.request_name = "create_multi_section"
         self._ext_event.Raise()
 
     def on_generate_images_clicked(self, sender, args):
