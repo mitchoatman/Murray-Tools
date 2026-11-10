@@ -8,6 +8,7 @@ from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, FamilyS
                                 Family, TransactionGroup, FamilyInstance
 import os
 import sys
+import json
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -32,24 +33,40 @@ pipesel = uidoc.Selection.PickObjects(ObjectType.Element,
 CustomISelectionFilter("MEP Fabrication Hangers"), "Select Fabrication Hangers to Extend")
 Hanger = [doc.GetElement(elId) for elId in pipesel]
 
+# Set up JSON File Path
 folder_name = "c:\\Temp"
-filepath = os.path.join(folder_name, 'Ribbon_ExtendHangerRod.txt')
+filepath = os.path.join(folder_name, 'Ribbon_ExtendHangerRod.json')
 
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
+
+# Default Settings
+default_settings = {
+    'elevation': '5-6',
+    'add_rod_control': False
+}
+
+# Ensure file exists with valid JSON content
 if not os.path.exists(filepath):
     with open(filepath, 'w') as f:
-        f.write('5-6')
+        json.dump(default_settings, f, indent=4)
 
-with open(filepath, 'r') as f:
-    PrevInput = f.read()
+# Read settings from JSON
+try:
+    with open(filepath, 'r') as f:
+        config_data = json.load(f)
+        PrevInput = config_data.get('elevation', '5-6')
+        PrevRodControl = config_data.get('add_rod_control', False)
+except Exception:
+    PrevInput = '5-6'
+    PrevRodControl = False
 
 if len(Hanger) > 0:
-    # Display dialog
+    # Display dialog using saved JSON parameters
     components = [
         Label('TOS Elevation from 0 *Input in this format FT-IN*'),
         TextBox('Elevation', PrevInput),
-        CheckBox('checkboxvalue', 'Add Rod Control', default=False),
+        CheckBox('checkboxvalue', 'Add Rod Control', default=PrevRodControl),
         Button('Ok')
     ]
     form = FlexForm('Modify Hanger Rod', components)
@@ -57,15 +74,20 @@ if len(Hanger) > 0:
     if not form.show():
         sys.exit()
 
-    # Convert dialog input into variable
+    # Convert dialog input into variables
     value = form.values['Elevation']
     InputFT = float(value.split("-", 1)[0])
     InputIN = float(value.split("-", 1)[1]) / 12
     valuenum = InputFT + InputIN
     RodControl = form.values['checkboxvalue']
 
+    # Update JSON config file with new UI values
+    updated_settings = {
+        'elevation': value,
+        'add_rod_control': RodControl
+    }
     with open(filepath, 'w') as f:
-        f.write(value)
+        json.dump(updated_settings, f, indent=4)
 
     ItmList1 = list()
     zLocs = []

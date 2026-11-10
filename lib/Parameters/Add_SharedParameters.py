@@ -52,13 +52,16 @@ def Shared_Params():
                 definitions = sorted(dG.Definitions, key=lambda x: x.Name)
                 for eD in definitions:
                     param_name = eD.Name
+                    
+                    # Case-insensitive check to skip MC_Content / MC_content
+                    if param_name.lower() == 'mc_content':
+                        continue
+                        
                     param_guid = str(eD.GUID)
                     newIB = app.Create.NewInstanceBinding(category_set)
                     if doc.ParameterBindings.Insert(eD, newIB, group_type):
-                        # print("Added parameter '{}' with GUID {}.".format(param_name, param_guid))
                         pass
                     else:
-                        # print("Parameter '{}' already exists with matching GUID, skipping.".format(param_name))
                         pass
     
     if RevitINT > 2024:

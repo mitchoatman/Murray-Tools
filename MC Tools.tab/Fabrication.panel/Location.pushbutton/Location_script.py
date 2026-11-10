@@ -1,5 +1,5 @@
 import clr
-import os, sys
+import os, sys, json
 import Autodesk
 from Autodesk.Revit.DB import Transaction
 from Autodesk.Revit.UI.Selection import ObjectType
@@ -18,17 +18,34 @@ Shared_Params()
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 
-folder_name = "c:\\Temp"
-filepath = os.path.join(folder_name, 'Ribbon_Location.txt')
+folder_name = r"c:\Temp"
+filepath = os.path.join(folder_name, 'Ribbon_Location.json')
 
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
-if not os.path.exists(filepath):
-    with open(filepath, 'w') as f:
-        f.write('123')
 
-with open(filepath, 'r') as f:
-    PrevInput = f.read()
+default_settings = {
+    "location": "123"
+}
+
+# Ensure JSON settings file exists
+if not os.path.exists(filepath):
+    try:
+        with open(filepath, 'w') as f:
+            json.dump(default_settings, f, indent=4)
+    except Exception:
+        pass
+
+# Read saved setting from JSON
+try:
+    with open(filepath, 'r') as f:
+        config_data = json.load(f)
+        if isinstance(config_data, dict):
+            PrevInput = str(config_data.get("location", "123"))
+        else:
+            PrevInput = "123"
+except Exception:
+    PrevInput = "123"
 
 # WPF Form (no XAML)
 class LocationForm(Window):
@@ -100,8 +117,15 @@ if value:
 
     selection = [doc.GetElement(eid) for eid in selected_ids]
 
-    with open(filepath, 'w') as f:
-        f.write(value)
+    # Save user input to JSON settings file
+    updated_settings = {
+        "location": value
+    }
+    try:
+        with open(filepath, 'w') as f:
+            json.dump(updated_settings, f, indent=4)
+    except Exception as e:
+        print("Failed to save JSON config: {}".format(e))
 
     def set_customdata_by_custid(fabpart, custid, value):
         fabpart.SetPartCustomDataText(custid, value)

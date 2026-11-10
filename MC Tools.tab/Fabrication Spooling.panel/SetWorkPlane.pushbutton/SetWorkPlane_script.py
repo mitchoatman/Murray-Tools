@@ -99,6 +99,11 @@ def get_horizontal_direction(vec):
     return horiz.Normalize()
 
 
+def is_2d_section_like_view(curview):
+    """Checks if the view uses projected elevation/section basis directions."""
+    return curview.ViewType in (ViewType.Section, ViewType.Detail)
+
+
 # -----------------------------------------------------------------------------
 # Selection
 # -----------------------------------------------------------------------------
@@ -185,7 +190,7 @@ def get_basis_for_section_view(curview):
 
 
 def get_basis_for_point_family(curview):
-    if curview.ViewType == ViewType.Section:
+    if is_2d_section_like_view(curview):
         return get_basis_for_section_view(curview)
 
     orientation = choose_two_option_dialog(
@@ -213,7 +218,7 @@ def get_basis_for_point_family(curview):
 
 
 def get_basis_for_linear_element(curview, line_dir, label):
-    if curview.ViewType == ViewType.Section:
+    if is_2d_section_like_view(curview):
         return get_basis_for_section_view(curview)
 
     if is_mostly_vertical(line_dir):
@@ -317,8 +322,8 @@ def select_element_and_create_plane():
     uidoc = __revit__.ActiveUIDocument
     curview = doc.ActiveView
 
-    if curview.ViewType not in (ViewType.ThreeD, ViewType.Section):
-        show_error("Run this tool from a 3D view or a Section view.")
+    if curview.ViewType not in (ViewType.ThreeD, ViewType.Section, ViewType.Detail):
+        show_error("Run this tool from a 3D view, Section view, or Detail Section view.")
         return
 
     try:
@@ -346,7 +351,7 @@ def select_element_and_create_plane():
         if plane_origin is None or x_vector is None or y_vector is None:
             return
 
-        if curview.ViewType == ViewType.Section:
+        if is_2d_section_like_view(curview):
             x_vector, y_vector = get_basis_for_section_view(curview)
 
         plane = Plane.CreateByOriginAndBasis(plane_origin, x_vector, y_vector)

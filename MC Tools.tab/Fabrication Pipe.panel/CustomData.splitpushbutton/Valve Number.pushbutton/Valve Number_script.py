@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+import json
 import clr
 import System
 
@@ -34,7 +35,7 @@ uidoc = __revit__.ActiveUIDocument
 
 PARAM_NAME = "FP_Valve Number"
 FOLDER_NAME = r"C:\Temp"
-FILE_PATH = os.path.join(FOLDER_NAME, "Ribbon_ValveNumber.txt")
+FILE_PATH = os.path.join(FOLDER_NAME, "Ribbon_ValveNumber.json")
 
 
 def natural_key(s):
@@ -47,20 +48,34 @@ def ensure_input_file():
         os.makedirs(FOLDER_NAME)
 
     if not os.path.exists(FILE_PATH):
-        with open(FILE_PATH, 'w') as f:
-            f.write('123')
+        config = {"valve_number": "123"}
+        try:
+            with open(FILE_PATH, 'w') as f:
+                json.dump(config, f, indent=4)
+        except Exception:
+            pass
 
 
 def read_previous_input():
     ensure_input_file()
-    with open(FILE_PATH, 'r') as f:
-        return f.read().strip()
+    try:
+        with open(FILE_PATH, 'r') as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                return str(data.get("valve_number", "123")).strip()
+            return "123"
+    except Exception:
+        return "123"
 
 
 def write_previous_input(value):
     ensure_input_file()
-    with open(FILE_PATH, 'w') as f:
-        f.write(value)
+    config = {"valve_number": value or "123"}
+    try:
+        with open(FILE_PATH, 'w') as f:
+            json.dump(config, f, indent=4)
+    except Exception:
+        pass
 
 
 def get_valve_numbers_in_active_view():

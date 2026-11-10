@@ -4,9 +4,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Create Carrier Views</title>
-<meta name="murray-topic-id" content="CarrierViews">
-<meta name="murray-content-hash" content="902f9158d7c0575b">
+<title>Deck Sleeve Schedules</title>
+<meta name="murray-topic-id" content="DeckSleeveSchedule">
+<meta name="murray-content-hash" content="ddd5c49ad2e74ca9">
 <style>
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -73,25 +73,33 @@ footer{max-width:900px;margin:48px 0 0;padding:12px 0 28px;font-size:12px;border
 </style>
 </head>
 <body>
-<header class="band"><div class="band-inner"><img class="band-logo" src="../../murray_logo.png" alt="Murray Company"><div><small><a href="../../help.html">Murray Help</a></small><h1>Create Carrier Views</h1></div></div></header>
+<header class="band"><div class="band-inner"><img class="band-logo" src="../../murray_logo.png" alt="Murray Company"><div><small><a href="../../help.html">Murray Help</a></small><h1>Deck Sleeve Schedules</h1></div></div></header>
 <div class="layout">
 <nav class="side" aria-label="Help topics">
 <input id="topic-filter" type="search" placeholder="Filter topics" aria-label="Filter topics">
 <ul id="topics-home">
 <li><a class="home-link" href="../../help.html">Home</a></li>
 </ul><ul id="topics">
+<li><a href="../BulkBOM/help.html">Bulk BOM</a></li>
 <li><a href="../ChangeRodSize/help.html">Change Rod Size</a></li>
 <li><a href="../ChromeShortcuts/help.html">Chrome Shortcuts</a></li>
 <li><a href="../ControlPoint/help.html">Control Point</a></li>
-<li><a href="../CarrierViews/help.html" aria-current="page">Create Carrier Views</a></li>
+<li><a href="../CarrierViews/help.html">Create Carrier Views</a></li>
+<li><a href="../DeckSleeveSchedule/help.html" aria-current="page">Deck Sleeve Schedules</a></li>
 <li><a href="../FabricationHangersInRevit/help.html">Fabrication Hangers in Revit</a></li>
 <li><a href="../FabricationPartBOMExcel/help.html">Fabrication Part BOM (Excel)</a></li>
 <li><a href="../FamilyNavigator/help.html">Family Navigator Pane</a></li>
+<li><a href="../FixtureCenterline/help.html">Fixture CL</a></li>
 <li><a href="../HideIsolate/help.html">Hide / Isolate Service</a></li>
+<li><a href="../ImportControlPoint/help.html">Import Control Points</a></li>
+<li><a href="../Leveler/help.html">Leveler</a></li>
 <li><a href="../MakeSchedule/help.html">Make Schedule</a></li>
+<li><a href="../ManualPoint/help.html">Manual Point</a></li>
 <li><a href="../MCPointloadDuct/help.html">MC Pointload (Duct)</a></li>
 <li><a href="../MCPointloadPipe/help.html">MC Pointload (Pipe)</a></li>
+<li><a href="../MoveControlPoint/help.html">Move Control Point</a></li>
 <li><a href="../PipeLabels/help.html">Pipe Labels</a></li>
+<li><a href="../PipeRiser/help.html">Pipe Riser</a></li>
 <li><a href="../PointLayoutMC/help.html">Point Layout (MC)</a></li>
 <li><a href="../PointLayoutUG/help.html">Point Layout (UG)</a></li>
 <li><a href="../QCPoints/help.html">QC Points</a></li>
@@ -100,135 +108,89 @@ footer{max-width:900px;margin:48px 0 0;padding:12px 0 28px;font-size:12px;border
 <li><a href="../RevitRevisions/help.html">Revit Revisions</a></li>
 <li><a href="../RoughInDrawings/help.html">Rough In Drawings</a></li>
 <li><a href="../StiffyBOMWIP/help.html">Stiffy BOM (WIP)</a></li>
+<li><a href="../TagPointNumber/help.html">Tag Point Number</a></li>
+<li><a href="../TagSleeves/help.html">Tag Sleeve Size</a></li>
 <li><a href="../TaggingRoomNames/help.html">Tagging Room Names</a></li>
 <li><a href="../FindPoint/help.html">TS Point Number Locator</a></li>
 <li><a href="../ValveNumbering/help.html">Valve Numbering</a></li>
 <li><a href="../WallTrimbleRevit/help.html">Wall Trimble Revit</a></li>
 </ul><p class="none" id="no-topics">No matching topics.</p></nav>
 <main class="content">
-<div class="page"><p><strong>Why and when do we create carrier views?</strong></p>
-<p><strong>Why</strong> - Builds a Floor Plan, an Elevation View, and a 3D Isometric View around a selected carrier and its runs, names them, and can place them on a sheet. This replaces creating each section and 3D view by hand.</p>
-<p><strong>When</strong> - As requested, when a carrier, rack, or trapeze needs views for coordination, a spool package, or a sheet.</p>
-<p><strong>DRAFT: this tool has not been tested on a live model. Try it in a test project first. Your PM or PE must check the views and sheet before anything is issued.</strong></p>
-<p>You get three views, named from the text you type:</p>
+<div class="page"><p><strong>Why and when do we create the deck sleeve schedule?</strong></p>
+<p><strong>Why</strong> - Creates the <strong>DECK SLEEVE SCHEDULE</strong> for you, with the columns, sorting, and filters already set, so you do not build the schedule by hand on every project.</p>
+<p><strong>When</strong> - As requested, after the Round Floor Sleeve families are placed and numbered, and before the schedule is placed on a sheet.</p>
+<p><strong>No window opens for this tool.</strong> Click the button and the schedule is created or updated, then opened.</p>
+<h2><strong>1. Check the sleeves:</strong></h2>
 <ul><li>
-<strong>Your name - Floor Plan</strong> (1/2" = 1'-0")
+The sleeves should be in the project before you run the tool. The schedule is built from Pipe Accessories.
 </li><li>
-<strong>Your name - Elevation View</strong> (1/2" = 1'-0")
+Each sleeve should have a value in <code>TS_Point_Number</code>. It becomes the ITEM NO column.
 </li><li>
-<strong>Your name - 3D Isometric View</strong> (1-1/2" = 1'-0")
+The tool filters the schedule to the Round Floor Sleeve family. This only works if at least one Round Floor Sleeve is already in the project.
 </li></ul>
-<figure><img src="images/img-01.png" alt=""></figure>
-<h2><strong>1. Select the elements:</strong></h2>
-<p>This method requires the least setup. Work from a plan view, because the tool uses the bottom of the plan as "front."</p>
-<p>Select the parts you want shown in the views.</p>
-<ul><li>
-Select fabrication parts and/or family instances (the carrier, the pipe runs on it, hangers, and so on).
-<ul><li>
-Other element types are ignored.
-</li></ul>
-</li><li>
-Include at least one straight pipe run if you can. The views line up to the longest straight pipe in your selection.
-</li></ul>
-<figure><img src="images/img-02.png" alt=""></figure>
 <hr>
-<h2><strong>2. Open the tool and name the views:</strong></h2>
+<h2><strong>2. Click the Deck Sleeve Schedules button:</strong></h2>
 <ul><li>
-Click the <strong>Create Carrier Views</strong> button on the Murray Ribbon.
+Click the <strong>Deck Sleeve Schedules</strong> button on the Murray Ribbon. [CONFIRM: ribbon tab and panel and button name]
 </li><li>
-A small window opens. It stays open, so you can still change your selection, use Properties, and move around in Revit.
-</li><li>
-Type the view name. Example: <code>L1-A1-WV_WTR-01</code>.
-<ul><li>
-Do not type "Floor Plan" or "Elevation View." The tool adds the view type.
-</li><li>
-These characters are not allowed: <code>\ : { } [ ] | ; &lt; &gt; ? </code> ~`
-</li><li>
-If the name is already used, the tool adds (2), (3), and so on.
+You can run it from any view.
 </li></ul>
-</li><li>
-Click <strong>Update selection info</strong> after you change your selection.
-</li></ul>
-<figure><img src="images/img-03.png" alt=""></figure>
 <hr>
-<h2><strong>3. Choose a sheet option:</strong></h2>
+<h2><strong>3. Check the schedule:</strong></h2>
+<p>The tool then does one of two things.</p>
+<p><strong>If there is no DECK SLEEVE SCHEDULE yet</strong>, it creates one and opens it:</p>
 <ul><li>
-<strong>Do not place on a sheet</strong> creates the three views only.
+<strong>Name:</strong> DECK SLEEVE SCHEDULE
 </li><li>
-<strong>Place on an existing sheet</strong> lets you pick a sheet from the list.
+<strong>Category:</strong> Pipe Accessories
 </li><li>
-<strong>Create a new sheet</strong> needs a title block, a sheet number, and a sheet name. The sheet number must not already exist.
+<strong>Columns:</strong>
+<ul><li>
+<strong>ITEM NO</strong> from <code>TS_Point_Number</code>
+</li><li>
+<strong>SIZE</strong> from <code>Diameter</code>
+</li><li>
+<strong>LENGTH</strong> from <code>Length</code>
+</li><li>
+<strong>NAME</strong> from Family
 </li></ul>
-<p>Click <strong>Create</strong>. The window hides while Revit works. Do not click in Revit until the next window appears.</p>
+</li><li>
+<strong>Sorting:</strong> by ITEM NO, ascending.
+</li><li>
+<strong>Filter (Revit 2022 and newer):</strong> it shows only the Round Floor Sleeve type, found from the first Round Floor Sleeve in the project.
+</li><li>
+<strong>Filter by Sheet (Revit 2023 and newer):</strong> turned on, so the schedule lists only the sleeves in views on the sheet where it is placed.
+</li></ul>
+<p><strong>If a DECK SLEEVE SCHEDULE already exists</strong>, it updates it and opens it:</p>
+<ul><li>
+The sorting by ITEM NO and, in Revit 2023 and newer, Filter by Sheet are set again.
+</li><li>
+Columns, headings, and the filter are not changed. The tool does not add anything that is missing.
+</li></ul>
+<p>The tool does not show a confirmation message. The schedule opens as the active view.</p>
 <hr>
-<h2><strong>4. Choose the face for the Elevation View:</strong></h2>
-<p>A <strong>Choose the face</strong> window shows four previews: <strong>Front</strong>, <strong>Back</strong>, <strong>Right end</strong>, and <strong>Left end</strong>.</p>
+<h2><strong>4. Place the schedule on a sheet:</strong></h2>
 <ul><li>
-Select the side that shows the face of the carrier and its runs.
+The tool does not place the schedule on a sheet.
 </li><li>
-Click <strong>Use this face</strong>.
+In the Project Browser, drag <strong>DECK SLEEVE SCHEDULE</strong> onto the sheet.
 </li><li>
-Click <strong>Cancel</strong> to stop. Nothing is created.
-</li><li>
-The previews are temporary and are removed. They do not change your model.
+Check the schedule on the sheet. With Filter by Sheet on, it should list only the sleeves in the views on that sheet.
 </li></ul>
-<figure><img src="images/img-04.png" alt=""></figure>
-<hr>
-<h2><strong>5. Check the result:</strong></h2>
-<ul><li>
-The window shows one line, for example: Created 3 views for L1-A1-WV_WTR-01. Elevation face: Front.
-</li><li>
-If you chose a sheet, the views are placed automatically and the sheet opens. The Floor Plan is on top of the Elevation View on the left, and the 3D Isometric View is on the right.
-</li><li>
-Click <strong>Close</strong> when you are done, or change the selection and run it again.
-</li></ul>
-<p class="missing">Missing image: images/img-05.png</p>
-<p><strong>ONE THING TO NOTE: EACH RUN CREATES A NEW SET OF THREE VIEWS.</strong></p>
-<p><strong>DELETE OLD SETS YOU NO LONGER NEED, AND CHECK EVERY VIEW AND THE SHEET BEFORE IT GOES OUT.</strong></p>
+<p><strong>ONE THING TO NOTE: IF THE SCHEDULE ALREADY EXISTS, THE TOOL DOES NOT FIX ITS COLUMNS OR FILTER.</strong></p>
+<p><strong>TO REBUILD IT FROM SCRATCH, DELETE THE OLD DECK SLEEVE SCHEDULE AND RUN THE TOOL AGAIN.</strong></p>
 <hr>
 <h2><strong>What the tool does for you:</strong></h2>
 <ul><li>
-<strong>Hides what you did not select.</strong> If your selection has a STRATUS Assembly value, other fabrication parts and model families outside that assembly are hidden in the new views. Your selected elements always stay.
+<strong>Builds the schedule.</strong> Fields, column headings, and sort order are set for you.
 </li><li>
-<strong>Hides clutter.</strong> Scope boxes, section lines, section heads, and Revit links are hidden in every new view.
+<strong>Finds the sleeve type.</strong> It looks up the Round Floor Sleeve type for the filter.
 </li><li>
-<strong>Aligns to the pipe.</strong> Views line up to the longest straight pipe in your selection, or in the same assembly if your selection has none.
+<strong>Reuses the schedule.</strong> If one exists, it re-applies the sort and the sheet filter and opens it.
 </li><li>
-<strong>Sets the details.</strong> Fine detail level, view scale, and the Title on Sheet text are set for you.
-</li></ul>
-<hr>
-<h2><strong>If something goes wrong:</strong></h2>
-<ul><li>
-<strong>"Select fabrication parts and/or family instances..."</strong> Nothing usable is selected. Select the elements, then click Create again.
-</li><li>
-<strong>"Sheet number ... already exists."</strong> Enter a different sheet number, or use an existing sheet.
-</li><li>
-<strong>"No STRATUS Assembly value was found."</strong> The views were created, but nothing was hidden by assembly. Check the STRATUS Assembly parameter on the selected elements.
-</li><li>
-<strong>"No straight run was found."</strong> The views follow the plan orientation instead of a pipe. Add a straight pipe run to the selection to align to it.
-</li><li>
-<strong>"Views are larger than the sheet area."</strong> Change the view scales or crop, then move the viewports on the sheet.
-</li><li>
-<strong>The wrong side shows in the Elevation View.</strong> Run the tool again and pick a different face.
-</li><li>
-<strong>The sheet or placement failed.</strong> The three views are still in the Project Browser. Drag them onto a sheet yourself.
-</li></ul>
-<p>[CONFIRM: Egnyte link for the training video or the template, if one exists]</p>
-<p>&lt;!-- OPEN ITEMS (remove before posting to the Help Hub)</p>
-<ol><li>
-[CONFIRM: Revit and pyRevit versions. Script is marked DRAFT, untested.]
-</li><li>
-[CONFIRM: exact Murray Ribbon tab and panel for the button.]
-</li><li>
-[CONFIRM: default scales match Murray standards.]
-</li><li>
-[CONFIRM: STRATUS Assembly parameter name matches the project parameter.]
-</li><li>
-Screenshots needed, saved in images/ with these names:
-<p>img-01.png  finished Floor Plan, Elevation View, and 3D Isometric View (or a sheet with all three) img-02.png  a carrier and runs selected in a plan view img-03.png  the Create Carrier Views window with a name typed img-04.png  the Choose the face window img-05.png  the result line and the finished sheet</p>
-</li></ol>
-<p>--&gt;</p></div>
-<footer>Last built 2026-10-27. Click any image to enlarge; press Esc to close.</footer>
+<strong>Opens it.</strong> The schedule becomes the active view.
+</li></ul></div>
+<footer>Last built 2026-11-02. </footer>
 </main>
 </div>
 <div class="lightbox" id="lb" role="dialog" aria-label="Enlarged image"><img alt=""></div>

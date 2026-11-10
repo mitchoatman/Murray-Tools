@@ -13,7 +13,7 @@ from System.Windows import Window, Thickness
 from System.Windows.Controls import Label, TextBox, CheckBox, Button, Grid, RowDefinition, ColumnDefinition, StackPanel, ScrollViewer
 from System.Windows.Media import Brushes, FontFamily
 from System.Windows import ResizeMode, HorizontalAlignment, GridLength, GridUnitType
-import os, sys, ast
+import os, sys, json
 from Autodesk.Revit.Exceptions import OperationCanceledException
 from Parameters.Get_Set_Params import set_parameter_by_name
 from Parameters.Add_SharedParameters import Shared_Params
@@ -32,7 +32,6 @@ class CustomISelectionFilter(ISelectionFilter):
         self.hanger_type = hanger_type
 
     def AllowElement(self, e):
-        # Fallback check if Category is None or Category.Name is missing
         if not e.Category:
             return False
         cat_name = e.Category.Name
@@ -55,7 +54,7 @@ class CustomISelectionFilter(ISelectionFilter):
 
 fabrication_categories = ["MEP Fabrication Hangers", "MEP Fabrication Pipework", "MEP Fabrication Ductwork"]
 
-IgnBool = [False]*28
+IgnBool = [False] * 28
 
 ignoreFields = List[FabricationPartCompareType]()
 ignoreFields.Add(FabricationPartCompareType.CutType)
@@ -94,25 +93,29 @@ Bool_List = [
     'Zone', 'ETag', 'Alt', 'Spool', 'Alias', 'PCFKey', 'CustomData', 'ButtonAlias'
 ]
 
-folder_name = "c:\\Temp"
-ignore_filepath = os.path.join(folder_name, 'Ribbon_FabRenumberOPS.txt')
+folder_name = r"c:\Temp"
+ignore_filepath = os.path.join(folder_name, 'Ribbon_FabRenumberOPS.json')
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
 
-if not os.path.exists(ignore_filepath):
-    with open(ignore_filepath, 'w') as f:
-        f.write("[]")
-
-if os.path.exists(ignore_filepath):
-    with open(ignore_filepath, 'r') as f:
+def read_ignore_fields_json(path):
+    if os.path.exists(path):
         try:
-            ignorebools = ast.literal_eval(f.read())
-            if not isinstance(ignorebools, list):
-                ignorebools = []
-        except ValueError:
-            ignorebools = []
-else:
-    ignorebools = []
+            with open(path, 'r') as f:
+                data = json.load(f)
+                return data if isinstance(data, list) else []
+        except Exception:
+            return []
+    return []
+
+def write_ignore_fields_json(path, data):
+    try:
+        with open(path, 'w') as f:
+            json.dump(data, f, indent=4)
+    except Exception as e:
+        print("Failed to save JSON options: {}".format(e))
+
+ignorebools = read_ignore_fields_json(ignore_filepath)
 
 indices = [Bool_List.index(item) for item in ignorebools if item in Bool_List]
 for index in indices:
@@ -203,24 +206,20 @@ class IgnoreFieldsForm(Window):
         for cb in self.checkboxes:
             cb.IsChecked = self.check_all_state
         self.selected_fields = [cb.Content for cb in self.checkboxes if cb.IsChecked]
-        with open(self.filepath, 'w') as f:
-            f.write(str(self.selected_fields))
+        write_ignore_fields_json(self.filepath, self.selected_fields)
 
     def checkbox_clicked(self, sender, args):
         self.selected_fields = [cb.Content for cb in self.checkboxes if cb.IsChecked]
-        with open(self.filepath, 'w') as f:
-            f.write(str(self.selected_fields))
+        write_ignore_fields_json(self.filepath, self.selected_fields)
 
     def select_clicked(self, sender, args):
         self.selected_fields = [cb.Content for cb in self.checkboxes if cb.IsChecked]
-        with open(self.filepath, 'w') as f:
-            f.write(str(self.selected_fields))
+        write_ignore_fields_json(self.filepath, self.selected_fields)
         self.DialogResult = True
         self.Close()
 
     def on_closed(self, sender, args):
-        with open(self.filepath, 'w') as f:
-            f.write(str(self.selected_fields))
+        write_ignore_fields_json(self.filepath, self.selected_fields)
 
 class RenumberForm(Window):
     def __init__(self, prefix, start_num, checkboxdef, startloc_def):
@@ -362,35 +361,13 @@ class RenumberForm(Window):
         self.values = {}
 
     def on_ignore_click(self, sender, args):
-        folder_name = "c:\\Temp"
-        filepath = os.path.join(folder_name, 'Ribbon_FabRenumberOPS.txt')
-        if not os.path.exists(folder_name):
-            os.makedirs(folder_name)
-        if os.path.exists(filepath):
-            with open(filepath, 'r') as f:
-                try:
-                    ignorebools = ast.literal_eval(f.read())
-                    if not isinstance(ignorebools, list):
-                        ignorebools = []
-                except ValueError:
-                    ignorebools = []
-        else:
-            ignorebools = []
+        ignorebools = read_ignore_fields_json(ignore_filepath)
         form = IgnoreFieldsForm(ignorebools)
         form.ShowDialog()
 
     def read_ignore_fields(self):
         global IgnBool, IgnFld
-        if os.path.exists(ignore_filepath):
-            with open(ignore_filepath, 'r') as f:
-                try:
-                    ignorebools = ast.literal_eval(f.read())
-                    if not isinstance(ignorebools, list):
-                        ignorebools = []
-                except ValueError:
-                    ignorebools = []
-        else:
-            ignorebools = []
+        ignorebools = read_ignore_fields_json(ignore_filepath)
         IgnBool = [False] * 28
         indices = [Bool_List.index(item) for item in ignorebools if item in Bool_List]
         for index in indices:
@@ -399,63 +376,67 @@ class RenumberForm(Window):
         return IgnFld
 
     def on_single_hangers_click(self, sender, args):
-        self.values = {'prefix': self.textbox_prefix.Text, 'StrtNum': self.textbox_startnum.Text, 'checkboxvalue': self.checkbox_same.IsChecked, 'SetStartcheckboxvalue': self.checkbox_startloc.IsChecked, 'category': 'MEP Fabrication Hangers', 'hanger_type': 'single', 'ignore_fields': self.read_ignore_fields()}
+        self.values = {'prefix': self.textbox_prefix.Text, 'StrtNum': self.textbox_startnum.Text, 'checkboxvalue': bool(self.checkbox_same.IsChecked), 'SetStartcheckboxvalue': bool(self.checkbox_startloc.IsChecked), 'category': 'MEP Fabrication Hangers', 'hanger_type': 'single', 'ignore_fields': self.read_ignore_fields()}
         self.DialogResult = True
         self.Close()
 
     def on_trapeze_hangers_click(self, sender, args):
-        self.values = {'prefix': self.textbox_prefix.Text, 'StrtNum': self.textbox_startnum.Text, 'checkboxvalue': self.checkbox_same.IsChecked, 'SetStartcheckboxvalue': self.checkbox_startloc.IsChecked, 'category': 'MEP Fabrication Hangers', 'hanger_type': 'trapeze', 'ignore_fields': self.read_ignore_fields()}
+        self.values = {'prefix': self.textbox_prefix.Text, 'StrtNum': self.textbox_startnum.Text, 'checkboxvalue': bool(self.checkbox_same.IsChecked), 'SetStartcheckboxvalue': bool(self.checkbox_startloc.IsChecked), 'category': 'MEP Fabrication Hangers', 'hanger_type': 'trapeze', 'ignore_fields': self.read_ignore_fields()}
         self.DialogResult = True
         self.Close()
 
     def on_pipework_click(self, sender, args):
-        self.values = {'prefix': self.textbox_prefix.Text, 'StrtNum': self.textbox_startnum.Text, 'checkboxvalue': self.checkbox_same.IsChecked, 'SetStartcheckboxvalue': self.checkbox_startloc.IsChecked, 'category': 'MEP Fabrication Pipework', 'hanger_type': None, 'ignore_fields': self.read_ignore_fields()}
+        self.values = {'prefix': self.textbox_prefix.Text, 'StrtNum': self.textbox_startnum.Text, 'checkboxvalue': bool(self.checkbox_same.IsChecked), 'SetStartcheckboxvalue': bool(self.checkbox_startloc.IsChecked), 'category': 'MEP Fabrication Pipework', 'hanger_type': None, 'ignore_fields': self.read_ignore_fields()}
         self.DialogResult = True
         self.Close()
 
     def on_ductwork_click(self, sender, args):
-        self.values = {'prefix': self.textbox_prefix.Text, 'StrtNum': self.textbox_startnum.Text, 'checkboxvalue': self.checkbox_same.IsChecked, 'SetStartcheckboxvalue': self.checkbox_startloc.IsChecked, 'category': 'MEP Fabrication Ductwork', 'hanger_type': None, 'ignore_fields': self.read_ignore_fields()}
+        self.values = {'prefix': self.textbox_prefix.Text, 'StrtNum': self.textbox_startnum.Text, 'checkboxvalue': bool(self.checkbox_same.IsChecked), 'SetStartcheckboxvalue': bool(self.checkbox_startloc.IsChecked), 'category': 'MEP Fabrication Ductwork', 'hanger_type': None, 'ignore_fields': self.read_ignore_fields()}
         self.DialogResult = True
         self.Close()
 
     def on_all_click(self, sender, args):
-        self.values = {'prefix': self.textbox_prefix.Text, 'StrtNum': self.textbox_startnum.Text, 'checkboxvalue': self.checkbox_same.IsChecked, 'SetStartcheckboxvalue': self.checkbox_startloc.IsChecked, 'category': None, 'hanger_type': None, 'ignore_fields': self.read_ignore_fields()}
+        self.values = {'prefix': self.textbox_prefix.Text, 'StrtNum': self.textbox_startnum.Text, 'checkboxvalue': bool(self.checkbox_same.IsChecked), 'SetStartcheckboxvalue': bool(self.checkbox_startloc.IsChecked), 'category': None, 'hanger_type': None, 'ignore_fields': self.read_ignore_fields()}
         self.DialogResult = True
         self.Close()
 
-folder_name = "c:\\Temp"
-filepath = os.path.join(folder_name, 'Ribbon_FabRenumber.txt')
-if not os.path.exists(folder_name):
-    os.makedirs(folder_name)
+filepath = os.path.join(folder_name, 'Ribbon_FabRenumber.json')
+
+default_renumber_config = {
+    "prefix": "pre",
+    "start_num": "01",
+    "same_num_for_identical": False,
+    "set_start_location": False
+}
 
 if not os.path.exists(filepath):
-    with open(filepath, 'w') as the_file:
-        the_file.writelines(['pre\n', '01\n', 'False\n', 'False'])
+    try:
+        with open(filepath, 'w') as f:
+            json.dump(default_renumber_config, f, indent=4)
+    except Exception:
+        pass
 
-with open(filepath, 'r') as file:
-    lines = [line.rstrip() for line in file.readlines()]
+renumber_config = dict(default_renumber_config)
+if os.path.exists(filepath):
+    try:
+        with open(filepath, 'r') as f:
+            loaded = json.load(f)
+            if isinstance(loaded, dict):
+                renumber_config.update(loaded)
+    except Exception:
+        pass
 
-if len(lines) < 4:
-    with open(filepath, 'w') as the_file:
-        the_file.writelines([
-            (lines[0] if len(lines) > 0 else 'pre') + '\n',
-            (lines[1] if len(lines) > 1 else '01') + '\n',
-            (lines[2] if len(lines) > 2 else 'False') + '\n',
-            'False'
-        ])
+prefix_val = str(renumber_config.get("prefix", "pre"))
+start_num_val = str(renumber_config.get("start_num", "01"))
+checkboxdef = bool(renumber_config.get("same_num_for_identical", False))
+startloc_def = bool(renumber_config.get("set_start_location", False))
 
-with open(filepath, 'r') as file:
-    lines = [line.rstrip() for line in file.readlines()]
-
-checkboxdef = lines[2] == 'True'
-startloc_def = lines[3] == 'True'
-
-form = RenumberForm(lines[0], lines[1], checkboxdef, startloc_def)
+form = RenumberForm(prefix_val, start_num_val, checkboxdef, startloc_def)
 if form.ShowDialog() != True:
     sys.exit()
 
-valuepre = form.values.get('prefix', lines[0])
-value = form.values.get('StrtNum', lines[1])
+valuepre = form.values.get('prefix', prefix_val)
+value = form.values.get('StrtNum', start_num_val)
 snfip = form.values.get('checkboxvalue', checkboxdef)
 sslfn = form.values.get('SetStartcheckboxvalue', startloc_def)
 category = form.values.get('category', None)
@@ -471,12 +452,9 @@ except OperationCanceledException:
 Fhangers1 = [doc.GetElement(elId) for elId in pipesel if doc.GetElement(elId) is not None]
 Fhangers2 = Fhangers1[:]
 
-# PROMPT 1: Check if selection returned valid elements
 if not Fhangers1:
     TaskDialog.Show("Selection Error", "No valid fabrication parts found in selection. Ensure you are selecting elements matching the active filter category.")
     sys.exit()
-
-# TaskDialog.Show("Debug Selection", "Successfully captured {} elements for renumbering.".format(len(Fhangers1)))
 
 def distance_between_parts(part1, part2):
     return part1.Origin.DistanceTo(part2.Origin)
@@ -586,7 +564,6 @@ try:
                     set_parameter_by_name(element, 'STRATUS Item Number', num_to_assign)
 
     t.Commit()
-    # TaskDialog.Show("Success", "Successfully renumbered elements.")
 
 except Exception as main_ex:
     if 't' in locals() and t.HasStarted() and not t.HasEnded():
@@ -594,10 +571,16 @@ except Exception as main_ex:
     TaskDialog.Show("Critical Script Error", str(main_ex))
     sys.exit()
 
-with open(filepath, 'w') as the_file:
-    the_file.writelines([
-        valuepre + '\n',
-        str(start_number).zfill(Fill_length) + '\n',
-        str(snfip) + '\n',
-        str(sslfn)
-    ])
+# Save final renumber state back to JSON
+updated_renumber_config = {
+    "prefix": valuepre,
+    "start_num": str(start_number).zfill(Fill_length),
+    "same_num_for_identical": bool(snfip),
+    "set_start_location": bool(sslfn)
+}
+
+try:
+    with open(filepath, 'w') as f:
+        json.dump(updated_renumber_config, f, indent=4)
+except Exception as e:
+    print("Failed to save JSON configuration: {}".format(e))

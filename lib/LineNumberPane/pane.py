@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import re
+import json
 import clr
 import System
 
@@ -124,7 +125,7 @@ PANE_XAML = """
 PARAM_NAME = "FP_Line Number"
 FILTER_PREFIX = "LINE - "
 FOLDER_NAME = r"C:\Temp"
-FILE_PATH = os.path.join(FOLDER_NAME, "Ribbon_LineNumber.txt")
+FILE_PATH = os.path.join(FOLDER_NAME, "Ribbon_LineNumber.json")
 
 state = UI.DockablePaneState()
 state.DockPosition = UI.DockPosition.Right
@@ -140,23 +141,34 @@ def ensure_input_file():
         os.makedirs(FOLDER_NAME)
 
     if not os.path.exists(FILE_PATH):
-        with open(FILE_PATH, "w") as f:
-            f.write("123")
+        config = {"last_line_number": "123"}
+        try:
+            with open(FILE_PATH, "w") as f:
+                json.dump(config, f, indent=4)
+        except Exception:
+            pass
 
 
 def read_previous_input():
     ensure_input_file()
     try:
         with open(FILE_PATH, "r") as f:
-            return f.read().strip()
+            data = json.load(f)
+            if isinstance(data, dict):
+                return str(data.get("last_line_number", "123")).strip()
+            return "123"
     except Exception:
-        return ""
+        return "123"
 
 
 def write_previous_input(value):
     ensure_input_file()
-    with open(FILE_PATH, "w") as f:
-        f.write(value or "")
+    config = {"last_line_number": value or ""}
+    try:
+        with open(FILE_PATH, "w") as f:
+            json.dump(config, f, indent=4)
+    except Exception:
+        pass
 
 
 def get_line_numbers_in_project(doc):

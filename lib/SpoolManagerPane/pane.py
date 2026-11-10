@@ -225,7 +225,7 @@ PANE_XAML = """
         <ListBox x:Name="spool_list_box"
                  Grid.Row="7"
                  SelectionMode="Extended"
-                 DisplayMemberPath="spool_name"
+                 DisplayMemberPath="display_name"
                  MinHeight="200"
                  BorderBrush="{DynamicResource BorderColorBrush}"
                  BorderThickness="1"
@@ -353,6 +353,10 @@ class SpoolDisplayItem(System.Object):
     @property
     def spool_name(self):
         return self._spool_name
+
+    @property
+    def display_name(self):
+        return self._spool_name if self._spool_name else "(no assembly)"
 
 
 def natural_key(value):
@@ -604,22 +608,30 @@ def get_spools_in_view(doc, curview):
         collector = FilteredElementCollector(doc, curview.Id).OfCategory(cat).OfClass(FabricationPart)
         for elem in collector:
             try:
+                spool_val = None
                 param = elem.LookupParameter(PARAM_NAME)
                 if param and param.HasValue:
-                    spool_val = param.AsString()
-                    if spool_val and spool_val.strip():
-                        spool_val = spool_val.strip()
-                        
-                        pkg_param = elem.LookupParameter(PACKAGE_PARAM_NAME)
+                    s_str = param.AsString()
+                    if s_str and s_str.strip():
+                        spool_val = s_str.strip()
+
+                pkg_val = None
+                pkg_param = elem.LookupParameter(PACKAGE_PARAM_NAME)
+                if pkg_param and pkg_param.HasValue:
+                    p_str = pkg_param.AsString()
+                    if p_str and p_str.strip():
+                        pkg_val = p_str.strip()
+
+                if spool_val:
+                    if not pkg_val:
                         pkg_val = "Unassigned Package"
-                        if pkg_param and pkg_param.HasValue:
-                            p_str = pkg_param.AsString()
-                            if p_str and p_str.strip():
-                                pkg_val = p_str.strip()
-                                
-                        if pkg_val not in package_dict:
-                            package_dict[pkg_val] = set()
-                        package_dict[pkg_val].add(spool_val)
+                    if pkg_val not in package_dict:
+                        package_dict[pkg_val] = set()
+                    package_dict[pkg_val].add(spool_val)
+                elif pkg_val:
+                    # package assigned but no assembly: keep the package visible
+                    if pkg_val not in package_dict:
+                        package_dict[pkg_val] = set()
             except Exception:
                 pass
 
@@ -1398,14 +1410,18 @@ class SpoolManagerPane(forms.WPFPanel):
     def on_list_item_selected(self, sender, args):
         selected = self.spool_list_box.SelectedItem
         if selected and isinstance(selected, SpoolDisplayItem):
-            self.spool_input_tb.Text = selected.spool_name
+            if selected.spool_name:
+                self.spool_input_tb.Text = selected.spool_name
             if selected.package_name and selected.package_name != "Unassigned Package":
                 self.package_input_tb.Text = selected.package_name
 
     def on_list_double_clicked(self, sender, args):
         selected = self.spool_list_box.SelectedItem
         if selected and isinstance(selected, SpoolDisplayItem):
-            self.request_show(selected.spool_name)
+            if selected.spool_name:
+                self.request_show(selected.spool_name)
+            else:
+                self.request_show_package(selected.package_name)
         else:
             dc = getattr(args.OriginalSource, "DataContext", None)
             if dc and hasattr(dc, "Name"):
@@ -1425,7 +1441,7 @@ class SpoolManagerPane(forms.WPFPanel):
     def on_rename_clicked(self, sender, args):
         selected_spools = []
         for item in self.spool_list_box.SelectedItems:
-            if isinstance(item, SpoolDisplayItem):
+            if isinstance(item, SpoolDisplayItem) and item.spool_name:
                 selected_spools.append(item.spool_name)
         self.request_rename(self.find_tb.Text, self.replace_tb.Text, selected_spools)
 
@@ -1526,6 +1542,10 @@ class SpoolManagerPane(forms.WPFPanel):
 
         items_list = []
         for package_name, spools in sorted(self._all_packages_map.items(), key=lambda x: natural_key(x[0])):
+            if not spools:
+                if not search_text or search_text in package_name.lower():
+                    items_list.append(SpoolDisplayItem(package_name, ""))
+                continue
             for spool in spools:
                 if not search_text or search_text in spool.lower() or search_text in package_name.lower():
                     items_list.append(SpoolDisplayItem(package_name, spool))

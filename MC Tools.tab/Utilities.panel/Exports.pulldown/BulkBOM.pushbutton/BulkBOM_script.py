@@ -1,6 +1,9 @@
 #! python3
 # -*- coding: utf-8 -*-
-
+__title__ = 'Bulk\nBOM'
+__author__ = 'Murray Company'
+__doc__ = ('Opens the Bulk BOM export window for the active model: Bulk Fab Copper, Non Copper, Valve and '
+           'Hanger MR forms, written to a folder you choose. The window stays open while you work in Revit.')
 
 import os
 import sys
@@ -16,7 +19,7 @@ import System
 from System import Uri, Environment
 from System.Windows.Forms import (Form, DockStyle, FormStartPosition, FolderBrowserDialog, DialogResult,
                                   MessageBox, Application, Screen, Timer, NativeWindow)
-from System.Drawing import Size
+from System.Drawing import Size, Icon
 
 from System.Diagnostics import Process
 from Autodesk.Revit.UI import IExternalEventHandler, ExternalEvent
@@ -93,6 +96,15 @@ def make_environment(user_dir, timeout=30):
     return task.Result
 
 
+def revit_icon():
+    """Revit's own icon (from Revit.exe), so the window's title bar and taskbar button match the other Revit dialogs. None when it
+    cannot be read; the window then keeps the default form icon."""
+    try:
+        return Icon.ExtractAssociatedIcon(Process.GetCurrentProcess().MainModule.FileName)
+    except Exception:
+        return None
+
+
 KEEP = '_murray_bulk_bom_window'      # one window at a time; also keeps every object alive after the command returns
 # Reading the parts comes first and everything waits for it (exports need it, the 3D view is only extra context), so while it
 # runs Revit gives it nearly all of its time. Once the model is read the 3D view is a background task and takes much less,
@@ -161,6 +173,9 @@ def main():
 
     form = Form()
     form.Text = 'Murray Company | Bulk BOM Export'
+    icon = revit_icon()
+    if icon is not None:
+        form.Icon = icon
     form.StartPosition = FormStartPosition.CenterScreen
     wa = Screen.PrimaryScreen.WorkingArea
     form.Size = Size(min(1100, wa.Width), min(1100, wa.Height))      # 1100 x 1100, or the screen if it is smaller
@@ -276,6 +291,11 @@ def main():
                 state['ext'].Dispose()
             if state['owner'] is not None:
                 state['owner'].ReleaseHandle()
+        except Exception:
+            pass
+        try:
+            if icon is not None:
+                icon.Dispose()
         except Exception:
             pass
         sys.modules.pop(KEEP, None)

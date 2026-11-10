@@ -6,6 +6,7 @@ from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 from Autodesk.Revit.UI import TaskDialog
 import math
 import os
+import re
 
 # Import .NET namespaces for native Windows Balloon Notification and path handling
 import clr
@@ -177,6 +178,49 @@ def get_service_name(elem):
     return "UNASSIGNED"
 
 
+# ------------------------------------------------------------------------------
+# STRICT SERVICE MATCHING (same rules as the config script: ServiceId first,
+# then exact normalized name. No substring or fuzzy matching.)
+# ------------------------------------------------------------------------------
+def normalize_service_name(name):
+    if not name:
+        return ""
+    return re.sub(r"\s+", " ", name).strip().lower()
+
+
+def try_get_int_id(value):
+    try:
+        return value.IntegerValue
+    except:
+        try:
+            return int(value)
+        except:
+            return None
+
+
+def get_element_service_id(elem):
+    try:
+        if hasattr(elem, "ServiceId"):
+            sid = try_get_int_id(elem.ServiceId)
+            if sid is not None and sid >= 0:
+                return sid
+    except:
+        pass
+    return None
+
+
+def get_loaded_service_id(svc):
+    for attr_name in ["ServiceId", "Id"]:
+        try:
+            if hasattr(svc, attr_name):
+                sid = try_get_int_id(getattr(svc, attr_name))
+                if sid is not None and sid >= 0:
+                    return sid
+        except:
+            pass
+    return None
+
+
 def get_pipe_size(elem):
     try:
         conns = list(elem.ConnectorManager.Connectors)
@@ -208,23 +252,15 @@ def are_all_settings_none(settings):
 
 
 def get_rule_for_element(elem, settings):
-    svc_name = get_service_name(elem).strip().lower()
+    svc_key = normalize_service_name(get_service_name(elem))
     size_inches = get_pipe_size(elem)
-    
-    rules = []
-    # 1. Exact match
+
+    # Strict: exact normalized service name only. An unconfigured service is skipped.
+    rules = None
     for k, v in settings.items():
-        if k.strip().lower() == svc_name:
+        if normalize_service_name(k) == svc_key:
             rules = v
             break
-            
-    # 2. Substring/fuzzy match if exact match fails
-    if not rules:
-        for k, v in settings.items():
-            k_clean = k.strip().lower()
-            if k_clean in svc_name or svc_name in k_clean:
-                rules = v
-                break
 
     if not rules:
         return "--- NONE ---", 10.0, 1.0, True
@@ -251,22 +287,23 @@ def get_hanger_button(doc, elem, hanger_name):
     if is_disabled_hanger(hanger_name): return None
     try:
         config = FabricationConfiguration.GetFabricationConfiguration(doc)
-        svc_name = get_service_name(elem).strip().lower()
+        if not config: return None
+
+        target_name = normalize_service_name(get_service_name(elem))
+        elem_sid = get_element_service_id(elem)
         target_hanger = hanger_name.strip().lower()
-        
+
         for svc in config.GetAllLoadedServices():
-            if svc.Name:
-                s_name = svc.Name.strip().lower()
-                if s_name == svc_name or svc_name in s_name or s_name in svc_name:
-                    grp_count = svc.PaletteCount if RevitINT > 2022 else svc.GroupCount
-                    for gi in range(grp_count):
-                        for bi in range(svc.GetButtonCount(gi)):
-                            bt = svc.GetButton(gi, bi)
-                            if bt and bt.IsAHanger and bt.Name:
-                                if bt.Name.strip().lower() == target_hanger:
-                                    return bt
-                                    
-        for svc in config.GetAllLoadedServices():
+            # Same match logic as the config script
+            loaded_id = get_loaded_service_id(svc)
+            if elem_sid is not None and loaded_id is not None:
+                is_match = (loaded_id == elem_sid)
+            else:
+                is_match = (normalize_service_name(svc.Name) == target_name)
+
+            if not is_match:
+                continue
+
             grp_count = svc.PaletteCount if RevitINT > 2022 else svc.GroupCount
             for gi in range(grp_count):
                 for bi in range(svc.GetButtonCount(gi)):
@@ -274,6 +311,7 @@ def get_hanger_button(doc, elem, hanger_name):
                     if bt and bt.IsAHanger and bt.Name:
                         if bt.Name.strip().lower() == target_hanger:
                             return bt
+            break
     except: pass
     return None
 

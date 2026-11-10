@@ -1,2 +1,17 @@
-title: Murray Hub
-tooltip: Opens the Murray Hub window. Revit stays usable while it is open.
+layout:
+  - HangerAccessory
+  - PipeAccessory
+  - FileExporter
+  - RemoveParameters
+  - ImportExcelToDetail
+  - changematerial
+  - changespec
+  - changeconnector
+
+
+collapsed: true
+
+# background:
+  # title: '#ffe716'
+  # panel: '#ffe716'
+  # slideout: '#ffe716'

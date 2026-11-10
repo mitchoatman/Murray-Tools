@@ -4,9 +4,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Stiffy BOM (WIP)</title>
-<meta name="murray-topic-id" content="StiffyBOMWIP">
-<meta name="murray-content-hash" content="fcfe8d004e3947e8">
+<title>Tag Point Number</title>
+<meta name="murray-topic-id" content="TagPointNumber">
+<meta name="murray-content-hash" content="fc574779a5c34ad5">
 <style>
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -73,56 +73,137 @@ footer{max-width:900px;margin:48px 0 0;padding:12px 0 28px;font-size:12px;border
 </style>
 </head>
 <body>
-<header class="band"><div class="band-inner"><img class="band-logo" src="../../murray_logo.png" alt="Murray Company"><div><small><a href="../../help.html">Murray Help</a></small><h1>Stiffy BOM (WIP)</h1></div></div></header>
+<header class="band"><div class="band-inner"><img class="band-logo" src="../../murray_logo.png" alt="Murray Company"><div><small><a href="../../help.html">Murray Help</a></small><h1>Tag Point Number</h1></div></div></header>
 <div class="layout">
 <nav class="side" aria-label="Help topics">
 <input id="topic-filter" type="search" placeholder="Filter topics" aria-label="Filter topics">
 <ul id="topics-home">
 <li><a class="home-link" href="../../help.html">Home</a></li>
 </ul><ul id="topics">
+<li><a href="../BulkBOM/help.html">Bulk BOM</a></li>
+<li><a href="../ChangeRodSize/help.html">Change Rod Size</a></li>
 <li><a href="../ChromeShortcuts/help.html">Chrome Shortcuts</a></li>
+<li><a href="../ControlPoint/help.html">Control Point</a></li>
+<li><a href="../CarrierViews/help.html">Create Carrier Views</a></li>
+<li><a href="../DeckSleeveSchedule/help.html">Deck Sleeve Schedules</a></li>
 <li><a href="../FabricationHangersInRevit/help.html">Fabrication Hangers in Revit</a></li>
 <li><a href="../FabricationPartBOMExcel/help.html">Fabrication Part BOM (Excel)</a></li>
 <li><a href="../FamilyNavigator/help.html">Family Navigator Pane</a></li>
+<li><a href="../FixtureCenterline/help.html">Fixture CL</a></li>
+<li><a href="../HideIsolate/help.html">Hide / Isolate Service</a></li>
+<li><a href="../ImportControlPoint/help.html">Import Control Points</a></li>
+<li><a href="../Leveler/help.html">Leveler</a></li>
 <li><a href="../MakeSchedule/help.html">Make Schedule</a></li>
+<li><a href="../ManualPoint/help.html">Manual Point</a></li>
 <li><a href="../MCPointloadDuct/help.html">MC Pointload (Duct)</a></li>
 <li><a href="../MCPointloadPipe/help.html">MC Pointload (Pipe)</a></li>
+<li><a href="../MoveControlPoint/help.html">Move Control Point</a></li>
 <li><a href="../PipeLabels/help.html">Pipe Labels</a></li>
+<li><a href="../PipeRiser/help.html">Pipe Riser</a></li>
 <li><a href="../PointLayoutMC/help.html">Point Layout (MC)</a></li>
 <li><a href="../PointLayoutUG/help.html">Point Layout (UG)</a></li>
+<li><a href="../QCPoints/help.html">QC Points</a></li>
+<li><a href="../RenameSheetsViews/help.html">Rename Sheets and Views</a></li>
 <li><a href="../RevitFamilyLibraryAndCreatingFamiliesFromImports/help.html">Revit Family Library and Creating Families (From Imports)</a></li>
 <li><a href="../RevitRevisions/help.html">Revit Revisions</a></li>
 <li><a href="../RoughInDrawings/help.html">Rough In Drawings</a></li>
-<li><a href="../StiffyBOMWIP/help.html" aria-current="page">Stiffy BOM (WIP)</a></li>
+<li><a href="../StiffyBOMWIP/help.html">Stiffy BOM (WIP)</a></li>
+<li><a href="../TagPointNumber/help.html" aria-current="page">Tag Point Number</a></li>
+<li><a href="../TagSleeves/help.html">Tag Sleeve Size</a></li>
 <li><a href="../TaggingRoomNames/help.html">Tagging Room Names</a></li>
+<li><a href="../FindPoint/help.html">TS Point Number Locator</a></li>
 <li><a href="../ValveNumbering/help.html">Valve Numbering</a></li>
 <li><a href="../WallTrimbleRevit/help.html">Wall Trimble Revit</a></li>
 </ul><p class="none" id="no-topics">No matching topics.</p></nav>
 <main class="content">
-<div class="page"><p>Level-SR or S###<br>SR=Stiffy Rack (for the 196)<br>S=Stiffy (for the 109)</p>
-<p>For Fig 109<br>Create schedule and name it 'STIFFY FIG 109 BUILDING (if applicable) LEVEL'<br>For example, STIFFY FIG 109 RES L1<br>Schedule to include:<br>Family<br>Count<br>Level<br>DIM A<br>DIM B<br>DIM C<br>DIM D<br>Mark</p>
-<figure><img src="images/img-01.png" alt=""></figure>
-<figure><img src="images/img-02.png" alt=""></figure>
-<p>Filter</p>
-<figure><img src="images/img-03.png" alt=""></figure>
-<p>Sorting and Grouping</p>
-<figure><img src="images/img-04.png" alt=""></figure>
-<p>Naming convention for Mark shall be:<br>Building Reference (if applicable)-Level-S####<br>S is for Stiffy then a (3) digit number starting with 001 to allow for 999 items. If more are needed then a (4) digit number can be used<br>For example, OFF-L6-S001</p>
-<p>Fig 109 will need a separate rod schedule as well<br>Create schedule and name it 'STIFFY FIG 109 ROD BUILDING (if applicable) LEVEL'<br>For example, STIFFY FIG 109 ROD RES L1<br>Schedule to include:<br>Family<br>Count<br>Reference Level<br>Size<br>Length<br>Mark<br>FP_Rod Length<br>Total Rod Length</p>
-<figure><img src="images/img-05.png" alt=""></figure>
-<figure><img src="images/img-06.png" alt=""></figure>
-<p>Filter</p>
-<figure><img src="images/img-07.png" alt=""></figure>
-<p>Sorting and Grouping</p>
-<figure><img src="images/img-08.png" alt=""></figure>
-<p>Naming convention for Mark shall be:<br>Building Reference (if applicable)-Level-R####<br>R is for rod then a (3) digit number starting with 001 to allow for 999 items. If more are needed then a (4) digit number can be used<br>For example, OFF-L6-R001</p>
-<p>For FP_Rod Length you will need to change the 'Heading' to 'Insert Take-Off' and enter the engagement of the rod to the insert you are using. Note that this can also be a negative number if there is rod length that needs to be removed</p>
-<p>In order to create the 'Total Rod Length' you must got to 'Fields' and select 'fx' which is the calculated value. In this window fill out the table as seen below:</p>
-<figure><img src="images/img-09.png" alt=""></figure>
-<p>Hint: For the 'Formula' pick the (3) dots and select 'Length' then space, plus sign, then space, pick the (3) dots again and select 'FP_Rod Length'</p>
-<p>Hide the 'Length' and the 'FP_Rod Length' in 'Formatting'</p>
-<figure><img src="images/img-10.png" alt=""></figure></div>
-<footer>Last built 2026-10-16. Click any image to enlarge; press Esc to close.</footer>
+<div class="page"><p><strong>Why and when do we tag point numbers?</strong></p>
+<p><strong>Why</strong> - Adds a tag showing the <code>TS_Point_Number</code> value to the points and fixtures in the active view, so the point numbers show on the drawing without tagging each one by hand. The tool also spaces the tags so they do not sit on top of each other.</p>
+<p><strong>When</strong> - As requested, after the points have point numbers and before the view is checked or placed on a sheet.</p>
+<p><strong>The tool does not work in a 3D view.</strong> If you try it there, a message says to run it from a 2D view (plan, section, or elevation).</p>
+<h2><strong>1. Open the view:</strong></h2>
+<ul><li>
+Open the 2D view you want to tag, for example a plan view.
+</li><li>
+The tool looks only at what is visible in the active view.
+</li><li>
+It looks at these categories: Pipe Accessories, Plumbing Fixtures, Structural Stiffeners, Generic Models, and Duct Accessories.
+</li><li>
+An element is included only if its <code>TS_Point_Number</code> parameter has a value. Nested family parts are not included, only the parent family.
+</li></ul>
+<hr>
+<h2><strong>2. Click the Tag Point Number button:</strong></h2>
+<ul><li>
+Click the <strong>Tag Point Number</strong> button on the Murray Ribbon. [CONFIRM: ribbon tab and panel and button name]
+</li><li>
+A <strong>Select TS Point Numbers to Tag</strong> window opens. It lists every point number found in the view.
+</li><li>
+If no element in the view has a <code>TS_Point_Number</code> value, a message says none were found and the tool stops.
+</li></ul>
+<hr>
+<h2><strong>3. Choose what to tag:</strong></h2>
+<p>Use one of these two ways.</p>
+<p><strong>A. Pick point numbers from the list:</strong></p>
+<ul><li>
+To narrow the list, type in the <strong>Search Point Number</strong> box. The list shows only numbers that contain what you typed.
+</li><li>
+In the list, select the numbers you want. Hold <strong>Ctrl</strong> or <strong>Shift</strong> to select more than one.
+</li><li>
+Click <strong>Select All</strong> to select every number in the list.
+</li><li>
+Tick or clear <strong>Include Leader</strong>. It is ticked by default.
+</li><li>
+Click <strong>Tag Selected</strong>.
+</li><li>
+Every element in the view with a selected point number is tagged.
+</li><li>
+If you click Tag Selected with nothing selected, nothing happens.
+</li></ul>
+<p><strong>B. Fence: pick elements in the view:</strong></p>
+<ul><li>
+Tick or clear <strong>Include Leader</strong>.
+</li><li>
+Click <strong>Fence</strong>. The window closes.
+</li><li>
+If you already had elements selected in Revit, the tool uses them and does not ask you to pick.
+</li><li>
+Otherwise, select the elements in the view, then click <strong>Finish</strong>. Use a window or click each one.
+</li><li>
+Only elements that are in the view and have a <code>TS_Point_Number</code> value are tagged. Everything else you select is ignored.
+</li><li>
+Press <strong>Esc</strong> to cancel.
+</li></ul>
+<p>Click <strong>Cancel</strong> in the window to close it without tagging.</p>
+<hr>
+<h2><strong>4. Check the result:</strong></h2>
+<ul><li>
+If the tag family is not in the project, the tool loads it for you.
+</li><li>
+Each element gets a horizontal tag showing its point number.
+</li><li>
+The tag starts at the element and is then moved to a nearby open spot so it does not overlap other tags. If it cannot find an open spot, it stays at the original position.
+</li><li>
+A Windows notification near the system clock says "Tagging Complete" and shows how many elements were tagged.
+</li><li>
+All the tags go in as a single step, so one Undo removes them all.
+</li><li>
+Move or adjust tags by hand if any still overlap other items.
+</li></ul>
+<p><strong>ONE THING TO NOTE: ELEMENTS THAT ALREADY HAVE A TAG IN THE VIEW ARE SKIPPED, SO RUNNING THE TOOL AGAIN DOES NOT ADD DUPLICATE TAGS.</strong></p>
+<p><strong>A COUNT OF 0 MEANS EVERYTHING YOU CHOSE WAS ALREADY TAGGED.</strong></p>
+<hr>
+<h2><strong>What the tool does for you:</strong></h2>
+<ul><li>
+<strong>Finds the points.</strong> It collects the elements in the view with a point number and lists the numbers in natural order (1, 2, 10, not 1, 10, 2).
+</li><li>
+<strong>Loads the tag family.</strong> The Multi Category Tag -TS_Point_Number family is loaded if it is missing.
+</li><li>
+<strong>Skips tagged elements.</strong> No duplicate tags.
+</li><li>
+<strong>Spaces the tags.</strong> It tries nearby spots above, below, and to the sides to avoid overlaps. The overlap check is an estimate based on the tag text length.
+</li><li>
+<strong>Tags in one step.</strong> One Undo removes everything.
+</li></ul></div>
+<footer>Last built 2026-11-02. </footer>
 </main>
 </div>
 <div class="lightbox" id="lb" role="dialog" aria-label="Enlarged image"><img alt=""></div>

@@ -47,6 +47,10 @@
   #lower { border-top:2px solid var(--ink); padding:10px 16px; overflow:auto; max-height:32%; min-height:60px; }
   h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; margin:18px 0 6px; padding-top:8px; border-top:2px solid var(--ink); }
   h2:first-child { margin-top:0; border-top:0; padding-top:0; }
+  /* Dividers like the ones above Exports and Output. The Levels and Worksets headings are first-child of their own boxes, so the rule
+     above would strip their line; these restore it. The Job name label gets one too, closing off the Model block. */
+  #levelsBox h2, #worksetsBox h2 { margin-top:18px; border-top:2px solid var(--ink); padding-top:8px; }
+  label[for=jobName] { margin-top:14px; border-top:2px solid var(--ink); padding-top:10px; }
   label { display:block; margin:4px 0; }
   label.field { font-weight:bold; margin-top:8px; }
   input[type=text] { width:100%; padding:6px; border:1px solid var(--ink); font-family:inherit; font-size:14px; color:var(--ink); background:var(--paper); }
@@ -97,8 +101,7 @@
     <div id="levelsBox" hidden>
       <h2>Levels</h2>
       <div id="levelList" class="list"></div>
-      <div class="row"><button type="button" id="allLvl">All</button><button type="button" id="noneLvl">None</button></div>
-      <p class="hint">No level ticked exports every level.</p>
+      <p class="hint">No level ticked exports ALL levels.</p>
     </div>
 
     <div id="worksetsBox">
@@ -432,8 +435,6 @@
 
   $('#allExp').onclick = function () { setAll('exp', true); };
   $('#noneExp').onclick = function () { setAll('exp', false); };
-  $('#allLvl').onclick = function () { setAll('lvl', true); };
-  $('#noneLvl').onclick = function () { setAll('lvl', false); };
   $('#allWs').onclick = function () { setAll('ws', true); };
   $('#noneWs').onclick = function () { setAll('ws', false); };
   function sceneRequest() {

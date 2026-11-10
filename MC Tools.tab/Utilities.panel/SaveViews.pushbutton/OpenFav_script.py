@@ -3,6 +3,7 @@ from Autodesk.Revit.UI import TaskDialog
 import System
 import os
 import sys
+import json
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -38,11 +39,20 @@ if len(open_views) > 10:
 
 view_list = [get_id_value(view.Id) for view in open_views]
 
+if not os.path.exists(folder_name):
+    os.makedirs(folder_name)
+
 project_name = file_name.replace(" ", "_")
-filepath = os.path.join(folder_name, "Ribbon_OpenViews_{}.txt".format(project_name))
+filepath = os.path.join(folder_name, "Ribbon_OpenViews_{}.json".format(project_name))
+
+# Structure payload for JSON
+data = {
+    "project_name": file_name,
+    "view_count": len(view_list),
+    "view_ids": view_list
+}
 
 with open(filepath, 'w') as the_file:
-    the_file.write(str(file_name) + '\n')
-    the_file.write(str(view_list) + '\n')
+    json.dump(data, the_file, indent=4)
 
 TaskDialog.Show("Status", "[{}] views have been saved.".format(len(view_list)))

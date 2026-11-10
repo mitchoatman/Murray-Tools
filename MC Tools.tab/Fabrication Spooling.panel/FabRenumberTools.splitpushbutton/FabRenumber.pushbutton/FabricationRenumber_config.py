@@ -4,7 +4,7 @@ from Autodesk.Revit.DB import Transaction, ElementId, OverrideGraphicSettings
 from Autodesk.Revit.DB.Fabrication import FabricationPartCompareType
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 from Autodesk.Revit.Exceptions import OperationCanceledException
-import os, sys, ast
+import os, sys, json
 import clr
 
 clr.AddReference('System.Windows.Forms')
@@ -103,20 +103,20 @@ Bool_List = [
 ]
 
 folder_name = "c:\\Temp"
-ignore_filepath = os.path.join(folder_name, 'Ribbon_FabRenumberOPS.txt')
+ignore_filepath = os.path.join(folder_name, 'Ribbon_FabRenumberOPS.json')
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
 
+# Read ignored fields from JSON
+ignorebools = []
 if os.path.exists(ignore_filepath):
-    with open(ignore_filepath, 'r') as f:
-        try:
-            ignorebools = ast.literal_eval(f.read())
-            if not isinstance(ignorebools, list):
-                ignorebools = []
-        except:
-            ignorebools = []
-else:
-    ignorebools = []
+    try:
+        with open(ignore_filepath, 'r') as f:
+            data = json.load(f)
+            if isinstance(data, list):
+                ignorebools = data
+    except Exception:
+        ignorebools = []
 
 indices = [Bool_List.index(item) for item in ignorebools if item in Bool_List]
 for index in indices:
@@ -129,21 +129,20 @@ def show_ignore_fields_dialog():
     from pyrevit import forms
 
     folder_name = "c:\\Temp"
-    filepath = os.path.join(folder_name, 'Ribbon_FabRenumberOPS.txt')
+    filepath = os.path.join(folder_name, 'Ribbon_FabRenumberOPS.json')
 
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
 
+    ignorebools = []
     if os.path.exists(filepath):
-        with open(filepath, 'r') as f:
-            try:
-                ignorebools = ast.literal_eval(f.read())
-                if not isinstance(ignorebools, list):
-                    ignorebools = []
-            except:
-                ignorebools = []
-    else:
-        ignorebools = []
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    ignorebools = data
+        except Exception:
+            ignorebools = []
 
     ops = [forms.TemplateListItem(item, checked=(item in ignorebools)) for item in Bool_List]
 
@@ -157,8 +156,11 @@ def show_ignore_fields_dialog():
     if ignorebools is None:
         ignorebools = []
 
-    with open(filepath, 'w') as f:
-        f.write(str(ignorebools))
+    try:
+        with open(filepath, 'w') as f:
+            json.dump(ignorebools, f, indent=4)
+    except Exception as e:
+        print("Failed to save JSON options: {}".format(e))
 
     return ignorebools
 
@@ -252,39 +254,37 @@ class RenumberForm(Form):
         self.Close()
 
 
-folder_name = "c:\\Temp"
-filepath = os.path.join(folder_name, 'Ribbon_FabRenumber.txt')
-if not os.path.exists(folder_name):
-    os.makedirs(folder_name)
+filepath = os.path.join(folder_name, 'Ribbon_FabRenumber.json')
+
+default_config = {
+    "prefix": "pre",
+    "start_num": "num",
+    "same_num_for_identical": False
+}
 
 if not os.path.exists(filepath):
-    with open(filepath, 'w') as the_file:
-        line1 = ('pre' + '\n')
-        line2 = ('num' + '\n')
-        line3 = 'False'
-        the_file.writelines([line1, line2, line3])
+    with open(filepath, 'w') as f:
+        json.dump(default_config, f, indent=4)
 
-with open(filepath, 'r') as file:
-    lines = [line.rstrip() for line in file.readlines()]
+config_data = dict(default_config)
+try:
+    with open(filepath, 'r') as f:
+        loaded = json.load(f)
+        if isinstance(loaded, dict):
+            config_data.update(loaded)
+except Exception:
+    pass
 
-if len(lines) < 3:
-    with open(filepath, 'w') as the_file:
-        line1 = ('pre' + '\n')
-        line2 = ('num' + '\n')
-        line3 = 'False'
-        the_file.writelines([line1, line2, line3])
+prefix_val = str(config_data.get("prefix", "pre"))
+start_num_val = str(config_data.get("start_num", "num"))
+checkboxdef = bool(config_data.get("same_num_for_identical", False))
 
-with open(filepath, 'r') as file:
-    lines = [line.rstrip() for line in file.readlines()]
-
-checkboxdef = lines[2] == 'True'
-
-form = RenumberForm(lines[0], lines[1], checkboxdef)
+form = RenumberForm(prefix_val, start_num_val, checkboxdef)
 if form.ShowDialog() != DialogResult.OK:
     sys.exit()
 
-valuepre = form.values.get('prefix', lines[0])
-value = form.values.get('StrtNum', lines[1])
+valuepre = form.values.get('prefix', prefix_val)
+value = form.values.get('StrtNum', start_num_val)
 snfip = form.values.get('checkboxvalue', checkboxdef)
 
 start_number = int(value)
@@ -368,8 +368,15 @@ t.Start()
 reset_element_graphics(active_view, picked_ids, original_overrides)
 t.Commit()
 
-with open(filepath, 'w') as the_file:
-    line1 = (valuepre + '\n')
-    line2 = (str(start_number).zfill(Fill_length) + '\n')
-    line3 = str(snfip)
-    the_file.writelines([line1, line2, line3])
+# Save updated user configuration back to JSON
+updated_config = {
+    "prefix": valuepre,
+    "start_num": str(start_number).zfill(Fill_length),
+    "same_num_for_identical": bool(snfip)
+}
+
+try:
+    with open(filepath, 'w') as f:
+        json.dump(updated_config, f, indent=4)
+except Exception as e:
+    print("Failed to save JSON config: {}".format(e))

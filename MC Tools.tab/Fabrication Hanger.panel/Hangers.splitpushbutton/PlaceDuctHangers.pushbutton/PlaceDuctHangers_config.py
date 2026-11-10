@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import json
 import clr
 
 clr.AddReference("PresentationFramework")
@@ -24,7 +25,7 @@ app = doc.Application
 RevitINT = float(app.VersionNumber)
 
 FOLDER = r"C:\Temp"
-FILEPATH = os.path.join(FOLDER, "Ribbon_Duct-Hanger-Config.txt")
+FILEPATH = os.path.join(FOLDER, "Ribbon_Duct-Hanger-Config.json")
 
 DEFAULTS = {
     "ROUND_HANGER": "",
@@ -32,17 +33,8 @@ DEFAULTS = {
     "END_DIST_IN": "12",
     "ROUND_MAX_SPACING_FT": "8",
     "RECT_MAX_SPACING_FT": "8",
-    "ATTACH_TO_STRUCTURE": "True",
+    "ATTACH_TO_STRUCTURE": True,
 }
-
-CONFIG_KEYS = [
-    "ROUND_HANGER",
-    "RECT_HANGER",
-    "END_DIST_IN",
-    "ROUND_MAX_SPACING_FT",
-    "RECT_MAX_SPACING_FT",
-    "ATTACH_TO_STRUCTURE",
-]
 
 
 def ensure_folder():
@@ -56,24 +48,23 @@ def load_config(path):
     if not os.path.exists(path):
         return data
 
-    with open(path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if "=" not in line:
-                continue
-            key, val = line.split("=", 1)
-            key = key.strip()
-            val = val.strip()
-            if key:
-                data[key] = val
+    try:
+        with open(path, "r") as f:
+            loaded_data = json.load(f)
+            if isinstance(loaded_data, dict):
+                data.update(loaded_data)
+    except Exception:
+        pass
 
     return data
 
 
 def save_config(path, data):
-    with open(path, "w") as f:
-        for key in CONFIG_KEYS:
-            f.write("{0}={1}\n".format(key, data.get(key, "")))
+    try:
+        with open(path, "w") as f:
+            json.dump(data, f, indent=4)
+    except Exception as e:
+        print("Failed to save JSON config: {}".format(e))
 
 
 def collect_hanger_names(doc):
@@ -135,7 +126,7 @@ class DuctHangerConfigForm(Window):
 
         def make_textbox(text):
             tb = TextBox()
-            tb.Text = text
+            tb.Text = str(text)
             tb.Width = 180
             tb.Height = 24
             tb.FontFamily = FontFamily("Arial")
@@ -180,7 +171,13 @@ class DuctHangerConfigForm(Window):
 
         self.chk_atos = CheckBox()
         self.chk_atos.Content = "Attach to Structure"
-        self.chk_atos.IsChecked = str(saved["ATTACH_TO_STRUCTURE"]).lower() == "true"
+        
+        atos_val = saved["ATTACH_TO_STRUCTURE"]
+        if isinstance(atos_val, bool):
+            self.chk_atos.IsChecked = atos_val
+        else:
+            self.chk_atos.IsChecked = str(atos_val).lower() == "true"
+            
         self.chk_atos.FontFamily = FontFamily("Arial")
         self.chk_atos.FontSize = 12
         self.chk_atos.Margin = Thickness(0, 4, 0, 4)
@@ -235,7 +232,7 @@ class DuctHangerConfigForm(Window):
             "END_DIST_IN": self.tb_end_dist.Text,
             "ROUND_MAX_SPACING_FT": self.tb_round_spacing.Text,
             "RECT_MAX_SPACING_FT": self.tb_rect_spacing.Text,
-            "ATTACH_TO_STRUCTURE": str(bool(self.chk_atos.IsChecked)),
+            "ATTACH_TO_STRUCTURE": bool(self.chk_atos.IsChecked),
         }
 
         self.DialogResult = True

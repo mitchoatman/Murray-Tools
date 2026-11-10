@@ -1,10 +1,11 @@
-# -*- coding: UTF-8 -*-
+# -*- coding: utf-8 -*-
 import Autodesk
 from Autodesk.Revit.DB import Transaction, FabricationConfiguration, FabricationPart, ConnectorProfileType
 from Autodesk.Revit.UI import TaskDialog
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
 import math
 import os
+import json
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -12,7 +13,7 @@ app = doc.Application
 RevitINT = float(app.VersionNumber)
 
 CONFIG_FOLDER = r"C:\Temp"
-CONFIG_PATH = os.path.join(CONFIG_FOLDER, "Ribbon_Duct-Hanger-Config.txt")
+CONFIG_PATH = os.path.join(CONFIG_FOLDER, "Ribbon_Duct-Hanger-Config.json")
 CONNECT_TOL = 0.1
 
 DEFAULTS = {
@@ -21,7 +22,7 @@ DEFAULTS = {
     "END_DIST_IN": "12",
     "ROUND_MAX_SPACING_FT": "8",
     "RECT_MAX_SPACING_FT": "8",
-    "ATTACH_TO_STRUCTURE": "True",
+    "ATTACH_TO_STRUCTURE": True,
 }
 
 
@@ -43,14 +44,18 @@ def load_config(path):
     if not os.path.exists(path):
         raise Exception("Config file not found:\n{}\n\nRun the config tool first.".format(path))
 
-    with open(path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if "=" not in line: continue
-            k, v = line.split("=", 1)
-            cfg[k.strip()] = v.strip()
+    try:
+        with open(path, "r") as f:
+            loaded_data = json.load(f)
+            if isinstance(loaded_data, dict):
+                cfg.update(loaded_data)
+    except Exception as e:
+        raise Exception("Failed to parse JSON config file:\n{}\n\nError: {}".format(path, e))
 
-    if not cfg.get("ROUND_HANGER") or not cfg.get("RECT_HANGER"):
+    round_h = str(cfg.get("ROUND_HANGER", "")).strip()
+    rect_h = str(cfg.get("RECT_HANGER", "")).strip()
+
+    if not round_h or not rect_h:
         raise Exception("Hanger names are blank in config. Please re-run the configuration tool.")
     return cfg
 
@@ -202,7 +207,7 @@ def get_hanger_button(elem, cfg, service_map):
     si = get_shape_info(elem)
     if not si: return None
     
-    button_name = cfg["ROUND_HANGER"] if si["shape"] == "ROUND" else cfg["RECT_HANGER"]
+    button_name = str(cfg["ROUND_HANGER"] if si["shape"] == "ROUND" else cfg["RECT_HANGER"]).strip()
     svc_name = get_service_name(elem)
     
     if not svc_name or svc_name not in service_map: 
@@ -215,7 +220,7 @@ def get_hanger_button(elem, cfg, service_map):
         for bi in range(svc.GetButtonCount(gi)):
             try:
                 bt = svc.GetButton(gi, bi)
-                if bt.IsAHanger and bt.Name and bt.Name.strip() == button_name.strip(): 
+                if bt.IsAHanger and bt.Name and bt.Name.strip() == button_name: 
                     return bt
             except: pass
     return None
@@ -295,7 +300,12 @@ try:
     cfg = load_config(CONFIG_PATH)
     service_map = build_loaded_service_map(doc)
     dist_from_end = float(cfg["END_DIST_IN"]) / 12.0
-    atos = str(cfg["ATTACH_TO_STRUCTURE"]).lower() == "true"
+    
+    atos_val = cfg.get("ATTACH_TO_STRUCTURE", True)
+    if isinstance(atos_val, bool):
+        atos = atos_val
+    else:
+        atos = str(atos_val).lower() == "true"
 
     selected_refs = uidoc.Selection.PickObjects(
         ObjectType.Element,

@@ -21,6 +21,7 @@ from Autodesk.Revit.Exceptions import OperationCanceledException
 
 import os
 import sys
+import json
 
 
 # --------------------------------------------------
@@ -43,32 +44,36 @@ family_name = 'Manual Point'
 
 # Last used type storage
 folder_name = r"c:\temp"
-filepath = os.path.join(folder_name, 'Ribbon_ManualPoint.txt')
+filepath = os.path.join(folder_name, 'Ribbon_ManualPoint.json')
 
 if not os.path.exists(folder_name):
     os.makedirs(folder_name)
 
 
-def read_last_type(txt_path, default_value='WASTE'):
+def read_last_type(json_path, default_value='WASTE'):
     try:
-        if not os.path.exists(txt_path):
-            with open(txt_path, 'w') as f:
-                f.write(default_value)
+        if not os.path.exists(json_path):
+            config = {"last_type": default_value}
+            with open(json_path, 'w') as f:
+                json.dump(config, f, indent=4)
             return default_value
 
-        with open(txt_path, 'r') as f:
-            value = f.read().strip()
-
-        return value if value else default_value
-    except:
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                value = data.get("last_type", default_value)
+                return value if value else default_value
+            return default_value
+    except Exception:
         return default_value
 
 
-def save_last_type(txt_path, value):
+def save_last_type(json_path, value):
     try:
-        with open(txt_path, 'w') as f:
-            f.write(value or '')
-    except:
+        config = {"last_type": value or 'WASTE'}
+        with open(json_path, 'w') as f:
+            json.dump(config, f, indent=4)
+    except Exception:
         pass
 
 
@@ -98,7 +103,7 @@ def shared_family_dialog_fallback(sender, args):
             if ("shared" in msg and "already exists" in msg and "project" in msg) \
                or ("shared" in dialog_id and "family" in dialog_id):
                 args.OverrideResult(1003)
-    except:
+    except Exception:
         pass
 
 
@@ -129,14 +134,14 @@ class ManualPointFamilyManager(object):
         try:
             if symbol.Name:
                 return symbol.Name
-        except:
+        except Exception:
             pass
 
         try:
             p = symbol.get_Parameter(DB.BuiltInParameter.SYMBOL_NAME_PARAM)
             if p:
                 return p.AsString()
-        except:
+        except Exception:
             pass
 
         return None

@@ -2,7 +2,7 @@ from Autodesk.Revit.DB import View, ViewSchedule, ElementId
 from Autodesk.Revit.UI import TaskDialog
 import System
 import os
-import re
+import json
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -16,13 +16,7 @@ if not file_name:
 
 folder_name = r"c:\Temp"
 project_name = file_name.replace(" ", "_")
-filepath = os.path.join(folder_name, 'Ribbon_OpenViews_{}.txt'.format(project_name))
-
-def get_id_value(eid):
-    try:
-        return eid.Value        # Revit 2024+
-    except:
-        return eid.IntegerValue # older Revit
+filepath = os.path.join(folder_name, 'Ribbon_OpenViews_{}.json'.format(project_name))
 
 def make_element_id(val):
     try:
@@ -31,28 +25,14 @@ def make_element_id(val):
         return ElementId(System.Int32(val))  # older Revit
 
 if os.path.isfile(filepath):
-    with open(filepath, 'r') as file:
-        lines = [line.rstrip() for line in file.readlines()]
+    try:
+        with open(filepath, 'r') as file:
+            data = json.load(file)
+        
+        saved_project_name = data.get("project_name")
+        saved_view_ids = data.get("view_ids", [])
 
-    if len(lines) < 2:
-        TaskDialog.Show("Restore Views", "Saved views file is invalid.")
-    else:
-        saved_view_ids = []
-
-        # Handles:
-        # [12345, 67890]
-        # [ElementId(12345), ElementId(67890)]
-        # [[12345], [67890]]
-        for s in lines[1][1:-1].split(','):
-            s = s.strip()
-            if not s:
-                continue
-
-            m = re.search(r'-?\d+', s)
-            if m:
-                saved_view_ids.append(int(m.group(0)))
-
-        if lines[0] == str(file_name):
+        if saved_project_name == str(file_name):
             for saved_id in saved_view_ids:
                 view = doc.GetElement(make_element_id(saved_id))
 
@@ -76,5 +56,8 @@ if os.path.isfile(filepath):
                     )
         else:
             TaskDialog.Show("Invalid Views", "Saved views are not from this project")
+
+    except (ValueError, KeyError, json.JSONDecodeError) as err:
+        TaskDialog.Show("Restore Views", "Saved views file is invalid or corrupted.\n{}".format(err))
 else:
     TaskDialog.Show("Restore Views", "No Saved Views Found")

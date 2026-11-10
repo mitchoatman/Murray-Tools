@@ -1,13 +1,37 @@
 # -*- coding: utf-8 -*-
+import sys
+import traceback
 from Autodesk.Revit import DB
-from Autodesk.Revit.DB import FabricationPart, FamilyInstance, ViewPlan, ViewSection
+from Autodesk.Revit.DB import ViewPlan, ViewSection
 from Autodesk.Revit.UI.Selection import ObjectType, ObjectSnapTypes
 from Autodesk.Revit.UI import TaskDialog
-import sys
+from Autodesk.Revit.Exceptions import OperationCanceledException
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
 active_view = doc.ActiveView
+
+SNAP_NONE = getattr(ObjectSnapTypes, "None")  # "None" is a reserved word in IronPython
+
+
+def info(title, msg):
+    TaskDialog.Show(title, msg)
+
+
+class WarningCollector(DB.IFailuresPreprocessor):
+    """Collects warnings raised during the transaction so they can be shown."""
+    def __init__(self):
+        self.messages = []
+
+    def PreprocessFailures(self, failures_accessor):
+        for f in failures_accessor.GetFailureMessages():
+            self.messages.append(f.GetDescriptionText())
+        return DB.FailureProcessingResult.Continue
+
+
+class UserError(Exception):
+    pass
+
 
 def get_section_view_type(document):
     for vft in DB.FilteredElementCollector(document).OfClass(DB.ViewFamilyType):
@@ -15,97 +39,67 @@ def get_section_view_type(document):
             return vft
     return None
 
+
 def require_supported_view(view):
     if not isinstance(view, (ViewPlan, ViewSection)):
-        raise Exception("Run this command from a floor plan or section view.")
+        raise UserError("Run this command from a floor plan or section view.\n"
+                        "Active view is: {} ({})".format(view.Name, view.ViewType))
+
 
 def bbox_corners(bbox):
-    mn = bbox.Min
-    mx = bbox.Max
-    pts = []
-    for x in [mn.X, mx.X]:
-        for y in [mn.Y, mx.Y]:
-            for z in [mn.Z, mx.Z]:
-                pts.append(DB.XYZ(x, y, z))
-    return pts
+    mn, mx = bbox.Min, bbox.Max
+    return [DB.XYZ(x, y, z) for x in (mn.X, mx.X) for y in (mn.Y, mx.Y) for z in (mn.Z, mx.Z)]
+
 
 def get_element_points(elem):
     pts = []
     bbox = elem.get_BoundingBox(None)
     if bbox:
         pts.extend(bbox_corners(bbox))
-    
-    try:
-        loc = elem.Location
-        if isinstance(loc, DB.LocationCurve) and isinstance(loc.Curve, DB.Line):
-            crv = loc.Curve
-            pts.append(crv.GetEndPoint(0))
-            pts.append(crv.GetEndPoint(1))
-    except:
-        pass
+    loc = elem.Location
+    if isinstance(loc, DB.LocationCurve) and isinstance(loc.Curve, DB.Line):
+        crv = loc.Curve
+        pts.append(crv.GetEndPoint(0))
+        pts.append(crv.GetEndPoint(1))
     return pts
 
-def build_section_transform_for_elements(elements, view, pick_point):
-    all_pts = []
-    for elem in elements:
-        all_pts.extend(get_element_points(elem))
-    
-    if not all_pts:
-        raise Exception("Selected elements have no valid geometry.")
-    
-    sum_x = sum(p.X for p in all_pts)
-    sum_y = sum(p.Y for p in all_pts)
-    sum_z = sum(p.Z for p in all_pts)
-    n = len(all_pts)
-    origin = DB.XYZ(sum_x / n, sum_y / n, sum_z / n)
 
+def build_section_transform(all_pts, view, pick_point):
+    n = len(all_pts)
+    origin = DB.XYZ(sum(p.X for p in all_pts) / n,
+                    sum(p.Y for p in all_pts) / n,
+                    sum(p.Z for p in all_pts) / n)
     click_vec = pick_point - origin
+    y_axis = DB.XYZ.BasisZ
 
     if isinstance(view, ViewSection):
         view_dir = view.ViewDirection.Normalize()
         up_dir = view.UpDirection.Normalize()
         right_dir = view.RightDirection.Normalize()
 
-        click_vec_screen = click_vec - view_dir.Multiply(click_vec.DotProduct(view_dir))
-        if click_vec_screen.GetLength() < 1e-6:
-            raise Exception("Pick point is too close to the center of the selection.")
+        click_screen = click_vec - view_dir.Multiply(click_vec.DotProduct(view_dir))
+        if click_screen.GetLength() < 1e-6:
+            raise UserError("Pick point is too close to the center of the selection.")
 
-        dx = click_vec_screen.DotProduct(right_dir)
-        dy = click_vec_screen.DotProduct(up_dir)
-
-        y_axis = DB.XYZ.BasisZ
+        dx = click_screen.DotProduct(right_dir)
+        dy = click_screen.DotProduct(up_dir)
 
         if abs(dx) > abs(dy):
-            if dx > 0:
-                z_axis = right_dir.Negate()
-            else:
-                z_axis = right_dir
+            z_axis = right_dir.Negate() if dx > 0 else right_dir
         else:
             z_axis = view_dir.Negate() if dy > 0 else view_dir
-
-        x_axis = y_axis.CrossProduct(z_axis).Normalize()
-        y_axis = z_axis.CrossProduct(x_axis).Normalize()
     else:
         click_vec = DB.XYZ(click_vec.X, click_vec.Y, 0.0)
         if click_vec.GetLength() < 1e-6:
-            raise Exception("Pick point is too close to the center of the selection.")
-
-        dx = click_vec.X
-        dy = click_vec.Y
-        y_axis = DB.XYZ.BasisZ
-
+            raise UserError("Pick point is too close to the center of the selection.")
+        dx, dy = click_vec.X, click_vec.Y
         if abs(dx) > abs(dy):
-            if dx > 0:
-                z_axis = DB.XYZ(-1, 0, 0)
-            else:
-                z_axis = DB.XYZ(1, 0, 0)
+            z_axis = DB.XYZ(-1, 0, 0) if dx > 0 else DB.XYZ(1, 0, 0)
         else:
-            if dy > 0:
-                z_axis = DB.XYZ(0, -1, 0)
-            else:
-                z_axis = DB.XYZ(0, 1, 0)
+            z_axis = DB.XYZ(0, -1, 0) if dy > 0 else DB.XYZ(0, 1, 0)
 
-        x_axis = y_axis.CrossProduct(z_axis).Normalize()
+    x_axis = y_axis.CrossProduct(z_axis).Normalize()
+    y_axis = z_axis.CrossProduct(x_axis).Normalize()
 
     tf = DB.Transform.Identity
     tf.Origin = origin
@@ -114,54 +108,56 @@ def build_section_transform_for_elements(elements, view, pick_point):
     tf.BasisZ = z_axis
     return tf
 
+
 def get_local_bounds(points, transform):
     inv = transform.Inverse
-    xs, ys, zs = [], [], []
+    local = [inv.OfPoint(p) for p in points]
+    return (DB.XYZ(min(p.X for p in local), min(p.Y for p in local), min(p.Z for p in local)),
+            DB.XYZ(max(p.X for p in local), max(p.Y for p in local), max(p.Z for p in local)))
 
-    for p in points:
-        lp = inv.OfPoint(p)
-        xs.append(lp.X)
-        ys.append(lp.Y)
-        zs.append(lp.Z)
 
-    return DB.XYZ(min(xs), min(ys), min(zs)), DB.XYZ(max(xs), max(ys), max(zs))
-
-try:
+def main():
     require_supported_view(active_view)
 
-    selected_ids = uidoc.Selection.GetElementIds()
+    # 1. Selection
+    selected_ids = list(uidoc.Selection.GetElementIds())
     if not selected_ids:
         refs = uidoc.Selection.PickObjects(
-            ObjectType.Element, 
-            "Select multiple elements to create a section around"
-        )
+            ObjectType.Element, "Select elements to create a section around, then click Finish")
         selected_ids = [r.ElementId for r in refs]
 
-    elements = [doc.GetElement(eid) for eid in selected_ids if doc.GetElement(eid)]
+    elements = []
+    for eid in selected_ids:
+        e = doc.GetElement(eid)
+        if e is not None:
+            elements.append(e)
     if not elements:
-        raise Exception("No valid elements selected.")
+        raise UserError("No valid elements selected.")
 
-    pick_point = uidoc.Selection.PickPoint(
-        ObjectSnapTypes.None, 
-        "Click relative to the group center"
-    )
+    # 2. Pick point
+    pick_point = uidoc.Selection.PickPoint(SNAP_NONE, "Click on the side you want to view from")
 
+    # 3. Section type
     section_type = get_section_view_type(doc)
-    if not section_type:
-        raise Exception("No Section ViewFamilyType found.")
+    if section_type is None:
+        raise UserError("No Section ViewFamilyType found in this project.")
 
-    tf = build_section_transform_for_elements(elements, active_view, pick_point)
-    
+    # 4. Geometry
     all_pts = []
-    for elem in elements:
-        all_pts.extend(get_element_points(elem))
+    skipped = []
+    for e in elements:
+        pts = get_element_points(e)
+        if pts:
+            all_pts.extend(pts)
+        else:
+            skipped.append(e.Id.IntegerValue)
+    if not all_pts:
+        raise UserError("Selected elements have no usable geometry.")
 
+    tf = build_section_transform(all_pts, active_view, pick_point)
     local_min, local_max = get_local_bounds(all_pts, tf)
 
-    pad_x = 1.0
-    pad_y = 1.0
-    pad_z = 2.0
-
+    pad_x, pad_y, pad_z = 1.0, 1.0, 2.0   # feet
     min_z = local_min.Z - pad_z
     max_z = local_max.Z + pad_z
     if (max_z - min_z) < 0.25:
@@ -172,25 +168,59 @@ try:
     box.Min = DB.XYZ(local_min.X - pad_x, local_min.Y - pad_y, min_z)
     box.Max = DB.XYZ(local_max.X + pad_x, local_max.Y + pad_y, max_z)
 
+    # 5. Create
+    warnings = WarningCollector()
+    notes = []
     t = DB.Transaction(doc, "Create Section Around Selection")
+    t.Start()
     try:
-        t.Start()
+        opts = t.GetFailureHandlingOptions()
+        opts.SetFailuresPreprocessor(warnings)
+        t.SetFailureHandlingOptions(opts)
+
         section_view = DB.ViewSection.CreateSection(doc, section_type.Id, box)
-        
+        if section_view is None:
+            raise Exception("ViewSection.CreateSection returned None.")
+
         try:
             section_view.DetailLevel = DB.ViewDetailLevel.Fine
-        except:
-            pass
+        except Exception as ex:
+            notes.append("Could not set detail level: {}".format(ex))
 
         section_view.CropBoxActive = True
         section_view.CropBoxVisible = True
-        
-        t.Commit()
+
+        status = t.Commit()
+        if status != DB.TransactionStatus.Committed:
+            raise Exception("Transaction did not commit. Status: {}".format(status))
     except:
-        if t.HasStarted():
+        if t.HasStarted() and not t.HasEnded():
             t.RollBack()
         raise
 
+    # 6. Report
+    # msg = "Created section '{}' (Id {}) around {} element(s).".format(
+        # section_view.Name, section_view.Id.IntegerValue, len(elements))
+    # if skipped:
+        # msg += "\n\nElements with no geometry (ignored): {}".format(skipped)
+    # if notes:
+        # msg += "\n\nNotes:\n" + "\n".join(notes)
+    # if warnings.messages:
+        # msg += "\n\nRevit warnings:\n" + "\n".join(set(warnings.messages))
+    # info("Section Created", msg)
+
+    # try:
+        # uidoc.ActiveView = section_view
+    # except Exception as ex:
+        # info("Section Created", "Section exists but could not be opened: {}".format(ex))
+
+
+try:
+    main()
+except OperationCanceledException:
+    pass  # user pressed Esc during a pick; not an error
+except UserError as ex:
+    info("Cannot Create Section", str(ex))
 except Exception as ex:
-    TaskDialog.Show("Error", str(ex))
-    sys.exit()
+    info("Create Section Failed",
+         "{}: {}\n\n{}".format(type(ex).__name__, ex, traceback.format_exc()))

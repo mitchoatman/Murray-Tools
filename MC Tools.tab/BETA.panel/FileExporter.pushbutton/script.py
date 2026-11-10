@@ -1,4 +1,13 @@
 # -*- coding: utf-8 -*-
+"""
+Sheet Exporter - pyRevit Button
+WPF modeless + IExternalEventHandler (matches Spool Manager pattern)
+Revit 2022+ / IronPython 2.7
+"""
+
+__title__  = "Sheets\nExporter"
+__author__  = "Logan Dempster"
+__doc__     = "Batch export Sheets to PDF/DWG/NWC."
 
 import os, json, csv, datetime, re
 
@@ -10,8 +19,11 @@ clr.AddReference("System.Xaml")
 clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("System.Windows.Forms")
+clr.AddReference("UIAutomationClient")
+clr.AddReference("UIAutomationTypes")
 
 import System
+import System.Threading           as SThreading
 import System.Windows             as SW
 import System.Windows.Controls   as SWC
 import System.Windows.Media      as SWM
@@ -312,7 +324,9 @@ class ExportSheetsHandler(IExternalEventHandler):
     def Execute(self, uiapp):
         import os, datetime, csv, re
         import Autodesk.Revit.DB as DB
+        import System.Threading as SThreading
         from System.Collections.Generic import List as GList
+        _my_pid = None  # resolved below via ctypes once kernel32 is loaded
         def safe_fn(name):
             return re.sub(r'[\/*?:"<>|]', "-", name or "").strip()
         def write_csv(folder, rows):
@@ -339,6 +353,198 @@ class ExportSheetsHandler(IExternalEventHandler):
             do_report  = d.get("do_report", False)
             callback   = d.get("callback")
             doc_l      = uiapp.ActiveUIDocument.Document
+
+            # Auto-dismiss blocking Revit dialogs during export (e.g. Navisworks
+            # "No suitable geometry found") instead of hanging waiting for a click.
+            # The offending item is treated as skipped rather than exported.
+            # NOTE: we deliberately do NOT call args.OverrideResult() here anymore.
+            # Some Revit warning dialogs (e.g. "Permission to edit the element
+            # cannot be obtained") have several buttons (Show / More Info / Expand
+            # / OK / Cancel), and blindly forcing a result code risked resolving to
+            # the wrong button (effectively clicking Cancel), which silently killed
+            # exports that would otherwise have succeeded with a click on OK. We
+            # only use this handler to log what showed up; the background watcher
+            # below does the actual (targeted, button-text-specific) clicking.
+            _dialog_msgs = []
+            def _dlg_handler(sender, args):
+                try:
+                    msg = ""
+                    try: msg = args.Message
+                    except: pass
+                    _dialog_msgs.append(msg)
+                except: pass
+
+            # Export dialogs that need to be auto-dismissed instead of blocking the
+            # whole export waiting for a click:
+            #  - Navisworks' own "No suitable geometry found" message box, which
+            #    bypasses Revit's DialogBoxShowing service entirely.
+            #  - Revit's own "Permission to edit the element cannot be obtained"
+            #    worksharing warning, which still lets the export complete
+            #    successfully if OK is clicked.
+            #
+            # SAFETY: matching by window TITLE alone is not safe - a Revit warning
+            # dialog's title is just "Autodesk Revit <year>", identical to (or a
+            # substring shared with) the title of every OTHER Revit window on the
+            # machine, including a completely unrelated Revit session's main
+            # window. An earlier version of this matched purely on title and, via
+            # the system-wide EnumWindows scan, ended up force-foregrounding and
+            # sending synthetic input to another open Revit session, which is not
+            # acceptable. Every match below is therefore gated on BOTH:
+            #   1) belonging to THIS process only (PID must equal our own), and
+            #   2) being a genuine dialog window (class "#32770", the standard
+            #      Windows dialog/MessageBox class) rather than an application's
+            #      main frame window, whose class is always something else.
+            # Only windows passing both checks are ever touched.
+            _watch_active = [False]
+            _KNOWN_DIALOG_KEYWORDS = ["navisworks", "permission to edit", "cannot be obtained"]
+
+            def _is_known_dialog(title):
+                t = (title or "").strip().lower()
+                if not t: return False
+                return any(k in t for k in _KNOWN_DIALOG_KEYWORDS)
+
+            # Raw Win32 (works for classic MessageBox / TaskDialog-style
+            # dialogs that bypass both Revit's DialogBoxShowing and UI Automation
+            # in some setups). Clicks the actual OK button (BM_CLICK) rather than
+            # just closing the frame, since some TaskDialogs ignore WM_CLOSE.
+            try:
+                import ctypes as _ctypes_w
+                _HWND_T   = _ctypes_w.c_void_p
+                _user32_w = _ctypes_w.windll.user32
+                _kernel32_w = _ctypes_w.windll.kernel32
+                try:
+                    _user32_w.GetWindowTextLengthW.argtypes = [_HWND_T]
+                    _user32_w.GetWindowTextW.argtypes = [_HWND_T, _ctypes_w.c_wchar_p, _ctypes_w.c_int]
+                    _user32_w.GetClassNameW.argtypes  = [_HWND_T, _ctypes_w.c_wchar_p, _ctypes_w.c_int]
+                    _user32_w.FindWindowExW.argtypes  = [_HWND_T, _HWND_T, _ctypes_w.c_wchar_p, _ctypes_w.c_wchar_p]
+                    _user32_w.FindWindowExW.restype   = _HWND_T
+                    _user32_w.SendMessageW.argtypes   = [_HWND_T, _ctypes_w.c_uint, _HWND_T, _HWND_T]
+                    _user32_w.PostMessageW.argtypes   = [_HWND_T, _ctypes_w.c_uint, _HWND_T, _HWND_T]
+                    _user32_w.GetWindowThreadProcessId.argtypes = [_HWND_T, _ctypes_w.POINTER(_ctypes_w.c_uint)]
+                    _user32_w.GetWindowThreadProcessId.restype  = _ctypes_w.c_uint
+                    _WNDENUMCHILDPROC = _ctypes_w.WINFUNCTYPE(_ctypes_w.c_int, _HWND_T, _HWND_T)
+                    _user32_w.EnumChildWindows.argtypes = [_HWND_T, _WNDENUMCHILDPROC, _HWND_T]
+                    _kernel32_w.GetCurrentProcessId.restype = _ctypes_w.c_uint
+                    _my_pid = _kernel32_w.GetCurrentProcessId()
+                except: pass
+            except:
+                _ctypes_w = None
+                _user32_w = None
+                _HWND_T   = None
+                _kernel32_w = None
+
+            def _get_window_text(hwnd):
+                try:
+                    length = _user32_w.GetWindowTextLengthW(hwnd)
+                    if length <= 0: return ""
+                    buf = _ctypes_w.create_unicode_buffer(length + 1)
+                    _user32_w.GetWindowTextW(hwnd, buf, length + 1)
+                    return buf.value or ""
+                except:
+                    return ""
+
+            def _get_class_name(hwnd):
+                try:
+                    buf = _ctypes_w.create_unicode_buffer(256)
+                    _user32_w.GetClassNameW(hwnd, buf, 256)
+                    return buf.value or ""
+                except:
+                    return ""
+
+            def _get_owner_pid(hwnd):
+                try:
+                    pid = _ctypes_w.c_uint(0)
+                    _user32_w.GetWindowThreadProcessId(hwnd, _ctypes_w.byref(pid))
+                    return pid.value
+                except:
+                    return None
+
+            def _get_dialog_text_blob(hwnd):
+                # Title bar text plus every child Static/Edit control's text - the
+                # actual warning message (e.g. "Permission to edit the element
+                # cannot be obtained") lives in a child control, not the title.
+                parts = [_get_window_text(hwnd)]
+                try:
+                    def _child_cb(child, lparam):
+                        try:
+                            if _get_class_name(child) in (u"Static", u"Edit"):
+                                t = _get_window_text(child)
+                                if t: parts.append(t)
+                        except: pass
+                        return 1
+                    _user32_w.EnumChildWindows(hwnd, _WNDENUMCHILDPROC(_child_cb), 0)
+                except: pass
+                return u" ".join(parts)
+
+            def _find_ok_button(hwnd):
+                # Enumerate every native "Button" child and click the one whose
+                # caption is specifically "OK" - some of these dialogs have several
+                # buttons (Show / More Info / Expand / OK / Cancel), and clicking
+                # "the first button found" risked hitting the wrong one.
+                child = None
+                for _ in range(50):
+                    child = _user32_w.FindWindowExW(hwnd, child, u"Button", None)
+                    if not child:
+                        break
+                    text = _get_window_text(child).replace(u"&", u"").strip().lower()
+                    if text == u"ok":
+                        return child
+                return None
+
+            def _close_native_win32():
+                closed = []
+                if not _user32_w or _my_pid is None: return closed
+                try:
+                    WNDENUMPROC = _ctypes_w.WINFUNCTYPE(_ctypes_w.c_int, _HWND_T, _HWND_T)
+                    hits = []
+                    def _cb(hwnd, lparam):
+                        try:
+                            # SAFETY GATE 1: only windows belonging to THIS Revit
+                            # process - never touch another process (e.g. a
+                            # different Revit session) no matter what its title is.
+                            if _get_owner_pid(hwnd) != _my_pid:
+                                return 1
+                            # SAFETY GATE 2: only genuine dialog windows (class
+                            # "#32770"), never an application's own main frame,
+                            # which always has a different window class.
+                            if _get_class_name(hwnd) != u"#32770":
+                                return 1
+                            blob = _get_dialog_text_blob(hwnd)
+                            if _is_known_dialog(blob):
+                                hits.append((hwnd, _get_window_text(hwnd)))
+                        except: pass
+                        return 1
+                    _user32_w.EnumWindows(WNDENUMPROC(_cb), 0)
+                    BM_CLICK  = 0x00F5
+                    WM_CLOSE  = 0x0010
+                    for hwnd, title in hits:
+                        try:
+                            # 1) Find and click the button specifically captioned "OK"
+                            btn = _find_ok_button(hwnd)
+                            if btn:
+                                _user32_w.SendMessageW(btn, BM_CLICK, 0, 0)
+                                closed.append(title)
+                                continue
+
+                            # 2) No native OK button found - ask the dialog itself
+                            # to close. This only ever messages the one specific
+                            # hwnd we already verified belongs to our own process
+                            # and is a real dialog - it never touches focus or
+                            # input on any other window.
+                            _user32_w.PostMessageW(hwnd, WM_CLOSE, 0, 0)
+                            closed.append(title)
+                        except: pass
+                except: pass
+                return closed
+
+            def _dialog_watcher():
+                import time as _time_w
+                while _watch_active[0]:
+                    try:
+                        for title in _close_native_win32():
+                            _dialog_msgs.append(title)
+                    except: pass
+                    _time_w.sleep(0.1)
 
             def get_out(fmt):
                 base = out_folder
@@ -502,25 +708,43 @@ class ExportSheetsHandler(IExternalEventHandler):
                             target = os.path.join(out, fname + ".pdf")
                             # Find all pdfs in folder before export
                             before = set(f for f in os.listdir(out) if f.lower().endswith(".pdf"))
+                            target_mtime_before = os.path.getmtime(target) if os.path.exists(target) else None
                             try:
                                 _rs = d.get("row_started")
                                 if _rs: _rs(fname)
                             except: pass
+                            _msg_start = len(_dialog_msgs)
                             opts.FileName = fname
                             doc_l.Export(out, col, opts)
                             # Find what Revit actually created
                             after = set(f for f in os.listdir(out) if f.lower().endswith(".pdf"))
                             new_files = after - before
-                            if new_files:
-                                created = os.path.join(out, list(new_files)[0])
-                                if created != target:
-                                    if os.path.exists(target): os.remove(target)
-                                    os.rename(created, target)
-                            exported.append(fname)
-                            try:
-                                _rd = d.get("row_done")
-                                if _rd: _rd(fname, True, len(exported))
-                            except: pass
+                            # Success if a new file appeared, or the existing target
+                            # was overwritten in place (same name before and after,
+                            # so it never shows up in the set difference - its
+                            # modified time is the only signal it was rewritten).
+                            overwrote_existing = (
+                                target_mtime_before is not None and os.path.exists(target)
+                                and os.path.getmtime(target) != target_mtime_before)
+                            if new_files or overwrote_existing:
+                                if new_files:
+                                    created = os.path.join(out, list(new_files)[0])
+                                    if created != target:
+                                        if os.path.exists(target): os.remove(target)
+                                        os.rename(created, target)
+                                exported.append(fname)
+                                try:
+                                    _rd = d.get("row_done")
+                                    if _rd: _rd(fname, True, len(exported))
+                                except: pass
+                            else:
+                                # Nothing was produced (e.g. a suppressed dialog) - skip it
+                                _reason = _dialog_msgs[_msg_start] if len(_dialog_msgs) > _msg_start else "No file was exported"
+                                failed.append((fname, _reason))
+                                try:
+                                    _rd = d.get("row_done")
+                                    if _rd: _rd(fname, False, len(exported))
+                                except: pass
                         except Exception as ex:
                             failed.append((fname, str(ex)))
 
@@ -614,121 +838,183 @@ class ExportSheetsHandler(IExternalEventHandler):
                         except: pass
                         target = os.path.join(out, fname + ".nwc")
                         before = set(f for f in os.listdir(out) if f.lower().endswith(".nwc"))
+                        target_mtime_before = os.path.getmtime(target) if os.path.exists(target) else None
                         try:
                             _rs = d.get("row_started")
                             if _rs: _rs(fname)
                         except: pass
+                        _msg_start = len(_dialog_msgs)
                         doc_l.Export(out, fname, v_opts)
                         after  = set(f for f in os.listdir(out) if f.lower().endswith(".nwc"))
                         new_files = after - before
-                        if new_files:
-                            created = os.path.join(out, list(new_files)[0])
-                            if created != target:
-                                if os.path.exists(target): os.remove(target)
-                                os.rename(created, target)
-                        exported.append(fname)
-                        try:
-                            _rd = d.get("row_done")
-                            if _rd: _rd(fname, True, len(exported))
-                        except: pass
+                        # Success if either a new file appeared (Revit may not name
+                        # it exactly like `target`, hence the rename below), or the
+                        # existing target file itself was overwritten in place (same
+                        # name both before and after, so it never shows up in the
+                        # before/after set difference - its modified time is the
+                        # only signal that it actually got rewritten).
+                        overwrote_existing = (
+                            target_mtime_before is not None and os.path.exists(target)
+                            and os.path.getmtime(target) != target_mtime_before)
+                        if new_files or overwrote_existing:
+                            if new_files:
+                                created = os.path.join(out, list(new_files)[0])
+                                if created != target:
+                                    if os.path.exists(target): os.remove(target)
+                                    os.rename(created, target)
+                            exported.append(fname)
+                            try:
+                                _rd = d.get("row_done")
+                                if _rd: _rd(fname, True, len(exported))
+                            except: pass
+                        else:
+                            # Nothing was produced (e.g. a suppressed "No suitable
+                            # geometry found" dialog) - skip it and move on
+                            _reason = _dialog_msgs[_msg_start] if len(_dialog_msgs) > _msg_start else "No geometry was exported"
+                            failed.append((fname, _reason))
+                            try:
+                                _rd = d.get("row_done")
+                                if _rd: _rd(fname, False, len(exported))
+                            except: pass
                     except Exception as ex:
                         failed.append((fname, str(ex)))
                 return exported, failed
 
             report_rows, all_exp, all_fail = [], [], []
 
-            # Scheduled exports: reload latest + checkout before any export
-            if d.get("is_scheduled", False):
-                import System.Windows as _SWws
-                # 1. Reload latest from central
+            # Workshared model: reload latest + checkout before export
+            _is_workshared = False
+            try: _is_workshared = doc_l.IsWorkshared
+            except: pass
+
+            # Sync to central BEFORE export, if requested
+            if _is_workshared and d.get("nwc_sync_before", False):
+                import Autodesk.Revit.DB as _DBrb
+                import System.Windows as _SWrb
                 try:
-                    if doc_l.IsWorkshared:
+                    _sync_opts_b  = _DBrb.SynchronizeWithCentralOptions()
+                    _relin_opts_b = _DBrb.RelinquishOptions(False)
+                    _sync_opts_b.SetRelinquishOptions(_relin_opts_b)
+                    _sync_opts_b.SaveLocalBefore = True
+                    _sync_opts_b.SaveLocalAfter  = True
+                    _sync_opts_b.Comment = "Pre-Export Sync"
+                    doc_l.SynchronizeWithCentral(_DBrb.TransactWithCentralOptions(), _sync_opts_b)
+                except Exception as _reb:
+                    _SWrb.MessageBox.Show("Pre-export sync error: {}".format(str(_reb)), "Worksharing")
+
+            if _is_workshared:
+                # Scheduled: reload latest first
+                if d.get("is_scheduled", False):
+                    import System.Windows as _SWws
+                    try:
                         import Autodesk.Revit.DB as _DBpre
                         _rlo = _DBpre.ReloadLatestOptions()
                         doc_l.ReloadLatest(_rlo)
-                except Exception as _rle:
-                    _SWws.MessageBox.Show("Reload latest failed: {}".format(str(_rle)), "Scheduler")
-                # 2. Check out all elements being exported
+                    except Exception as _rle:
+                        _SWws.MessageBox.Show("Reload latest failed: {}".format(str(_rle)), "Scheduler")
+                # All exports: checkout views being exported
                 try:
-                    if doc_l.IsWorkshared:
-                        from System.Collections.Generic import List as _GListPre
-                        _co_ids = _GListPre[DB.ElementId]()
-                        for _eid, _ in d.get("pairs", []):
-                            try: _co_ids.Add(_eid)
-                            except: pass
-                        for _eid, _ in d.get("nwc_pairs", []):
-                            try: _co_ids.Add(_eid)
-                            except: pass
-                        if _co_ids.Count > 0:
-                            DB.WorksharingUtils.CheckoutElements(doc_l, _co_ids)
-                except Exception as _coe:
-                    _SWws.MessageBox.Show("Checkout failed: {}".format(str(_coe)), "Scheduler")
+                    from System.Collections.Generic import List as _GListPre
+                    _co_ids = _GListPre[DB.ElementId]()
+                    for _eid, _ in d.get("pairs", []):
+                        try: _co_ids.Add(_eid)
+                        except: pass
+                    for _eid, _ in d.get("nwc_pairs", []):
+                        try: _co_ids.Add(_eid)
+                        except: pass
+                    if _co_ids.Count > 0:
+                        DB.WorksharingUtils.CheckoutElements(doc_l, _co_ids)
+                except: pass
 
-            if do_pdf:
-                out = get_out("PDF")
-                exp, fail = pdf(pairs, out)
-                all_exp += exp; all_fail += fail
-                for s, (_, fn) in zip(sheets, pairs):
-                    ok = fn in exp or (cfg.get("combine") and bool(exp))
-                    report_rows.append({
-                        "Sheet Number": s.SheetNumber, "Sheet Name": s.Name,
-                        "Format": "PDF", "Filename": fn + ".pdf",
-                        "Status": "OK" if ok else "FAILED",
-                        "Error": next((f[1] for f in fail if f[0] == fn), "")})
+            try:
+                uiapp.DialogBoxShowing += _dlg_handler
+            except: pass
 
-            if do_dwg:
-                out = get_out("DWG")
-                exp, fail = dwg(pairs, out)
-                all_exp += exp; all_fail += fail
-                for s, (_, fn) in zip(sheets, pairs):
-                    report_rows.append({
-                        "Sheet Number": s.SheetNumber, "Sheet Name": s.Name,
-                        "Format": "DWG", "Filename": fn + ".dwg",
-                        "Status": "OK" if fn in exp else "FAILED",
-                        "Error": next((f[1] for f in fail if f[0] == fn), "")})
+            _watch_thread = None
+            try:
+                _watch_active[0] = True
+                _watch_thread = SThreading.Thread(SThreading.ThreadStart(_dialog_watcher))
+                _watch_thread.IsBackground = True
+                _watch_thread.Start()
+            except: pass
 
-            do_nwc = d.get("do_nwc", False)
-            if do_nwc:
-                out = get_out("NWC")
-                nwc_pairs = d.get("nwc_pairs", [])
+            try:
+                if do_pdf:
+                    out = get_out("PDF")
+                    exp, fail = pdf(pairs, out)
+                    all_exp += exp; all_fail += fail
+                    for s, (_, fn) in zip(sheets, pairs):
+                        ok = fn in exp or (cfg.get("combine") and bool(exp))
+                        report_rows.append({
+                            "Sheet Number": s.SheetNumber, "Sheet Name": s.Name,
+                            "Format": "PDF", "Filename": fn + ".pdf",
+                            "Status": "OK" if ok else "FAILED",
+                            "Error": next((f[1] for f in fail if f[0] == fn), "")})
 
-                exp, fail = nwc(nwc_pairs, out)
-                all_exp += exp; all_fail += fail
+                if do_dwg:
+                    out = get_out("DWG")
+                    exp, fail = dwg(pairs, out)
+                    all_exp += exp; all_fail += fail
+                    for s, (_, fn) in zip(sheets, pairs):
+                        report_rows.append({
+                            "Sheet Number": s.SheetNumber, "Sheet Name": s.Name,
+                            "Format": "DWG", "Filename": fn + ".dwg",
+                            "Status": "OK" if fn in exp else "FAILED",
+                            "Error": next((f[1] for f in fail if f[0] == fn), "")})
+
+                do_nwc = d.get("do_nwc", False)
+                if do_nwc:
+                    out = get_out("NWC")
+                    nwc_pairs = d.get("nwc_pairs", [])
+
+                    exp, fail = nwc(nwc_pairs, out)
+                    all_exp += exp; all_fail += fail
 
 
-                for (vid, fn) in nwc_pairs:
-                    report_rows.append({
-                        "Sheet Number": fn, "Sheet Name": fn,
-                        "Format": "NWC", "Filename": fn + ".nwc",
-                        "Status": "OK" if fn in exp else "FAILED",
-                        "Error": next((f[1] for f in fail if f[0] == fn), "")})
+                    for (vid, fn) in nwc_pairs:
+                        report_rows.append({
+                            "Sheet Number": fn, "Sheet Name": fn,
+                            "Format": "NWC", "Filename": fn + ".nwc",
+                            "Status": "OK" if fn in exp else "FAILED",
+                            "Error": next((f[1] for f in fail if f[0] == fn), "")})
+            finally:
+                _watch_active[0] = False
+                try:
+                    if _watch_thread is not None: _watch_thread.Join(2000)
+                except: pass
+                try:
+                    uiapp.DialogBoxShowing -= _dlg_handler
+                except: pass
 
             if do_report and report_rows:
                 write_csv(out_folder, report_rows)
 
-            # Scheduled exports: sync to central after all exports complete
-            if d.get("is_scheduled", False):
-                import System.Windows as _SWsync
-                try:
-                    if doc_l.IsWorkshared:
-                        import Autodesk.Revit.DB as _DBpost
-                        _sync_opts = _DBpost.SynchronizeWithCentralOptions()
-                        _relin = _DBpost.RelinquishOptions(True)
-                        _sync_opts.SetRelinquishOptions(_relin)
-                        _sync_opts.SaveLocalBefore = False
-                        _sync_opts.SaveLocalAfter  = False
-                        _sync_opts.Comment = "Scheduled Export - auto sync"
-                        doc_l.SynchronizeWithCentral(
-                            _DBpost.TransactWithCentralOptions(),
-                            _sync_opts)
-                except Exception as _synce:
-                    _SWsync.MessageBox.Show("Sync failed: {}".format(str(_synce)), "Scheduler")
+            # Pass workshared flag to callback so it can relinquish after user clicks OK
+            d["_is_workshared"] = _is_workshared
 
             msg = "Exported {} file(s) to:\n{}".format(len(all_exp), out_folder)
             if do_report: msg += "\n\nCSV report: ExportReport.csv"
             if all_fail:
                 msg += "\n\nFailed ({}):\n".format(len(all_fail))
                 msg += "\n".join("  {} - {}".format(*f) for f in all_fail[:8])
+
+            # Relinquish / sync after export (inside Execute where Revit API is available)
+            # Only runs if the "Sync to central after export" checkbox is checked,
+            # or this is a scheduled export.
+            if _is_workshared and (d.get("is_scheduled", False) or d.get("nwc_sync", False)):
+                import Autodesk.Revit.DB as _DBr
+                import System.Windows as _SWr
+                try:
+                    _relin_opts = _DBr.RelinquishOptions(True)
+                    _twc = _DBr.TransactWithCentralOptions()
+                    _sync_opts = _DBr.SynchronizeWithCentralOptions()
+                    _sync_opts.SetRelinquishOptions(_relin_opts)
+                    _sync_opts.SaveLocalBefore = True
+                    _sync_opts.SaveLocalAfter  = True
+                    _sync_opts.Comment = "Scheduled Export" if d.get("is_scheduled") else "NWC Export"
+                    doc_l.SynchronizeWithCentral(_twc, _sync_opts)
+                except Exception as _re:
+                    _SWr.MessageBox.Show("Relinquish/sync error: {}".format(str(_re)), "Worksharing")
 
             if callback:
                 callback(msg, len(all_fail) == 0)
@@ -1989,6 +2275,9 @@ class ProSheetsWindow(Window):
                     p2 = s.LookupParameter("SPOOL SHEET HCC IFF TAG")
                     sr.SpoolTag    = p2.AsString() if p2 and p2.HasValue else ""
                     sr._chk_ref    = None
+                    # Auto-check if pre-selected from project browser/model
+                    if self.preselected and s.SheetNumber in self.preselected:
+                        sr.IsChecked = True
                     self.sheet_rows.append(sr)
                     self.sheet_rows_list.append(sr)
                     self.list_box.Items.Add(self._build_row_panel(sr, idx))
@@ -2320,6 +2609,10 @@ class ProSheetsWindow(Window):
 
         row.Children.Add(make_grp("Revit 2020 & above", rev))
         outer.Children.Add(row)
+        self.nwc_sync_before = make_chk("Sync to central before export (workshared models)", False)
+        outer.Children.Add(self.nwc_sync_before)
+        self.nwc_sync_after = make_chk("Sync to central after export (workshared models)", False)
+        outer.Children.Add(self.nwc_sync_after)
         return outer
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -2634,6 +2927,8 @@ class ProSheetsWindow(Window):
             "nwc_coords_idx"     : self.nwc_coords_cmb.SelectedIndex,
             "nwc_convert_cad"    : bool(self.nwc_convert_cad.IsChecked),
             "nwc_convert_lights" : bool(self.nwc_convert_lights.IsChecked),
+            "nwc_sync_before"    : bool(self.nwc_sync_before.IsChecked),
+            "nwc_sync_after"     : bool(self.nwc_sync_after.IsChecked),
             "nwc_faceting"       : self.nwc_faceting.Text,
         }
 
@@ -2678,6 +2973,10 @@ class ProSheetsWindow(Window):
         self.nwc_coords_cmb.SelectedIndex  = d.get("nwc_coords_idx", 0)
         self.nwc_convert_cad.IsChecked     = d.get("nwc_convert_cad", True)
         self.nwc_convert_lights.IsChecked  = d.get("nwc_convert_lights", False)
+        try: self.nwc_sync_before.IsChecked = d.get("nwc_sync_before", False)
+        except: pass
+        try: self.nwc_sync_after.IsChecked = d.get("nwc_sync_after", False)
+        except: pass
         self.nwc_faceting.Text             = d.get("nwc_faceting", "1")
         import System.Windows as _SWA
         self.nwc_panel.Visibility = _SWA.Visibility.Visible if d.get("export_nwc") else _SWA.Visibility.Collapsed
@@ -3209,6 +3508,8 @@ class ProSheetsWindow(Window):
                             "do_report": bool(cfg.get("report", False)),
                             "date_sub":  bool(cfg.get("date_folder", False)),
                             "fmt_sub":   bool(cfg.get("fmt_folder", False)),
+                            "nwc_sync":        bool(cfg.get("nwc_sync_after", False)),
+                            "nwc_sync_before": bool(cfg.get("nwc_sync_before", False)),
                             "callback":  cb,
                         }
                         # Schedule next run inside callback - AFTER export completes
@@ -3314,25 +3615,9 @@ class ProSheetsWindow(Window):
                 nwc_pairs = pairs
 
 
-            def callback(msg, ok):
-                import System.Windows.Threading as _SWTP6
-                import System as _Sys6
-                import System.Windows as _SW6
-                def _finish():
-                    self.btn_export.IsEnabled = True
-
-                    _SW6.MessageBox.Show(msg, "Export Complete")
-                    self.is_updating_selection = True
-                    self.list_box.SelectedItems.Clear()
-                    self.is_updating_selection = False
-                    self.selected_rows = []
-                    self._update_summary()
-                self.Dispatcher.BeginInvoke(
-                    _SWTP6.DispatcherPriority.Normal,
-                    _Sys6.Action(_finish))
-
             total = len(pairs)
-            # Show progress bar and reset row statuses immediately (we're on UI thread)
+
+            # Show progress bar immediately
             try:
                 import System.Windows as _SWprog
                 import System.Windows.Threading as _SWTshow
@@ -3344,14 +3629,12 @@ class ProSheetsWindow(Window):
                 self.lbl_export_count.Text   = "0 / {}".format(total)
                 self.export_prog_border.Visibility = _SWprog.Visibility.Visible
                 self.btn_export.IsEnabled = False
-                # Force immediate repaint before export starts
                 _SWTshow.Dispatcher.CurrentDispatcher.Invoke(
                     _Sysshow.Action(lambda: None),
                     _SWTshow.DispatcherPriority.Background)
             except: pass
 
             def _flush_ui():
-                # Force WPF to process all pending render messages
                 try:
                     import System.Windows.Threading as _SWTf
                     import System as _Sysf
@@ -3382,19 +3665,90 @@ class ProSheetsWindow(Window):
                     _flush_ui()
                 except: pass
 
+            total = len(pairs)
+
+            # Show progress bar immediately
+            try:
+                import System.Windows as _SWprog
+                import System.Windows.Threading as _SWTshow
+                import System as _Sysshow
+                self._update_summary()
+                self.export_progress.Maximum = max(total, 1)
+                self.export_progress.Value   = 0
+                self.lbl_export_status.Text  = 'Exporting...'
+                self.lbl_export_count.Text   = '0 / {}'.format(total)
+                self.export_prog_border.Visibility = _SWprog.Visibility.Visible
+                self.btn_export.IsEnabled = False
+                _SWTshow.Dispatcher.CurrentDispatcher.Invoke(
+                    _Sysshow.Action(lambda: None),
+                    _SWTshow.DispatcherPriority.Background)
+            except: pass
+
+            def _flush_ui():
+                try:
+                    import System.Windows.Threading as _SWTf
+                    import System as _Sysf
+                    _SWTf.Dispatcher.CurrentDispatcher.Invoke(
+                        _Sysf.Action(lambda: None),
+                        _SWTf.DispatcherPriority.Background)
+                except: pass
+
+            def _row_started(fname):
+                try:
+                    import System.Windows.Threading as _SWTp
+                    import System as _Sysp
+                    def _do(): self._mark_row_active(fname)
+                    self.Dispatcher.Invoke(_SWTp.DispatcherPriority.Render, _Sysp.Action(_do))
+                    _flush_ui()
+                except: pass
+
+            def _row_done(fname, ok, done_count):
+                try:
+                    import System.Windows.Threading as _SWTd
+                    import System as _Sysd
+                    def _do():
+                        self._mark_row_done(fname, ok)
+                        self.export_progress.Value = done_count
+                        self.lbl_export_count.Text = '{} / {}'.format(done_count, total)
+                        self.lbl_export_status.Text = fname
+                    self.Dispatcher.Invoke(_SWTd.DispatcherPriority.Render, _Sysd.Action(_do))
+                    _flush_ui()
+                except: pass
+
+            def callback(msg, ok):
+                import System.Windows.Threading as _SWTP6
+                import System as _Sys6
+                import System.Windows as _SW6
+                def _finish():
+                    try:
+                        self.export_prog_border.Visibility = _SW6.Visibility.Collapsed
+                        self.btn_export.IsEnabled = True
+                    except: pass
+                    _SW6.MessageBox.Show(msg, "Export Complete")
+                    self.is_updating_selection = True
+                    self.list_box.SelectedItems.Clear()
+                    self.is_updating_selection = False
+                    self.selected_rows = []
+                    self._update_summary()
+                self.Dispatcher.BeginInvoke(
+                    _SWTP6.DispatcherPriority.Normal,
+                    _Sys6.Action(_finish))
+
             self.export_handler.data = {
-                "sheets"    : sheets,
-                "pairs"     : pairs,
-                "nwc_pairs" : nwc_pairs,
-                "settings"  : cfg,
-                "out_folder": folder,
-                "do_pdf"    : bool(cfg.get("export_pdf", False)) and not is_views,
-                "do_dwg"    : bool(cfg.get("export_dwg", False)) and not is_views,
-                "do_nwc"    : bool(cfg.get("export_nwc", False)),
-                "do_report" : bool(cfg.get("report", False)),
-                "date_sub"  : bool(cfg.get("date_folder", False)),
-                "fmt_sub"   : bool(cfg.get("fmt_folder", False)),
-                "callback"  : callback,
+                "sheets"     : sheets,
+                "pairs"      : pairs,
+                "nwc_pairs"  : nwc_pairs,
+                "settings"   : cfg,
+                "out_folder" : folder,
+                "do_pdf"     : bool(cfg.get("export_pdf", False)) and not is_views,
+                "do_dwg"     : bool(cfg.get("export_dwg", False)) and not is_views,
+                "do_nwc"     : bool(cfg.get("export_nwc", False)),
+                "do_report"  : bool(cfg.get("report", False)),
+                "date_sub"   : bool(cfg.get("date_folder", False)),
+                "fmt_sub"    : bool(cfg.get("fmt_folder", False)),
+                "nwc_sync"        : bool(cfg.get("nwc_sync_after", False)),
+                "nwc_sync_before" : bool(cfg.get("nwc_sync_before", False)),
+                "callback"   : callback,
                 "is_scheduled": False,
                 "row_started": _row_started,
                 "row_done"   : _row_done,
