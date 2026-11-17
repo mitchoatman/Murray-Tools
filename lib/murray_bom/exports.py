@@ -24,6 +24,7 @@ class Part(object):
         self.props = props or {}
         self.straight = straight
         self.workset = workset or ''
+        self.service_type_id = None  # FabricationPart.ServiceType, a number on the element itself (None when it could not be read)
         self.element = None          # kept only by tests; the reader keeps eid and doc instead
         self.eid = None              # the Revit ElementId (geometry is read from it)
         self.doc = None
@@ -73,13 +74,27 @@ STAGE_LABEL = {'lines': 'Centerlines', 'straights': 'Straights', 'fittings': 'Fi
 _SERVICE_TYPE_PROPS = ['Service Type', 'FP_Service Type', 'Fabrication Service Type', 'ServiceType']
 
 
+# What kind of part something is comes from the element's own ServiceType (a number on the Revit FabricationPart), not from a
+# parameter that tools may copy data into. 53 is Valve. Add other ids here if more kinds are ever needed.
+VALVE_SERVICE_TYPE_IDS = {53}
+
+
+def is_valve(part):
+    """A valve by the part's internal ServiceType. Only when that number could not be read on this part does the Service Type
+    parameter decide (Valve or Valves), so a part is never left unclassified."""
+    sid = part.service_type_id
+    if sid is not None:
+        return sid in VALVE_SERVICE_TYPE_IDS
+    return re.match(r'^valves?$', _s(first_value(part.props, _SERVICE_TYPE_PROPS)).strip(), re.I) is not None
+
+
 def part_kind(part, is_hanger=False):
     """Where a part sits in the 3D build order: 'straight', 'fitting', 'valve' or 'hanger' (see BUILD_ORDER)."""
     if is_hanger:
         return 'hanger'
     if is_straight(part):
         return 'straight'
-    if re.match(r'^valves?$', _s(first_value(part.props, _SERVICE_TYPE_PROPS)).strip(), re.I):
+    if is_valve(part):
         return 'valve'
     return 'fitting'
 
@@ -131,6 +146,8 @@ def bulk_fab(key, label, opts):
         'skipWhenBlank': opts.get('skipWhenBlank'),
         'includeWhen': opts.get('includeWhen'),
         'excludeWhen': opts.get('excludeWhen'),
+        'includePart': opts.get('includePart'),      # predicates on the part itself, not on a row's text
+        'excludePart': opts.get('excludePart'),
         'skipNote': opts.get('skipNote'),
         'quietCleared': bool(opts.get('noLength')),
         'columns': cols,
@@ -150,23 +167,23 @@ def bulk_fab(key, label, opts):
     return d
 
 
-_EXCL = re.compile(r'^(joints?|welds?|valves?|gaskets?|hangers?)$', re.I)
+_EXCL = re.compile(r'^(joints?|welds?|gaskets?|hangers?)$', re.I)       # valves are decided by is_valve, not by text
 
 EXPORT_TYPES = [
     bulk_fab('bulkcopper', 'Bulk Fab Copper', {
         'combinePipe': True, 'noPipeQty': True,
         'includeWhen': {'Part Material': re.compile(r'copper|bronze|brass', re.I)},
-        'excludeWhen': {'Service Type': _EXCL},
-        'skipNote': 'parts left out (not copper, bronze or brass; or Joint, Weld, Valve, Gasket or Hanger service type)'}),
+        'excludeWhen': {'Service Type': _EXCL}, 'excludePart': is_valve,
+        'skipNote': 'parts left out (not copper, bronze or brass; a valve; or Joint, Weld, Gasket or Hanger service type)'}),
     bulk_fab('bulknoncopper', 'Bulk Fab Non Copper', {
         'combinePipe': True, 'noPipeQty': True,
         'includeWhen': {'Part Material': re.compile(r'^(?!.*(?:copper|bronze|brass)).+$', re.I)},
-        'excludeWhen': {'Service Type': _EXCL},
-        'skipNote': 'parts left out (copper, bronze or brass; no material; or Joint, Weld, Valve, Gasket or Hanger service type)'}),
+        'excludeWhen': {'Service Type': _EXCL}, 'excludePart': is_valve,
+        'skipNote': 'parts left out (copper, bronze or brass; no material; a valve; or Joint, Weld, Gasket or Hanger service type)'}),
     bulk_fab('bulkvalves', 'Bulk Fab Valve', {
-        'includeWhen': {'Service Type': re.compile(r'^valves?$', re.I)},
+        'includePart': is_valve,
         'noLength': True,
-        'skipNote': 'parts left out (service type is not Valve)'}),
+        'skipNote': 'parts left out (not a valve by the part\'s own ServiceType)'}),
     bulk_fab('bulkhangers', 'Bulk Fab Hanger', {
         'source': 'hangers', 'noLength': True, 'rodSummary': True,
         'skipWhenBlank': ['Reference Level', 'Fabrication Service Name', 'Product Code'],
@@ -220,6 +237,10 @@ def build_row(defn, part):
         skip = all(_s(row.get(h)).strip() == '' for h in swb)
     if not skip and defn.get('excludeWhen'):
         skip = any(rx.search(_s(row.get(h)).strip()) for h, rx in defn['excludeWhen'].items())
+    if not skip and defn.get('excludePart'):
+        skip = bool(defn['excludePart'](part))
+    if not skip and defn.get('includePart'):
+        skip = not defn['includePart'](part)
     if not skip and defn.get('includeWhen'):
         skip = not all(rx.search(_s(row.get(h))) for h, rx in defn['includeWhen'].items())
     return {'row': row, 'level': level, 'notes': notes, 'skip': skip, 'part': part}
@@ -481,6 +502,33 @@ def select_parts(d, parts, wanted=None, hidden=None, sel=None, excluded_services
     return items, kept, skipped, no_level, other_level, notes
 
 
+def service_type_notes(parts):
+    """What the parts' own ServiceType numbers are, with the commonest family names under each, and how many could not be read.
+    Shown in the export details so an unexpected valve (or a missing one) can be traced to its number."""
+    found, unreadable = {}, 0
+    for p in parts:
+        sid = p.service_type_id
+        if sid is None:
+            unreadable += 1
+            continue
+        e = found.setdefault(sid, [0, {}])
+        e[0] += 1
+        fam = description(p)
+        e[1][fam] = e[1].get(fam, 0) + 1
+    notes = []
+    if found:
+        ranked = sorted(found.items(), key=lambda kv: -kv[1][0])[:8]
+        bits = []
+        for sid, (n, fams) in ranked:
+            top = ', '.join(f for f, _ in sorted(fams.items(), key=lambda kv: -kv[1])[:2])
+            bits.append('%s (%d: %s)' % (sid, n, top))
+        notes.append('Valve = the part\'s own ServiceType %s. ServiceType values found: %s' % (
+            ' or '.join(str(i) for i in sorted(VALVE_SERVICE_TYPE_IDS)), '; '.join(bits)))
+    if unreadable:
+        notes.append('ServiceType could not be read on %d parts; the Service Type parameter was used for those' % unreadable)
+    return notes
+
+
 def run_exports(sources, keys, levels=None, hidden_worksets=None, selection_ids=None, excluded_services=None):
     """sources: {'pipe': [Part], 'hangers': [Part]}; keys: export keys.
     Returns {label: {'rows': [...], 'rods': [...], 'warnings': [...], 'parts': n}} and a list of summary warnings."""
@@ -529,6 +577,9 @@ def run_exports(sources, keys, levels=None, hidden_worksets=None, selection_ids=
                     v = _s(it['row'].get(h)).strip() or '(none)'
                     seen[v] = seen.get(v, 0) + 1
                 warn.append('%s values found: %s' % (h, _top(seen)))
+        if d.get('includePart') or d.get('excludePart'):
+            sn = service_type_notes(parts)
+            warn.extend(sn if d.get('includePart') else [n for n in sn if n.startswith('ServiceType could not')])
         if d.get('combinePipe'):
             rows, comb = combine_pipe_rows(rows, d)
             if comb and comb['rows'] != comb['sets']:

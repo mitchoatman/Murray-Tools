@@ -1,0 +1,13 @@
+
+#highlight: new
+
+# bundle title
+title:
+  "Fab\nEditor"
+
+# bundle tooltip
+tooltip: |-
+  yep
+
+# bundle author
+author: Mitchell Oatman

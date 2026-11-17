@@ -1,0 +1,849 @@
+#!/usr/bin/env python3
+r"""
+fabmap.py - READ-ONLY reader for the Fabrication 'service.map' file (2026 format).
+
+pyRevit use: run with no arguments. The database folder comes from C:\temp\Ribbon_FABCADMEP-Path.json
+(key database_path; created on first run). The Items and Images folders and the Database folder holding
+service.map are read from MAP.INI in that folder, and the viewer opens in your browser. Shift-click picks a
+different database folder, ctrl-click picks a different service.map. Nothing is written to the map file.
+
+Command line:
+    python fabmap.py service.map --summary
+    python fabmap.py service.map --json services.json
+    python fabmap.py service.map --html viewer.html
+    python fabmap.py service.map --find "storm"
+
+Palettes (service templates) are read from the second half of the file: template > tab > button >
+item path (.ITM) and image path (.png). Images are loaded from your Fabrication ITEMS folder.
+
+Format as decoded so far (see FINDINGS in the chat; items marked [CONFIRM] are inferred):
+  * 30-byte header "MAP Compressed File (c) 2005..." followed by zlib blocks.
+  * Decompressed data is a tagged object stream. Tags used here (little endian dwords):
+      0x006C090B  service collection : [tag][size][size-4][count]...
+      0x006C090A  service            : [tag][size][payload of size bytes]
+      0x006C0909  service entry      : [tag][size][payload]
+      0x001118F6  button list        : [tag][size][size-4][count][buttons...]
+      0x001118F5  button             : [tag][size][payload]
+  * Strings are [int32 n incl. NUL][n UTF-16LE chars].
+This module never writes. Writing is deliberately not implemented yet.
+"""
+import json, re, struct, sys, zlib
+
+TAG_COLLECTION = b'\x0b\x09\x6c\x00'
+TAG_SERVICE    = b'\x0a\x09\x6c\x00'
+TAG_ENTRY      = b'\x09\x09\x6c\x00'
+TAG_BTNLIST    = b'\xf6\x18\x11\x00'
+TAG_BUTTON     = b'\xf5\x18\x11\x00'
+TPL_TAG = b'\xdd\x03\x5c\x00'   # service template  [tag][size][payload]
+TPL_BTN = b'\xdf\x03\x5c\x00'   # palette button    [tag][size][payload]
+TPL_TAB = b'\xc1\x33\x20\x00'   # palette tab       [tag][size][payload]  (button count sits just before the first button)
+
+
+def decompress(path):
+    with open(path, 'rb') as f:
+        return decompress_bytes(f.read())
+
+
+def decompress_bytes(d):
+    if not d.startswith(b'MAP Compressed File'):
+        raise ValueError('Not a MAP Compressed File')
+    pos = d.find(b'\x78\x9c')
+    out = []
+    while pos >= 0 and pos < len(d):
+        o = zlib.decompressobj()
+        out.append(o.decompress(d[pos:]))
+        pos = len(d) - len(o.unused_data)
+        nxt = d.find(b'\x78\x9c', pos, pos + 64)
+        if nxt < 0:
+            break
+        pos = nxt
+    return b''.join(out)
+
+
+def _str_at(raw, o, limit):
+    """Return (string, end) if a valid length-prefixed UTF-16 string starts at o, else (None, o)."""
+    if o + 4 > limit:
+        return None, o
+    n = struct.unpack_from('<I', raw, o)[0]
+    if not (0 < n < 400) or o + 4 + 2 * n > limit:
+        return None, o
+    b = raw[o + 4:o + 4 + 2 * n]
+    if b[-2:] != b'\x00\x00' or any(b[i + 1] != 0 for i in range(0, len(b), 2)):
+        return None, o
+    s = b.decode('utf-16le').rstrip('\0')
+    if any(ord(c) < 32 for c in s):
+        return None, o
+    return s, o + 4 + 2 * n
+
+
+def _strings(raw, start, end):
+    o, out = start, []
+    while o < end:
+        s, e = _str_at(raw, o, end)
+        if s is not None:
+            out.append(s)
+            o = e
+        else:
+            o += 1
+    return out
+
+
+def parse(raw):
+    """Parse all services. Returns (services, checks)."""
+    c = raw.find(TAG_COLLECTION)
+    if c < 0:
+        raise ValueError('service collection tag not found')
+    coll_size, _, coll_count = struct.unpack_from('<III', raw, c + 4)
+    coll_end = c + 8 + coll_size
+    starts = []
+    i = c + 4
+    while True:
+        i = raw.find(TAG_SERVICE, i, coll_end)
+        if i < 0:
+            break
+        starts.append(i)
+        i += 4
+    services, checks = [], {'collection_count': coll_count, 'service_tags': len(starts), 'problems': []}
+    for k, s in enumerate(starts):
+        size = struct.unpack_from('<I', raw, s + 4)[0]
+        end = s + 8 + size
+        if k + 1 < len(starts) and end != starts[k + 1]:
+            checks['problems'].append('service %d size does not reach next record' % k)
+        # header strings: name, group, code (first three strings before first entry/button list)
+        first_entry = raw.find(TAG_ENTRY, s + 8, end)
+        first_btn = raw.find(TAG_BTNLIST, s + 8, end)
+        hdr_end = min([x for x in (first_entry, first_btn, end) if x > 0])
+        # empty strings are ambiguous with small integers in the header, so only real text counts here
+        hs = [x for x in _strings(raw, s + 8, hdr_end) if x]
+        svc = {'index': k, 'offset': s, 'name': hs[0] if hs else '', 'group': hs[1] if len(hs) > 1 else '',
+               'code': hs[2] if len(hs) > 2 else '', 'entries': [], 'buttons': []}
+        # entries
+        j = s + 8
+        while True:
+            j = raw.find(TAG_ENTRY, j, end)
+            if j < 0:
+                break
+            esz = struct.unpack_from('<I', raw, j + 4)[0]
+            eend = min(j + 8 + esz, end)
+            svc['entries'].append({'strings': _strings(raw, j + 8, eend)})
+            j = eend
+        # buttons
+        bl = raw.find(TAG_BTNLIST, s + 8, end)
+        declared = None
+        if bl >= 0:
+            lsz = struct.unpack_from('<I', raw, bl + 4)[0]
+            declared = struct.unpack_from('<I', raw, bl + 12)[0]
+            lend = min(bl + 8 + lsz, end)
+            j = bl + 16
+            while True:
+                j = raw.find(TAG_BUTTON, j, lend)
+                if j < 0:
+                    break
+                bsz = struct.unpack_from('<I', raw, j + 4)[0]
+                bend = min(j + 8 + bsz, lend)
+                st = _strings(raw, j + 8, bend)
+                svc['buttons'].append({'name': st[0] if st else '', 'code': st[1] if len(st) > 1 else '',
+                                       'separator': bool(st) and st[0].startswith('---')})
+                j = bend
+            if declared != len(svc['buttons']):
+                checks['problems'].append('service %r: declared %s buttons, parsed %d' % (svc['name'], declared, len(svc['buttons'])))
+        svc['declared_buttons'] = declared
+        services.append(svc)
+    checks['services'] = len(services)
+    checks['entries'] = sum(len(x['entries']) for x in services)
+    checks['buttons'] = sum(len(x['buttons']) for x in services)
+    checks['last_record_reaches_collection_end'] = bool(starts) and (
+        struct.unpack_from('<I', raw, starts[-1] + 4)[0] + starts[-1] + 8 == coll_end)
+    return services, checks
+
+
+_RUN = re.compile(rb'(?:[\x20-\x7e]\x00){3,}')
+
+
+def _first_string(raw, a, b, limit=90):
+    o, stop = a, min(b, a + limit)
+    while o < stop:
+        s, e = _str_at(raw, o, b)
+        if s:
+            return s
+        o += 1
+    return ''
+
+
+def _all(raw, tag, a, b):
+    out, i = [], a
+    while True:
+        i = raw.find(tag, i, b)
+        if i < 0:
+            return out
+        out.append(i)
+        i += 1
+
+
+def parse_templates(raw, start_search=0):
+    """Service templates -> tabs -> buttons. Returns (templates, checks)."""
+    first = raw.find(TPL_TAG, start_search)
+    if first < 0:
+        return [], {'templates': 0, 'problems': ['no service template section found']}
+    templates, problems = [], []
+    o = first
+    end_data = len(raw.rstrip(b'\0'))
+    while raw[o:o + 4] == TPL_TAG:
+        size = struct.unpack_from('<I', raw, o + 4)[0]
+        te = o + 8 + size
+        if te > len(raw):
+            problems.append('template at %d runs past end of data' % o)
+            break
+        tabs_at = _all(raw, TPL_TAB, o + 8, te)
+        hdr_end = tabs_at[0] if tabs_at else te
+        hs, p = [], o + 8
+        while p < hdr_end and len(hs) < 4:
+            s, e = _str_at(raw, p, hdr_end)
+            if s:
+                hs.append(s); p = e
+            else:
+                p += 1
+        tpl = {'name': hs[0] if hs else '', 'meta': hs[1:], 'offset': o, 'tabs': []}
+        for x in tabs_at:
+            xsz = struct.unpack_from('<I', raw, x + 4)[0]
+            xe = min(x + 8 + xsz, te)
+            nm = _first_string(raw, x + 8, xe, 60)
+            if not nm:
+                continue
+            tab = {'name': nm, 'buttons': []}
+            btns = _all(raw, TPL_BTN, x, xe)
+            if btns:
+                declared = struct.unpack_from('<I', raw, btns[0] - 4)[0]
+                if declared != len(btns):
+                    problems.append('template %r tab %r: declared %d buttons, found %d' % (tpl['name'], nm, declared, len(btns)))
+            for b in btns:
+                bsz = struct.unpack_from('<I', raw, b + 4)[0]
+                be = min(b + 8 + bsz, xe)
+                bname = _first_string(raw, b + 8, be, 70)
+                itms, pngs = [], []
+                for m in _RUN.finditer(raw[b:be]):
+                    s = m.group(0).decode('utf-16le')
+                    l = s.lower()
+                    if l.endswith('.itm') and s not in itms and len(itms) < 8:
+                        itms.append(s)
+                    elif l.endswith(('.png', '.bmp', '.jpg', '.jpeg')) and s not in pngs and len(pngs) < 2:
+                        pngs.append(s)
+                png = pngs[0] if pngs else ''          # key kept as 'png' for compatibility; may be .bmp/.jpg
+                if itms and png.lower().endswith('.png') and png.rsplit('.', 1)[0].lower() == itms[0].rsplit('.', 1)[0].lower():
+                    png = ''          # same stem and .png as the item: the viewer derives it
+                tab['buttons'].append({'name': bname, 'items': itms, 'png': png, 'png_missing': not pngs})
+            tpl['tabs'].append(tab)
+        templates.append(tpl)
+        o = te
+    trailing = end_data - o
+    total_btn_tags = len(_all(raw, TPL_BTN, first, o))
+    got = sum(len(tb['buttons']) for tp in templates for tb in tp['tabs'])
+    if got != total_btn_tags:
+        problems.append('buttons parsed %d but %d button tags in section' % (got, total_btn_tags))
+    checks = {'templates': len(templates), 'tabs': sum(len(tp['tabs']) for tp in templates), 'buttons': got,
+              'button_tags_in_section': total_btn_tags, 'trailing_bytes_after_templates': trailing,
+              'problems': problems}
+    return templates, checks
+
+
+_IMG_EXT = ('.png', '.bmp', '.jpg', '.jpeg')
+
+
+def _itm_image_refs(itm_file):
+    """Best effort: image names stored inside an .ITM. Format not confirmed [CONFIRM]; read-only."""
+    import os
+    try:
+        if os.path.getsize(itm_file) > 30000000:
+            return []
+        with open(itm_file, 'rb') as f:
+            data = f.read()
+        if data.startswith(b'MAP Compressed File'):
+            data = decompress_bytes(data)
+    except Exception:
+        return []
+    refs = []
+    for m in re.finditer(rb'(?:[\x20-\x7e]\x00){4,260}', data):
+        s = m.group(0).decode('utf-16le')
+        if s.lower().endswith(_IMG_EXT) and s not in refs:
+            refs.append(s)
+    for m in re.finditer(rb'[\x20-\x7e]{4,260}', data):
+        s = m.group(0).decode('ascii')
+        if s.lower().endswith(_IMG_EXT) and s not in refs:
+            refs.append(s)
+    return refs[:6]
+
+
+def resolve_images(templates, items_root, images_root='', itm_first=False, cache_path='', budget_s=20):
+    """Find the real image file for each palette button. Adds b['img'] (absolute path or '').
+    Default (fast): what service.map stores and the item's own name beside it; an .ITM is opened only when no
+    picture was found that way. itm_first=True reads the .ITM of every button first (slow on a large database).
+    .ITM reading stops after budget_s seconds. Results are cached in cache_path (keyed by file size and date)."""
+    import os, time
+    t_start = time.time()
+    stats = {'found': 0, 'missing': 0, 'via': {}, 'missing_examples': [], 'missing_rows': [],
+             'disagree_rows': [], 'itm_files_read': 0, 'itm_cache_hits': 0, 'itm_first': bool(itm_first), 'itm_skipped': 0, 'dirs_listed': 0}
+    seen = {}
+
+    dir_names = {}
+
+    def isf(p):
+        # one folder listing answers every lookup in that folder (much faster than a call per file on a network share)
+        if p not in seen:
+            d, f = os.path.split(p)
+            names = dir_names.get(d)
+            if names is None:
+                try:
+                    names = frozenset(n.lower() for n in os.listdir(d))
+                except Exception:
+                    names = frozenset()
+                dir_names[d] = names
+                stats['dirs_listed'] += 1
+            seen[p] = f.lower() in names
+        return seen[p]
+
+    def j(base, rel):
+        rel = rel.replace('\\', '/')
+        if rel.startswith('./'):
+            rel = rel[2:]
+        return os.path.normpath(os.path.join(base, rel))
+
+    itm_cache = _read_json(cache_path) if cache_path else {}
+    dirty = [False]
+
+    def refs_for(itm_abs):
+        """Image names stored in the .ITM, or None if the file is missing."""
+        try:
+            st = os.stat(itm_abs)
+        except Exception:
+            return None
+        ent = itm_cache.get(itm_abs)
+        if ent and ent.get('m') == st.st_mtime and ent.get('s') == st.st_size:
+            stats['itm_cache_hits'] += 1
+            return ent.get('refs', [])
+        refs = _itm_image_refs(itm_abs)
+        stats['itm_files_read'] += 1
+        itm_cache[itm_abs] = {'m': st.st_mtime, 's': st.st_size, 'refs': refs}
+        dirty[0] = True
+        return refs
+
+    def resolve_ref(ref, itm_abs):
+        r = ref.replace('\\', '/')
+        opts = []
+        if re.match(r'^[A-Za-z]:[\\/]|^[\\/]{2}', ref):
+            opts.append(ref)
+        opts.append(os.path.normpath(os.path.join(os.path.dirname(itm_abs), r)))
+        if images_root:
+            opts.append(os.path.join(images_root, os.path.basename(r)))
+        opts.append(j(items_root, ref))
+        if images_root:
+            opts.append(j(images_root, ref))
+            opts.append(j(os.path.dirname(images_root.rstrip('\\/')), ref))
+        for p in opts:
+            if isf(p):
+                return p
+        return ''
+
+    itm_result = {}      # itm_abs -> (chosen path, refs list or None)
+
+    def from_itm(itm_abs):
+        if itm_abs not in itm_result:
+            if time.time() - t_start > budget_s:
+                stats['itm_skipped'] += 1
+                itm_result[itm_abs] = ('', 'SKIP')
+                return itm_result[itm_abs]
+            refs = refs_for(itm_abs)
+            hit = ''
+            for ref in (refs or []):
+                hit = resolve_ref(ref, itm_abs)
+                if hit:
+                    break
+            itm_result[itm_abs] = (hit, refs)
+        return itm_result[itm_abs]
+
+    for tp in templates:
+        for tb in tp['tabs']:
+            for b in tb['buttons']:
+                png = b['png']
+                itm = b['items'][0] if b['items'] else ''
+                itm_abs = j(items_root, itm) if itm else ''
+                cands = []          # (path, how) from service.map and the item's own name
+                if png:
+                    if re.match(r'^[A-Za-z]:[\\/]|^[\\/]{2}', png):
+                        cands.append((png, 'stored absolute'))
+                        if images_root:
+                            cands.append((os.path.join(images_root, os.path.basename(png.replace('\\', '/'))), 'stored absolute, name in Images folder'))
+                    elif '/' in png.replace('\\', '/'):
+                        cands.append((j(items_root, png), 'stored path'))
+                    else:
+                        if images_root:
+                            cands.append((os.path.join(images_root, png), 'name in Images folder'))
+                        if itm:
+                            cands.append((os.path.join(os.path.dirname(itm_abs), png), 'beside item'))
+                        cands.append((os.path.join(items_root, png), 'ITEMS root'))
+                if itm:
+                    for ext in ('.png', '.bmp', '.jpg', '.jpeg'):
+                        cands.append((os.path.splitext(itm_abs)[0] + ext, 'beside item'))
+                map_hit, map_how = '', ''
+                for p, h in cands:
+                    if isf(p):
+                        map_hit, map_how = p, h
+                        break
+                itm_hit, refs = ('', None)
+                if itm and (itm_first or not map_hit):
+                    itm_hit, refs = from_itm(itm_abs)
+                if itm_first:
+                    chosen, how = (itm_hit, 'named inside item') if itm_hit else (map_hit, map_how)
+                else:
+                    chosen, how = (map_hit, map_how) if map_hit else (itm_hit, 'named inside item')
+                if itm_hit and map_hit and os.path.normcase(os.path.normpath(itm_hit)) != os.path.normcase(os.path.normpath(map_hit)):
+                    stats['disagree_rows'].append([tp['name'], tb['name'], b['name'], itm, itm_hit, map_hit, map_how])
+                b['img'] = chosen.replace('\\', '/') if chosen else ''
+                if chosen:
+                    stats['found'] += 1
+                    stats['via'][how] = stats['via'].get(how, 0) + 1
+                else:
+                    stats['missing'] += 1
+                    stats['missing_rows'].append([tp['name'], tb['name'], b['name'], itm, png,
+                                                  ('not checked (time limit)' if refs == 'SKIP' else ('yes' if refs is not None else 'NO')),
+                                                  '' if refs == 'SKIP' else '; '.join((refs or [])[:3]),
+                                                  cands[0][0] if cands else ''])
+                    if len(stats['missing_examples']) < 12:
+                        stats['missing_examples'].append('%s | %s' % (tp['name'], b['name']))
+    if dirty[0] and cache_path:
+        _write_json(cache_path, itm_cache)
+    stats['distinct_items_missing'] = len({r[3] for r in stats['missing_rows']})
+    stats['disagree'] = len(stats['disagree_rows'])
+    stats['seconds'] = round(time.time() - t_start, 1)
+    return stats
+
+
+HTML = r"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Fabrication service.map viewer</title>
+<style>
+:root{--y:#FFE716;--bg:#fff;--fg:#000}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:var(--fg);background:var(--bg)}
+header{background:var(--y);padding:8px 14px;border-bottom:2px solid #000;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+header b{font-size:15px}header .m{font-size:12px}
+.tabsrow button,#bar button{font:inherit;border:2px solid #000;background:#fff;padding:4px 10px;cursor:pointer}
+.tabsrow button.on{background:var(--y);font-weight:bold}
+#bar{padding:6px 14px;border-bottom:1px solid #000;display:flex;gap:8px;align-items:center;font-size:12px}
+#root{flex:1;font:inherit;padding:4px;border:1px solid #000}
+#wrap{display:flex;height:calc(100vh - 100px)}
+#left{width:330px;border-right:2px solid #000;display:flex;flex-direction:column}
+#q{margin:8px;padding:6px;font:inherit;border:1px solid #000}
+#list{overflow:auto;flex:1}.row{padding:6px 10px;border-bottom:1px solid #000;cursor:pointer;font-size:13px}
+.row small{font-size:11px}.row.sel{background:var(--y)}
+#main{flex:1;overflow:auto;padding:12px 16px}
+h2{margin:0 0 2px}.note{font-size:12px}
+.ptabs{display:flex;gap:0;margin:10px 0 0}.ptabs button{font:inherit;font-size:12px;border:1px solid #000;border-bottom:0;background:#fff;padding:4px 14px;cursor:pointer}
+.ptabs button.on{background:var(--y);font-weight:bold}
+.grid{display:flex;flex-wrap:wrap;border-top:2px solid #000;padding-top:2px;gap:2px}
+.tile{width:112px;height:128px;border:2px solid #000;background:#fff;display:flex;flex-direction:column;align-items:center;cursor:default;position:relative}
+.tile:hover{background:var(--y)}
+.tile .im{height:74px;width:100%;display:flex;align-items:center;justify-content:center;padding:4px}
+.tile img{max-width:100%;max-height:100%}
+.tile .no{font-size:10px;border:1px dashed #000;padding:14px 6px}
+.tile .lb{font-size:10px;text-transform:uppercase;text-align:center;line-height:1.15;overflow:hidden;padding:0 3px;flex:1;width:100%;word-break:break-word}
+.tile .x{position:absolute;right:2px;top:2px;background:var(--y);border:1px solid #000;font-size:10px;padding:0 3px}
+.tile.sep{background:#000;color:#fff;width:auto;min-width:112px;justify-content:center}
+.tile.sep:hover{background:#000}.tile.sep .lb{color:#fff;flex:0;font-weight:bold}
+table{border-collapse:collapse;margin:8px 0 16px}th{background:var(--y);text-align:left;border:1px solid #000;padding:3px 8px}td{border:1px solid #000;padding:3px 8px}
+</style></head><body>
+<header><b>Fabrication service.map viewer (read-only)</b><span class="m" id="meta"></span>
+<span class="tabsrow"><button id="vP" class="on">Palettes</button><button id="vS">Services</button></span></header>
+<div id="bar"><span>Items folder:</span><input id="root" placeholder="Folder that contains 'Piping Components' (your Fabrication ITEMS folder)"><button id="apply">Apply</button><span id="rootnote"></span></div>
+<div id="wrap"><div id="left"><input id="q" placeholder="Search"><div id="list"></div></div><div id="main"></div></div>
+<script>
+const D=__DATA__;
+const $=id=>document.getElementById(id);
+let view='P',selT=-1,selTab=0,selS=-1,root=D.root||'';
+try{if(!root)root=localStorage.getItem('fabmap_root')||''}catch(e){}
+$('root').value=root;
+$('meta').textContent=D.templates.length+' palettes, '+D.checks.tabs+' tabs, '+D.checks.buttons+' buttons | '+D.services.length+' services';
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function enc(p){return p.split('/').map(encodeURIComponent).join('/')}
+function fileUrl(rel){
+  if(!root)return '';let r=root.replace(/\\/g,'/').replace(/\/+$/,'');let u;
+  if(r.startsWith('//'))u='file:'+'//'+r.slice(2).split('/').map(encodeURIComponent).join('/');
+  else{const parts=r.split('/');const h=/^[A-Za-z]:$/.test(parts[0])?parts.shift()+'/':'';u='file:///'+h+parts.map(encodeURIComponent).join('/')}
+  return u+'/'+enc(rel.replace(/^\.\//,''));}
+function absUrl(p){p=p.replace(/\\/g,'/');if(p.startsWith('//'))return 'file:'+'//'+p.slice(2).split('/').map(encodeURIComponent).join('/');
+  const parts=p.split('/');const h=/^[A-Za-z]:$/.test(parts[0])?parts.shift()+'/':'';return 'file:///'+h+parts.map(encodeURIComponent).join('/')}
+function pngOf(b){if(b.png)return b.png;if(b.items.length)return b.items[0].replace(/\.itm$/i,'.png');return ''}
+function tile(b){
+  const d=document.createElement('div');d.className='tile'+(b.name.startsWith('---')?' sep':'');
+  d.title=b.items.length?b.items.join('\n'):'(no item path)';
+  if(b.items.length>1){const x=document.createElement('span');x.className='x';x.textContent='x'+b.items.length;d.appendChild(x)}
+  const im=document.createElement('div');im.className='im';
+  if(!d.classList.contains('sep')){const p=pngOf(b),u=p?fileUrl(p):'';
+    if(u){const i=document.createElement('img');i.loading='lazy';i.src=u;i.onerror=()=>{im.innerHTML='';const n=document.createElement('div');n.className='no';n.textContent='no image';im.appendChild(n)};im.appendChild(i)}
+    else{const n=document.createElement('div');n.className='no';n.textContent=(root||D.resolved)?'no image':'set items folder';im.appendChild(n)}
+    d.appendChild(im)}
+  const l=document.createElement('div');l.className='lb';l.textContent=b.name;d.appendChild(l);return d}
+function showP(i){selT=i;selTab=0;drawP()}
+function drawP(){
+  document.querySelectorAll('#list .row').forEach(r=>r.classList.toggle('sel',+r.dataset.i===selT));
+  const m=$('main');m.innerHTML='';if(selT<0){m.textContent='Select a palette.';return}
+  const T=D.templates[selT];
+  const h=document.createElement('div');h.innerHTML='<h2>'+esc(T.name)+'</h2><div class="note">'+esc(T.meta.join(' | '))+' | '+T.tabs.length+' tabs</div>';m.appendChild(h);
+  const tb=document.createElement('div');tb.className='ptabs';
+  T.tabs.forEach((x,k)=>{const b=document.createElement('button');b.textContent=x.name+' ('+x.buttons.length+')';if(k===selTab)b.className='on';b.onclick=()=>{selTab=k;drawP()};tb.appendChild(b)});m.appendChild(tb);
+  const g=document.createElement('div');g.className='grid';
+  if(T.tabs[selTab])T.tabs[selTab].buttons.forEach(b=>g.appendChild(tile(b)));m.appendChild(g)}
+function showS(i){selS=i;drawS()}
+function drawS(){
+  document.querySelectorAll('#list .row').forEach(r=>r.classList.toggle('sel',+r.dataset.i===selS));
+  const m=$('main');if(selS<0){m.textContent='Select a service.';return}
+  const s=D.services[selS];const pal=D.templates.findIndex(t=>t.name===s.name);
+  let h='<h2>'+esc(s.name)+'</h2><div class="note">Group: '+esc(s.group)+' | Service code: '+esc(s.code)+' | Entries: '+s.entries.length+' | Button mappings: '+s.buttons.length+(pal>=0?' | A palette with the same name exists':'')+'</div>';
+  h+='<h3>Button mappings</h3><div class="note">Meaning of the second column is not confirmed.</div><table><tr><th>#</th><th>Name</th><th>Code</th></tr>';
+  s.buttons.forEach((b,n)=>{h+='<tr><td>'+(n+1)+'</td><td>'+esc(b.name)+'</td><td>'+esc(b.code)+'</td></tr>'});
+  h+='</table><h3>Service entries</h3><div class="note">Columns follow the API property order. Mapping is inferred, not confirmed.</div><table><tr><th>#</th><th>LayerTag1</th><th>LayerTag2</th><th>LevelBlock</th><th>SizeBlock</th></tr>';
+  s.entries.forEach((e,n)=>{h+='<tr><td>'+(n+1)+'</td>'+[0,1,2,3].map(k=>'<td>'+esc(e.strings[k]||'')+'</td>').join('')+'</tr>'});
+  m.innerHTML=h+'</table>'}
+function renderList(){const t=$('q').value.toLowerCase(),L=$('list');L.innerHTML='';
+  if(view==='P')D.templates.forEach((p,i)=>{const hay=(p.name+' '+p.meta.join(' ')+' '+p.tabs.map(x=>x.name+' '+x.buttons.map(b=>b.name).join(' ')).join(' ')).toLowerCase();
+    if(t&&!hay.includes(t))return;const r=document.createElement('div');r.className='row';r.dataset.i=i;
+    r.innerHTML=esc(p.name)+'<br><small>'+p.tabs.length+' tabs, '+p.tabs.reduce((a,x)=>a+x.buttons.length,0)+' buttons</small>';r.onclick=()=>showP(i);L.appendChild(r)});
+  else D.services.forEach((s,i)=>{const hay=(s.name+' '+s.group+' '+s.code).toLowerCase();if(t&&!hay.includes(t))return;
+    const r=document.createElement('div');r.className='row';r.dataset.i=i;r.innerHTML=esc(s.name)+'<br><small>'+esc(s.group)+' | '+esc(s.code)+'</small>';r.onclick=()=>showS(i);L.appendChild(r)})}
+function setView(v){view=v;$('vP').className=v==='P'?'on':'';$('vS').className=v==='S'?'on':'';renderList();v==='P'?drawP():drawS()}
+$('vP').onclick=()=>setView('P');$('vS').onclick=()=>setView('S');$('q').oninput=renderList;
+$('apply').onclick=()=>{root=$('root').value.trim();try{localStorage.setItem('fabmap_root',root)}catch(e){}$('rootnote').textContent=root?'Images load from this folder plus the png path stored in service.map.':'';if(view==='P')drawP()};
+$('rootnote').textContent=root?'Images load from this folder plus the png path stored in service.map.':'Set the items folder to show button images.';
+setView('P');
+</script></body></html>"""
+
+
+def _bundle(raw, root='', images_root='', itm_first=False, cache_path=''):
+    import os, time
+    t0 = time.time()
+    services, checks = parse(raw)
+    templates, tchecks = parse_templates(raw)
+    checks['parse_seconds'] = round(time.time() - t0, 1)
+    resolved = False
+    if root and os.path.isdir(root):
+        checks['images'] = resolve_images(templates, root, images_root if images_root and os.path.isdir(images_root) else '', itm_first, cache_path)
+        resolved = True
+    checks['templates'] = tchecks
+    allp = checks['problems'] + tchecks['problems']
+    checks['tabs'] = tchecks['tabs']
+    checks['buttons'] = tchecks['buttons']          # palette buttons (what the stock editor shows)
+    checks['mapping_buttons'] = sum(len(s['buttons']) for s in services)
+    checks['all_problems'] = allp
+    return {'services': services, 'templates': templates, 'checks': checks, 'root': root, 'resolved': resolved}
+
+
+def _write_html(bundle, path):
+    im = bundle['checks'].get('images')
+    if im and 'missing_rows' in im:
+        bundle = dict(bundle)
+        bundle['checks'] = dict(bundle['checks'])
+        bundle['checks']['images'] = {k: v for k, v in im.items() if k not in ('missing_rows', 'disagree_rows')}
+    data = json.dumps(bundle).replace('</', '<\\/')
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(HTML.replace('__DATA__', data))
+
+
+def main(argv):
+    if len(argv) < 2:
+        print(__doc__); return 1
+    args = argv[2:]
+    root = args[args.index('--items') + 1] if '--items' in args else ''
+    imgs = args[args.index('--images') + 1] if '--images' in args else ''
+    cache = args[args.index('--cache') + 1] if '--cache' in args else ''
+    raw = decompress(argv[1])
+    bundle = _bundle(raw, root, imgs, '--itm-first' in args, cache)
+    services, checks = bundle['services'], bundle['checks']
+    if '--json' in args:
+        p = args[args.index('--json') + 1]
+        b2 = dict(bundle)
+        b2['checks'] = {k: (({kk: vv for kk, vv in v.items() if kk not in ('missing_rows', 'disagree_rows')}) if k == 'images' else v) for k, v in bundle['checks'].items()}
+        json.dump(b2, open(p, 'w', encoding='utf-8'), indent=1)
+        print('wrote', p)
+    if '--html' in args:
+        p = args[args.index('--html') + 1]
+        _write_html(bundle, p)
+        print('wrote', p)
+    if '--find' in args:
+        t = args[args.index('--find') + 1].lower()
+        for tp in bundle['templates']:
+            nb = sum(len(x['buttons']) for x in tp['tabs'])
+            if t in tp['name'].lower() or any(t in b['name'].lower() for x in tp['tabs'] for b in x['buttons']):
+                print('palette  %-50s tabs=%d buttons=%d' % (tp['name'], len(tp['tabs']), nb))
+        for s in services:
+            if t in s['name'].lower() or t in s['group'].lower():
+                print('service  %-50s entries=%d' % (s['name'], len(s['entries'])))
+    if '--summary' in args or len(args) == 0:
+        brief = {k: v for k, v in checks.items() if k not in ('templates',)}
+        if 'images' in brief:
+            brief['images'] = {k: v for k, v in brief['images'].items() if k not in ('missing_rows', 'disagree_rows')}
+        print(json.dumps(brief, indent=1))
+    return 0
+
+
+RIBBON_JSON = r'C:\temp\Ribbon_FABCADMEP-Path.json'
+DEFAULT_DB = r'C:\Egnyte\Shared\Engineering\031407MEP\MURRAY FAB DATABASE'
+
+# Only these MAP.INI entries are ever read. Everything else in the file (logins, recent files) is ignored.
+_INI_PATH_KEYS = {
+    'PROGRAM PATHS': None,    # all keys: Items, Images, Database, Parts, Reports, ...
+    'GENERAL': {'PART DIR', 'IMPORT DIR', 'PROFILE DIR', 'PROJECT DIR'},
+}
+
+
+def parse_map_ini(ini_path):
+    """Read only the folder settings from MAP.INI. Returns {'SECTION': {'KEY': 'value'}} (upper-case names)."""
+    out = {}
+    with open(ini_path, 'rb') as f:
+        data = f.read()
+    # Fabrication writes MAP.INI as UTF-16 with a BOM; accept UTF-8 and ANSI too
+    if data[:2] in (b'\xff\xfe', b'\xfe\xff'):
+        text = data.decode('utf-16', errors='replace')
+    elif data[:3] == b'\xef\xbb\xbf':
+        text = data[3:].decode('utf-8', errors='replace')
+    else:
+        try:
+            text = data.decode('utf-8')
+        except UnicodeDecodeError:
+            text = data.decode('cp1252', errors='replace')
+    if True:
+        section = None
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith('[') and line.endswith(']'):
+                section = line[1:-1].strip().upper()
+                continue
+            if section not in _INI_PATH_KEYS or '=' not in line:
+                continue
+            k, v = line.split('=', 1)
+            k = k.strip().upper()
+            allowed = _INI_PATH_KEYS[section]
+            if allowed is None or k in allowed:
+                out.setdefault(section, {})[k] = v.strip()
+    return out
+
+
+def _find_ci(folder, name):
+    """Case-insensitive file lookup inside a folder. Returns full path or ''."""
+    import os
+    try:
+        for n in os.listdir(folder):
+            if n.lower() == name.lower():
+                return os.path.join(folder, n)
+    except Exception:
+        pass
+    return ''
+
+
+def _resolve(db, value):
+    import os
+    if not value:
+        return ''
+    v = value.replace('/', os.sep).replace('\\', os.sep)
+    if os.path.isabs(v) or (len(v) > 1 and v[1] == ':'):
+        return os.path.normpath(v)
+    return os.path.normpath(os.path.join(db, v))
+
+
+def _read_json(path):
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _write_json(path, cfg):
+    import os
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(cfg, f, indent=2)
+        return True
+    except Exception as ex:
+        print('Could not write', path, '-', ex)
+        return False
+
+
+def resolve_environment(json_path=None, default_db=None, reselect=False, pick_folder=None):
+    """Find the database folder (JSON, else default), read MAP.INI, return the working folders.
+    The JSON keeps any other keys other tools put in it. Optional override keys the user may add:
+    items_path, images_path, service_map_path."""
+    import os
+    json_path = json_path or RIBBON_JSON
+    default_db = default_db or DEFAULT_DB
+    cfg = _read_json(json_path)
+    db = cfg.get('database_path') or default_db
+
+    def valid(p):
+        return bool(p) and os.path.isdir(p) and bool(_find_ci(p, 'MAP.INI'))
+
+    if reselect or not valid(db):
+        if pick_folder:
+            msg = 'Select the Fabrication database folder (the one that contains MAP.INI)'
+            picked = pick_folder(msg)
+            if picked:
+                db = picked
+    env = {'db': db, 'ini': '', 'items': '', 'images': '', 'database': '', 'service_map': '',
+           'json': json_path, 'problems': [], 'ini_paths': {},
+           'image_source': 'itm_first' if str(cfg.get('image_source', '')).lower() == 'itm_first' else 'map_first'}
+    if not valid(db):
+        env['problems'].append('MAP.INI not found in %r. Edit database_path in %s or shift-click the button.' % (db, json_path))
+    else:
+        ini = _find_ci(db, 'MAP.INI')
+        env['ini'] = ini
+        if cfg.get('database_path') != db:
+            cfg['database_path'] = db
+            _write_json(json_path, cfg)
+        elif not os.path.isfile(json_path):
+            _write_json(json_path, cfg)
+        try:
+            paths = parse_map_ini(ini)
+        except Exception as ex:
+            paths = {}
+            env['problems'].append('Could not read MAP.INI: %s' % ex)
+        pp = paths.get('PROGRAM PATHS', {})
+        env['ini_paths'] = {k: _resolve(db, v) for k, v in pp.items()}
+        env['items'] = env['ini_paths'].get('ITEMS', '')
+        env['images'] = env['ini_paths'].get('IMAGES', '')
+        env['database'] = env['ini_paths'].get('DATABASE', '')
+        if env['database'] and os.path.isdir(env['database']):
+            env['service_map'] = _find_ci(env['database'], 'service.map')
+        for key, ov in (('items', 'items_path'), ('images', 'images_path'), ('service_map', 'service_map_path')):
+            if cfg.get(ov):
+                env[key] = cfg[ov]
+        if env['items'] and not os.path.isdir(env['items']):
+            env['problems'].append('Items folder from MAP.INI does not exist: %s' % env['items'])
+        if env['images'] and not os.path.isdir(env['images']):
+            env['problems'].append('Images folder from MAP.INI does not exist: %s' % env['images'])
+    return env
+
+
+def _pick_file(init_dir=''):
+    """File picker for pyRevit (CPython) or plain Windows Python. Returns a path or None."""
+    try:
+        from pyrevit import forms
+        return forms.pick_file(file_ext='map', init_dir=init_dir or '', title='Select service.map')
+    except Exception:
+        pass
+    try:
+        import clr
+        clr.AddReference('System.Windows.Forms')
+        from System.Windows.Forms import OpenFileDialog, DialogResult
+        dlg = OpenFileDialog()
+        dlg.Title = 'Select service.map'
+        dlg.Filter = 'Fabrication map (*.map)|*.map|All files (*.*)|*.*'
+        if init_dir:
+            dlg.InitialDirectory = init_dir
+        return dlg.FileName if dlg.ShowDialog() == DialogResult.OK else None
+    except Exception:
+        pass
+    try:
+        import tkinter
+        from tkinter import filedialog
+        r = tkinter.Tk(); r.withdraw()
+        return filedialog.askopenfilename(title='Select service.map', initialdir=init_dir or None, filetypes=[('map', '*.map')]) or None
+    except Exception:
+        return None
+
+
+def _pick_folder(title):
+    try:
+        from pyrevit import forms
+        return forms.pick_folder(title=title)
+    except Exception:
+        pass
+    try:
+        import clr
+        clr.AddReference('System.Windows.Forms')
+        from System.Windows.Forms import FolderBrowserDialog, DialogResult
+        dlg = FolderBrowserDialog()
+        dlg.Description = title
+        return dlg.SelectedPath if dlg.ShowDialog() == DialogResult.OK else None
+    except Exception:
+        pass
+    try:
+        import tkinter
+        from tkinter import filedialog
+        r = tkinter.Tk(); r.withdraw()
+        return filedialog.askdirectory(title=title) or None
+    except Exception:
+        return None
+
+
+def interactive():
+    import os, tempfile, webbrowser
+    g = globals()
+    shift = bool(g.get('__shiftclick__', False))   # pyRevit: shift-click = choose the database folder again
+    ctrl = bool(g.get('__ctrlclick__', False))     # pyRevit: ctrl-click = choose a different service.map
+    env = resolve_environment(reselect=shift, pick_folder=_pick_folder)
+    path = '' if ctrl else env['service_map']
+    if not path or not os.path.isfile(path):
+        path = _pick_file(env['database'] or env['db']) or ''
+    if not path:
+        print('No service.map selected.')
+        for p in env['problems']:
+            print('  problem:', p)
+        return 0
+    items = env['items'] if os.path.isdir(env['items'] or '') else ''
+    images = env['images'] if os.path.isdir(env['images'] or '') else ''
+    if not items:
+        items = _pick_folder("MAP.INI did not give a usable Items folder. Select your ITEMS folder (contains 'Piping Components'), or cancel") or ''
+    raw = decompress(path)
+    cache_path = os.path.join(os.path.dirname(env['json']), 'fabmap_itm_cache.json')
+    bundle = _bundle(raw, items, images, env['image_source'] == 'itm_first', cache_path)
+    out = os.path.join(tempfile.gettempdir(), 'fabmap_viewer.html')
+    _write_html(bundle, out)
+    c = bundle['checks']
+    print('Read %s: %d palettes, %d tabs, %d palette buttons, %d services, %d problems' % (
+        os.path.basename(path), c['templates']['templates'], c['tabs'], c['buttons'], c['services'], len(c['all_problems'])))
+    for p in c['all_problems'][:10]:
+        print('  problem:', p)
+    print('Database folder:', env['db'])
+    print('MAP.INI        :', env['ini'] or '(not found)')
+    print('Items folder   :', items or '(not set)')
+    print('Images folder  :', images or '(not set)')
+    print('service.map    :', path)
+    print('Path settings  :', env['json'], ' (edit database_path to redirect, or shift-click the button)')
+    for p in env['problems']:
+        print('  problem:', p)
+    im = c.get('images')
+    if im:
+        print('Image source   : %s (add "image_source": "itm_first" to the JSON for the slow, thorough mode)' % ('.ITM first (slow)' if im['itm_first'] else 'service.map first, .ITM only when no picture is found'))
+        print('Time           : read and parse %s s, pictures %s s' % (c.get('parse_seconds', '?'), im.get('seconds', '?')))
+        print('Images found %d, not found %d (%d distinct items)  (%s)' % (im['found'], im['missing'], im.get('distinct_items_missing', 0), ', '.join('%s: %d' % kv for kv in sorted(im['via'].items()))))
+        print('.ITM files read %d, from cache %d%s' % (im['itm_files_read'], im['itm_cache_hits'],
+              (', skipped %d (20 s limit; run again to continue, results are cached)' % im['itm_skipped']) if im.get('itm_skipped') else ''))
+        import csv
+        for rows, name, head in ((im.get('missing_rows'), 'fabmap_missing_images.csv',
+                                  ['palette', 'tab', 'button', 'item_path', 'image_stored_in_service_map', 'itm_file_found', 'image_names_inside_itm', 'first_path_tried']),
+                                 (im.get('disagree_rows'), 'fabmap_image_disagreements.csv',
+                                  ['palette', 'tab', 'button', 'item_path', 'image_from_itm', 'image_from_service_map', 'service_map_how'])):
+            if rows:
+                p = os.path.join(tempfile.gettempdir(), name)
+                try:
+                    with open(p, 'w', newline='', encoding='utf-8-sig') as f:
+                        w = csv.writer(f)
+                        w.writerow(head)
+                        w.writerows(rows)
+                    print('%s (%d rows): %s' % ('Missing images' if 'missing' in name else 'Item and service.map point to different images', len(rows), p))
+                except Exception as ex:
+                    print('Could not write', p, ex)
+        for m in im['missing_examples'][:8]:
+            print('  no image:', m)
+    print('Viewer:', out)
+    try:
+        os.startfile(out)
+    except Exception:
+        webbrowser.open('file:///' + out.replace(os.sep, '/'))
+    return 0
+
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2 or not sys.argv[1].lower().endswith('.map'):
+        interactive()          # no sys.exit here: pyRevit reports SystemExit as an error
+    else:
+        rc = main(sys.argv)
+        if rc:
+            sys.exit(rc)

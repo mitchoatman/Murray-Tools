@@ -6,6 +6,8 @@ import clr
 clr.AddReference('RevitAPI')
 clr.AddReference('RevitAPIUI')
 clr.AddReference('System')
+clr.AddReference('System.Windows.Forms')
+clr.AddReference('System.Drawing')
 
 from Autodesk.Revit import DB
 from Autodesk.Revit.DB import (
@@ -13,8 +15,10 @@ from Autodesk.Revit.DB import (
     Family, FamilySymbol, BuiltInCategory, IndependentTag,
     TagOrientation, Reference, BuiltInParameter
 )
-from Autodesk.Revit.UI import TaskDialog
 from Autodesk.Revit.UI.Selection import ISelectionFilter, ObjectType
+
+from System.Windows.Forms import NotifyIcon, ToolTipIcon
+from System.Drawing import Icon, SystemIcons
 
 doc = __revit__.ActiveUIDocument.Document
 uidoc = __revit__.ActiveUIDocument
@@ -26,6 +30,35 @@ TYPE_NAME = 'NONE'
 
 FAMILY_FILE_1 = 'Fabrication Duct - Size Tag.rfa'
 FAMILY_PATH_1 = os.path.join(script_dir, FAMILY_FILE_1)
+
+# Keeps NotifyIcon alive long enough for the balloon to render
+_active_notifications = []
+
+
+def show_balloon_notification(title, message, tooltip_icon=None, timeout=5000):
+    """Displays a native Windows balloon notification."""
+    if tooltip_icon is None:
+        tooltip_icon = ToolTipIcon.Info
+
+    notify_icon = NotifyIcon()
+    _active_notifications.append(notify_icon)
+    try:
+        icon_path = os.path.join(script_dir, 'Murray.ico')
+        if os.path.exists(icon_path):
+            notify_icon.Icon = Icon(icon_path)
+        elif tooltip_icon == ToolTipIcon.Error:
+            notify_icon.Icon = SystemIcons.Error
+        else:
+            notify_icon.Icon = SystemIcons.Information
+
+        notify_icon.Visible = True
+        notify_icon.ShowBalloonTip(timeout, title, message, tooltip_icon)
+    except Exception:
+        pass
+
+
+def show_error_notification(message, timeout=5000):
+    show_balloon_notification("Fabrication Duct Size Tags", message, ToolTipIcon.Error, timeout)
 
 
 class FamilyLoaderOptionsHandler(DB.IFamilyLoadOptions):
@@ -87,27 +120,27 @@ def get_element_connector_position_and_orientation(element):
             if len(connectors) >= 2:
                 p1 = connectors[0].Origin
                 p2 = connectors[1].Origin
-                
+
                 midpoint = DB.XYZ((p1.X + p2.X) / 2.0, (p1.Y + p2.Y) / 2.0, (p1.Z + p2.Z) / 2.0)
-                
+
                 vec = p2 - p1
                 dx = abs(vec.X)
                 dy = abs(vec.Y)
-                
+
                 # Determine orientation
                 if dx > dy:
                     orientation = TagOrientation.Horizontal if is_under_24 else TagOrientation.Vertical
                 else:
                     orientation = TagOrientation.Vertical if is_under_24 else TagOrientation.Horizontal
-                
-                # If the tag orientation matches the run direction (meaning text runs parallel along the duct length), 
+
+                # If the tag orientation matches the run direction (meaning text runs parallel along the duct length),
                 # push it farther away so it doesn't crowd the connector. If it runs across the width, keep it close.
                 is_parallel_to_run = (dx > dy and orientation == TagOrientation.Horizontal) or (dy > dx and orientation == TagOrientation.Vertical)
                 offset_distance = 1.35 if is_parallel_to_run else 0.75
 
                 direction_vector = (midpoint - p1).Normalize() if p1.DistanceTo(midpoint) > 0 else DB.XYZ(0, 0, 0)
                 tag_position = p1 + direction_vector * offset_distance
-                
+
                 return tag_position, orientation
     except:
         pass
@@ -131,7 +164,7 @@ def get_element_connector_position_and_orientation(element):
 
 def main():
     if curview.ViewType == DB.ViewType.ThreeD:
-        TaskDialog.Show("Error", "Cannot use this tool in a 3D view.")
+        show_error_notification("Cannot use this tool in a 3D view.")
         return
 
     families = FilteredElementCollector(doc).OfClass(Family)
@@ -153,13 +186,13 @@ def main():
             if t_load.HasStarted():
                 t_load.RollBack()
             tg.RollBack()
-            TaskDialog.Show("Error", "Failed to load families: {}".format(str(e)))
+            show_error_notification("Failed to load families: {}".format(str(e)))
             return
 
     tag_symbol = get_tag_symbol(doc, FAMILY_NAME, TYPE_NAME)
     if not tag_symbol:
         tg.RollBack()
-        TaskDialog.Show("Error", "Could not find tag symbol '{}'.".format(TYPE_NAME))
+        show_error_notification("Could not find tag symbol '{}'.".format(TYPE_NAME))
         return
 
     selected_ids = list(uidoc.Selection.GetElementIds())
@@ -219,13 +252,17 @@ def main():
 
         t_tag.Commit()
         tg.Assimilate()
-        TaskDialog.Show("Success", "Successfully placed {} size tags.".format(tagged_count))
+
+        show_balloon_notification(
+            "Fabrication Duct Size Tags",
+            "Successfully placed {} size tag(s).".format(tagged_count)
+        )
 
     except Exception as e:
         if t_tag.HasStarted():
             t_tag.RollBack()
         tg.RollBack()
-        TaskDialog.Show("Error", "Error during tagging: {}".format(str(e)))
+        show_error_notification("Error during tagging: {}".format(str(e)))
 
 
 if __name__ == '__main__':

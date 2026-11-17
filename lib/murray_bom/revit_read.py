@@ -439,6 +439,10 @@ def read_parts_iter(doc, source, names=None):
         if ws:
             props['Workset'] = ws
         part = Part(eid_int(e.Id), name, props, straight, ws)
+        try:
+            part.service_type_id = int(e.ServiceType)       # FabricationPart.ServiceType: the element's own service type (valve = 53)
+        except Exception:
+            part.service_type_id = None
         return part
 
     for n, eid in enumerate(ids):
